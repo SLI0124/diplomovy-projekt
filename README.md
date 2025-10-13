@@ -42,3 +42,9 @@ python -c "import torch; print(torch.__version__); print(torch.__path__)"
 > ```bash
 > pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu128
 > ```
+
+## Použité datasety
+
+Svoboda, R., et al. (2024). *Natural Gas Consumption Forecasting System*.  
+Dataset AI VŠB – Natural Gas Forecasting. Dostupné z tohoto [odkazu](https://ai.vsb.cz/natural-gas-forecasting).  
+DOI: [10.1016/j.energy.2020.119430](https://doi.org/10.1016/j.energy.2020.119430)
