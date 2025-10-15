@@ -4,8 +4,9 @@ This will be a list of things that need to be done in order to finish the projec
 
 ## Immediate
 
-- [ ] look for columns that are easily and still obtainable via API endpoints for consultation
+- [X] look for columns that are easily and still obtainable via API endpoints for consultation
 - [ ] make clear boundaries of what is downloader, what is processor, what is final dataset assembler
+- [ ] add requirements for conda and pip, you can look generally for some environments and project settings overall
 
 ## Next steps
 
@@ -50,3 +51,12 @@ This will be a list of things that need to be done in order to finish the projec
 - `consumption` is not available via API, gasnet probably change their endpoints, I will have to ask them directly, old links are in `consumption_downloader.cpp`
   - našel jsem odkaz [tady](https://www.gasnet.cz/dalsi-sluzby/pro-stavare-a-projektanty/zadost-o-vektorova-data)
 - další webovka, kterou jsem našel pro počasí je [tady](https://mesonet.agron.iastate.edu/request/download.phtml?network=CZ__ASOS), ale nevím, jestli to není jenom pro placené uživatele
+
+### Notes after consultation
+
+- firstly recreate the dataset as it is now, no new column needed
+  - look into new source of **gasnet** data
+- secondly try to find better source than that russian one for weather data, they are probably stealing it from somewhere else so I should be able to find it as well
+- he said there is algorithm for calculating easter holiday, I should look into it
+- for now, keep the before holiday and holiday as it is, we can resolve it later
+- he was searching for some prazska plynarenska and chmi, might give it a look
