@@ -3,6 +3,8 @@ Module for downloading gas consumption data from Gasnet.
 
 Downloads daily CSV files from gasnet.cz for gas consumption data.
 Data is available from 2013-01-01 onwards.
+Gasnet provides data from 7:00 of the current day to 6:00 of the next day.
+So for to start from 2013-01-01, we need to download from 2012-12-31.
 """
 
 import sys
@@ -25,7 +27,7 @@ def ensure_directory(path: str):
 def download_consumption_data(start_date_param=None, end_date_param=None):
     """Main download function - entry point for main.py"""
     if start_date_param is None:
-        start_date_param = "2013-01-01"
+        start_date_param = "2012-12-31"
     if end_date_param is None:
         end_date_param = (datetime.date.today() - datetime.timedelta(days=1)).strftime(
             "%Y-%m-%d"
@@ -71,15 +73,15 @@ def download_consumption_data_with_range(
         end_date_param = end_date_param.date()
 
     if start_date < datetime.date(
-        2013, 1, 1
+        2012, 12, 31
     ):  # hardcoded based on data availability from previous downloader
         print(
-            "Start date cannot be before 1.1.2013 since it is the first "
+            "Start date cannot be before 31.12.2012 since it is the first "
             "available data from previous dataset."
         )
-        delta_days = (datetime.date(2013, 1, 1) - start_date).days
-        print(f"Adjusting start date by {delta_days} days to 1.1.2013.")
-        start_date = datetime.date(2013, 1, 1)
+        delta_days = (datetime.date(2012, 12, 31) - start_date).days
+        print(f"Adjusting start date by {delta_days} days to 31.12.2012.")
+        start_date = datetime.date(2012, 12, 31)
 
     if start_date > end_date_param:
         print(
