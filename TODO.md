@@ -5,14 +5,18 @@ This will be a list of things that need to be done in order to finish the projec
 ## Immediate
 
 - [X] look for columns that are easily and still obtainable via API endpoints for consultation
-- [ ] make clear boundaries of what is downloader, what is processor, what is final dataset assembler
-- [ ] add requirements for conda and pip, you can look generally for some environments and project settings overall
+- [X] make clear boundaries of what is downloader, what is processor, what is final dataset assembler
+- [X] add requirements for conda and pip, you can look generally for some environments and project settings overall
+- [ ] gas net for consumption data is having maintanance so I need to process them later
 
 ## Next steps
 
-- [ ] any kind of column saving into `data/processed` folder or something like that
-- [ ] create a main downloader script that sequentially calls individual downloader modules; allow selective downloading (e.g., only weather data) or downloading all data at once
-- [ ] same logic for processors
+- [x] any kind of column saving into `data/processed` folder or something like that
+- [x] create a main downloader script that sequentially calls individual downloader modules; allow selective downloading (e.g., only weather data) or downloading all data at once
+- [x] same logic for processors
+- [ ] testing values from original dataset against newly acquired values for consistency
+- [ ] I think I am creating *before_holiday* correctly, but in original dataset it seems that it is *actually* after holiday, I should keep that in mind
+- [ ] at the complete end of pipeline, create final dataset assembler that merges all processed columns into one final dataset ready for modeling, taking care of any necessary alignment of latest dates across all columns or handling missing data appropriately
 
 ## Ideas
 
@@ -20,13 +24,13 @@ This will be a list of things that need to be done in order to finish the projec
 
 ## Columns implementation status
 
-- [ ] year - will be generated quite easily
-- [ ] month - will be generated quite easily
-- [ ] day - will be generated quite easily
-- [ ] hour - will be generated quite easily
-- [ ] day_of_week - will be generated quite easily
-- [ ] before_holiday - need to ask, will be scraped
-- [ ] holiday - need to ask, will be scraped, it does not make much sense to type them out manually
+- [X] year - will be generated quite easily
+- [X] month - will be generated quite easily
+- [X] day - will be generated quite easily
+- [X] hour - will be generated quite easily
+- [X] day_of_week - will be generated quite easily
+- [X] before_holiday - need to ask, will be scraped
+- [X] holiday - need to ask, will be scraped, it does not make much sense to type them out manually
 - [ ] consumption - gasnet není dostupný, odkazy v `consumption_downloader.cpp`
 - [ ] temperature - [data source](http://rp5.ru/metar.php?metar=LKKB&lang=en)
 - [ ] pressure - [data source](http://rp5.ru/metar.php?metar=LKKB&lang=en)
@@ -51,6 +55,11 @@ This will be a list of things that need to be done in order to finish the projec
 - `consumption` is not available via API, gasnet probably change their endpoints, I will have to ask them directly, old links are in `consumption_downloader.cpp`
   - našel jsem odkaz [tady](https://www.gasnet.cz/dalsi-sluzby/pro-stavare-a-projektanty/zadost-o-vektorova-data)
 - další webovka, kterou jsem našel pro počasí je [tady](https://mesonet.agron.iastate.edu/request/download.phtml?network=CZ__ASOS), ale nevím, jestli to není jenom pro placené uživatele
+
+---
+
+- I can't find ppnet, which seems to be source of consumption data, gasnet still provides `gasnet`, `vcpnet`, `jmpnet` and `smpnet` datasets, but not ppnet
+  - this means it is not possible to recreate consumption data exactly as it was in original dataset
 
 ### Notes after consultation
 
