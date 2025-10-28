@@ -2,6 +2,7 @@ import argparse
 from datetime import datetime
 
 import processors.dates
+import processors.consumption
 import downloaders.consumption
 
 
@@ -33,6 +34,9 @@ def process_data(process_type: str = None, end_date: str = None) -> None:
         case "dates":
             print("Processing datetime features data...")
             processors.dates.process_datetime_features(end_date_param=end_date)
+        case "consumption":
+            print("Processing gas consumption data...")
+            processors.consumption.process_consumption_data(end_date_param=end_date)
         case _:
             raise NotImplementedError("Processing all data is not implemented yet.")
 
@@ -47,8 +51,8 @@ def main():
     )
     parser.add_argument(
         "--process",
-        choices=["dates"],
-        help="Process specific data type: 'dates' for datetime features",
+        choices=["dates", "consumption"],
+        help="Process specific data type: 'dates' for datetime features, 'consumption' for gas consumption data",
     )
     parser.add_argument("--all", action="store_true", help="Download and process data")
     parser.add_argument(
@@ -61,7 +65,7 @@ def main():
     if args.all:
         args.download = "consumption"
         if not args.process:
-            args.process = "dates"
+            args.process = "consumption"
 
     if args.download:
         download_data(args.download, args.end_date)
