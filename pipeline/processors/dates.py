@@ -27,6 +27,8 @@ from pathlib import Path
 
 import pandas as pd
 
+DATA_SAVE_PATH = "../../data/processed/datetime_features/"
+
 
 def calculate_easter(year):
     """Calculate Easter date using Anonymous Gregorian algorithm"""
@@ -54,12 +56,12 @@ def get_czech_holidays(year):
     # Static holidays
     holidays.extend(
         [
-            date(year, 1, 1),    # New Year's Day
-            date(year, 5, 1),    # Labour Day
-            date(year, 5, 8),    # Victory in Europe Day
-            date(year, 7, 5),    # Saints Cyril and Methodius Day
-            date(year, 7, 6),    # Jan Hus Day
-            date(year, 9, 28),   # Czech Statehood Day
+            date(year, 1, 1),  # New Year's Day
+            date(year, 5, 1),  # Labour Day
+            date(year, 5, 8),  # Victory in Europe Day
+            date(year, 7, 5),  # Saints Cyril and Methodius Day
+            date(year, 7, 6),  # Jan Hus Day
+            date(year, 9, 28),  # Czech Statehood Day
             date(year, 10, 28),  # Independence Day
             date(year, 11, 17),  # Struggle for Freedom and Democracy Day
             date(year, 12, 24),  # Christmas Eve
@@ -157,7 +159,7 @@ def process_datetime_features(end_date_param=None):
     """Main processing function - entry point for main.py"""
     # Get the directory relative to main.py
     current_dir = Path(__file__).parent
-    output_dir = current_dir / "../../data/raw/datetime_features"
+    output_dir = current_dir / DATA_SAVE_PATH
 
     if end_date_param is not None:
         try:
