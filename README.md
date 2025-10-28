@@ -6,38 +6,37 @@ V tomto repozitáři najdete ukázky a popisy implementace metod pro předpovíd
 
 ## ⚙️ Instalace
 
-Pro implementaci projektu byla zvolena knihovna **PyTorch**, která nabízí výbornou podporu pro práci s grafickými akcelerátory. Instalace a konfigurace této knihovny může být někdy složitější, proto **doporučuji řídit se oficiální dokumentací** dostupnou [zde](https://pytorch.org/get-started/locally/).
+### Předpoklady
 
-### 📦 Standardní instalace
+- **Python 3.8+** by měl postačit
+- **CUDA Runtime** (pro GPU podporu) - viz [oficiální instalační průvodce](https://developer.nvidia.com/cuda-downloads)
 
-PyTorch lze nainstalovat standardním způsobem pomocí **pip**. Tento způsob je nejjednodušší a oficiálně podporovaný, ale vyžaduje instalaci ovladačů pro grafickou kartu a CUDA. Stačí se řídit oficiální dokumentací zmíněnou výše.
-
-### 🐍 Anaconda
-
-PyTorch byl dlouhou dobu dostupný k instalaci přes **Anacondu**, avšak tento způsob instalace byl [ukončen](https://github.com/pytorch/pytorch/issues/138506) od verze 2.5.1. Stále však existuje [komunitní verze PyTorch](https://anaconda.org/conda-forge/pytorch), kterou používám a která podporuje instalaci přes Anacondu včetně podpory GPU.
-
-**V konzoli Anaconda spusťte následující příkazy pro instalaci:**
+### 📦 Instalace pomocí pip
 
 ```bash
-conda create -n my_env
-conda activate my_env
-conda install conda-forge::pytorch
+# Instalace všech závislostí
+pip install -r requirements.txt
 ```
 
-**Ověření instalace:**
+> 💡 **Pro jiné verze CUDA:** Navštivte [oficiální stránky PyTorch](https://pytorch.org/get-started/locally/) a nahraďte torch instalaci správnou verzí.
 
-```python
-python -c "import torch; print(torch.__version__); print(torch.__path__)"
-# 2.7.1+cu128 => verze se může lišit
+### 🐍 Instalace pomocí Anaconda/Conda
+
+```bash
+# Vytvoření a aktivace prostředí
+conda env create -f environment.yml
+conda activate master-thesis-sli0124
 ```
 
-✅ *Pokud instalace proběhne bez chyb a tento příkaz vrátí očekávanou verzi, mělo by být vše připraveno k použití.*
+### ✅ Ověření instalace
 
-> ⚠️ **Známé problémy a jejich řešení:**
+```bash
+python check_gpu.py
+```
+
+> ⚠️ **Řešení problémů s DLL:**
 >
-> Při instalaci se může objevit [chyba s DLL](https://discuss.pytorch.org/t/importerror-dll-load-failed-while-importing-c-das-angegebene-modul-wurde-nicht-gefunden-the-specified-module-can-not-be-found/217569), která je poměrně častá. Tento problém jsem vyřešil instalací předchozí verze PyTorch z komunitní distribuce.
->
-> Aktuální verze PyTorch je *2.8.0*, ale instalátor této verze je stále ve verzi *2.7.1*. Tento problém nastal, když jsem se pokusil nainstalovat současnou verzi. Pokud bude k dispozici novější verze, nebo instalátor bude v stejné verzi jako knihovna samotná, doporučuji ji vyzkoušet bez ohledu na verzi. V případě potíží lze konkrétní verzi nainstalovat pomocí pip:
+> Při instalaci se může objevit [chyba s DLL](https://discuss.pytorch.org/t/importerror-dll-load-failed-while-importing-c-das-angegebene-modul-wurde-nicht-gefunden-the-specified-module-can-not-be-found/217569), která je poměrně častá. Tento problém jsem vyřešil instalací konkrétní stabilní verze, nebo jakékoli předchozí verze PyTorch. Všechny dostupné verze najdete na [stránce s předchozími verzemi PyTorch](https://pytorch.org/get-started/previous-versions/).
 >
 > ```bash
 > pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu128
