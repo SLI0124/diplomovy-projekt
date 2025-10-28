@@ -9,3 +9,4 @@ dependencies:
   - anaconda::tqdm
   - conda-forge::beautifulsoup4
   - anaconda::requests
+  - anaconda::pylint
