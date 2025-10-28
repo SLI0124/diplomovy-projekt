@@ -1,12 +1,24 @@
 import argparse
 from datetime import datetime
 
-import pipeline.processors.dates
+import processors.dates
+import downloaders.consumption
 
 
-def download_data() -> None:
-    # placeholder for real download logic
-    raise NotImplementedError("Data downloading is not implemented yet.")
+def download_data(download_type: str = None, end_date: str = None) -> None:
+    if end_date:  # validate date format to be YYYY-MM-DD
+        try:
+            datetime.strptime(end_date, "%Y-%m-%d")
+        except ValueError:
+            print("Invalid date format. Please use 'YYYY-MM-DD'.")
+            return
+
+    match download_type:
+        case "consumption":
+            print("Downloading gas consumption data...")
+            downloaders.consumption.download_consumption_data(end_date_param=end_date)
+        case _:
+            raise NotImplementedError("Downloading all data is not implemented yet.")
 
 
 def process_data(process_type: str = None, end_date: str = None) -> None:
@@ -20,7 +32,7 @@ def process_data(process_type: str = None, end_date: str = None) -> None:
     match process_type:
         case "dates":
             print("Processing datetime features data...")
-            pipeline.processors.dates.process_datetime_features(end_date_param=end_date)
+            processors.dates.process_datetime_features(end_date_param=end_date)
         case _:
             raise NotImplementedError("Processing all data is not implemented yet.")
 
@@ -28,7 +40,11 @@ def process_data(process_type: str = None, end_date: str = None) -> None:
 def main():
     # this will run all the modules: downloaders, processors, ...
     parser = argparse.ArgumentParser(description="Data Pipeline Manager")
-    parser.add_argument("--download", action="store_true", help="Download data")
+    parser.add_argument(
+        "--download",
+        choices=["consumption"],
+        help="Download specific data type: 'consumption' for gas consumption data",
+    )
     parser.add_argument(
         "--process",
         choices=["dates"],
@@ -43,12 +59,12 @@ def main():
     args = parser.parse_args()
 
     if args.all:
-        args.download = True
+        args.download = "consumption"
         if not args.process:
-            args.process = "all"
+            args.process = "dates"
 
     if args.download:
-        download_data()
+        download_data(args.download, args.end_date)
 
     if args.process:
         process_data(args.process, args.end_date)
