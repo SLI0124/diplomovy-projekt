@@ -1,0 +1,11 @@
+name: master-thesis-sli0124
+channels:
+  - conda-forge
+  - anaconda
+  - defaults
+dependencies:
+  - conda-forge::pytorch
+  - anaconda::pandas
+  - anaconda::tqdm
+  - conda-forge::beautifulsoup4
+  - anaconda::requests
