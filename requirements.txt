@@ -4,3 +4,5 @@ tqdm
 beautifulsoup4
 requests
 pylint
+openmeteo-requests
+retry-requests
