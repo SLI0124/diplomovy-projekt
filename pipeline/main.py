@@ -4,6 +4,7 @@ from datetime import datetime
 import processors.dates
 import processors.consumption
 import downloaders.consumption
+import downloaders.weather_source
 
 
 def download_data(download_type: str = None, end_date: str = None) -> None:
@@ -18,6 +19,9 @@ def download_data(download_type: str = None, end_date: str = None) -> None:
         case "consumption":
             print("Downloading gas consumption data...")
             downloaders.consumption.download_consumption_data(end_date_param=end_date)
+        case "weather":
+            print("Downloading weather data...")
+            downloaders.weather_source.download_weather_data(end_date_param=end_date)
         case _:
             raise NotImplementedError("Downloading all data is not implemented yet.")
 
@@ -46,8 +50,8 @@ def main():
     parser = argparse.ArgumentParser(description="Data Pipeline Manager")
     parser.add_argument(
         "--download",
-        choices=["consumption"],
-        help="Download specific data type: 'consumption' for gas consumption data",
+        choices=["consumption", "weather"],
+        help="Download specific data type: 'consumption' for gas consumption data, 'weather' for weather data",
     )
     parser.add_argument(
         "--process",
