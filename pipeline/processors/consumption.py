@@ -146,7 +146,7 @@ def save_processed_data_to_csv(df, output_dir, file_prefix="consumption"):
 
     for year in tqdm(years, desc="Saving files"):
         year_data = df[df["year"] == year]["consumption"]
-        filename = output_dir / f"{file_prefix}_{year}.csv"
+        filename = output_dir / f"{file_prefix}_{int(year)}.csv"
         year_data.to_csv(filename, index=False, header=["consumption"])
 
     print(f"All files saved to: {output_dir}")
