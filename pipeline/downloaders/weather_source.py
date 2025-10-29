@@ -14,12 +14,16 @@ import openmeteo_requests
 import pandas as pd
 from retry_requests import retry
 
-DATA_SAVE_PATH = "../../data/raw/weather/"
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+DATA_SAVE_PATH = PROJECT_ROOT / "data" / "raw" / "weather"
 
 
-def ensure_directory(path: str):
+def ensure_directory(path):
     """Ensure that the directory exists, creating it if necessary."""
-    dir_path = Path(path)
+    if isinstance(path, str):
+        dir_path = Path(path)
+    else:
+        dir_path = path
     if not dir_path.exists():
         dir_path.mkdir(parents=True, exist_ok=True)
 
@@ -173,7 +177,7 @@ def download_weather_data_with_range(
         hourly_dataframe = pd.DataFrame(data=hourly_data)
 
         # Save to CSV file
-        output_file = Path(DATA_SAVE_PATH) / f"weather_{start_date}_{end_date}.csv"
+        output_file = DATA_SAVE_PATH / f"weather_{start_date}_{end_date}.csv"
         hourly_dataframe.to_csv(output_file, index=False)
 
         print(f"Weather data saved to: {output_file}")

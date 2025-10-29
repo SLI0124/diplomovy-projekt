@@ -14,12 +14,17 @@ from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 
-DATA_SAVE_PATH = "../data/raw/gasnet/"
+# Get the project root directory (two levels up from this file)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+DATA_SAVE_PATH = PROJECT_ROOT / "data" / "raw" / "gasnet"
 
 
-def ensure_directory(path: str):
+def ensure_directory(path):
     """Ensure that the directory exists, creating it if necessary."""
-    dir_path = Path(path)
+    if isinstance(path, str):
+        dir_path = Path(path)
+    else:
+        dir_path = path
     if not dir_path.exists():
         dir_path.mkdir(parents=True, exist_ok=True)
 
@@ -97,9 +102,9 @@ def download_consumption_data_with_range(
     print(f"Total days to download: {total_days}")
     for i in tqdm(range(total_days), desc="Downloading"):
         current_date = start_date + datetime.timedelta(days=i)
-        date_str = current_date.strftime('%Y%m%d')
+        date_str = current_date.strftime("%Y%m%d")
         file_url = f"https://www.gasnet.cz/storage/online-toky/gasnet/{date_str}.csv"
-        file_path = Path(DATA_SAVE_PATH) / f"{date_str}.csv"
+        file_path = DATA_SAVE_PATH / f"{date_str}.csv"
         if not file_path.is_file():
             try:
                 df = pd.read_csv(file_url, sep=";")
