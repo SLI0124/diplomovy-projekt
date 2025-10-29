@@ -4,6 +4,7 @@ from datetime import datetime
 import processors.dates
 import processors.consumption
 import processors.weather_source
+import processors.main_merger
 import downloaders.consumption
 import downloaders.weather_source
 
@@ -45,6 +46,9 @@ def process_data(process_type: str = None, end_date: str = None) -> None:
         case "weather":
             print("Processing weather data...")
             processors.weather_source.process_weather_data(end_date_param=end_date)
+        case "merge":
+            print("Merging all processed data...")
+            processors.main_merger.merge_processed_data(end_date_param=end_date)
         case _:
             raise NotImplementedError("Processing all data is not implemented yet.")
 
@@ -59,8 +63,8 @@ def main():
     )
     parser.add_argument(
         "--process",
-        choices=["dates", "consumption", "weather"],
-        help="Process specific data type: 'dates' for datetime features, 'consumption' for gas consumption data, 'weather' for weather data",
+        choices=["dates", "consumption", "weather", "merge"],
+        help="Process specific data type: 'dates' for datetime features, 'consumption' for gas consumption data, 'weather' for weather data, 'merge' for merging all processed data",
     )
     parser.add_argument("--all", action="store_true", help="Download and process data")
     parser.add_argument(
