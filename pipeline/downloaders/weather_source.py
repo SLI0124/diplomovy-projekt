@@ -121,7 +121,12 @@ def download_weather_data(end_date_param=None):
     """Main download function - entry point for main.py"""
     start_date_param = "2013-01-01"
     if end_date_param is None:
-        end_date_param = datetime.date.today().strftime("%Y-%m-%d")
+        # Get last day of previous month
+        today = datetime.date.today()
+        first_day_current_month = today.replace(day=1)
+        end_date_param = (
+            first_day_current_month - datetime.timedelta(days=1)
+        ).strftime("%Y-%m-%d")
 
     # Convert string dates to date objects if needed
     start_date_obj = datetime.datetime.strptime(start_date_param, "%Y-%m-%d").date()

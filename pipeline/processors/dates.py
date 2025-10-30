@@ -2,7 +2,7 @@
 Module for generating datetime features with Czech holidays.
 
 This file will create columns year, month, day, hour, day_of_week, holiday,
-and before_holiday from 1.1.2013 to given end date, preferably yesterday.
+and before_holiday from 1.1.2013 to given end date, preferably last day of previous month.
 
 Uses Czech public holidays as source.
 

@@ -33,9 +33,12 @@ def download_consumption_data(end_date_param=None):
     """Main download function - entry point for main.py"""
     start_date_param = "2012-12-31"
     if end_date_param is None:
-        end_date_param = (datetime.date.today() - datetime.timedelta(days=1)).strftime(
-            "%Y-%m-%d"
-        )
+        # Get last day of previous month
+        today = datetime.date.today()
+        first_day_current_month = today.replace(day=1)
+        end_date_param = (
+            first_day_current_month - datetime.timedelta(days=1)
+        ).strftime("%Y-%m-%d")
 
     # Convert string dates to date objects
     start_date = datetime.datetime.strptime(start_date_param, "%Y-%m-%d").date()
@@ -64,9 +67,12 @@ def download_consumption_data_with_range(
 ):
     """Download consumption data for a specific date range."""
     if end_date_param is None:
-        end_date_param = datetime.date.today() - datetime.timedelta(days=1)
+        # Get last day of previous month
+        today = datetime.date.today()
+        first_day_current_month = today.replace(day=1)
+        end_date_param = first_day_current_month - datetime.timedelta(days=1)
         print(
-            f"No end date provided. Using last complete day, which is yesterday: {end_date_param}"
+            f"No end date provided. Using last day of previous month: {end_date_param}"
         )
 
     # normalize if user passed a datetime

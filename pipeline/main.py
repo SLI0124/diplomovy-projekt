@@ -113,7 +113,7 @@ def main():
         "--end-date",
         help=(
             "End date in YYYY-MM-DD format (e.g., 2025-10-28). "
-            "If not specified, defaults to yesterday."
+            "If not specified, defaults to last day of previous month."
         ),
     )
 
