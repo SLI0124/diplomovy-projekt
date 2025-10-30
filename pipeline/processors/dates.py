@@ -26,12 +26,15 @@ from datetime import datetime, timedelta, date
 from pathlib import Path
 
 import pandas as pd
+from tqdm import tqdm
 
 DATA_SAVE_PATH = "../../data/processed/datetime_features/"
 
 
 def calculate_easter(year):
-    """Calculate Easter date using Anonymous Gregorian algorithm"""
+    """Calculate Easter date using Anonymous Gregorian algorithm."""
+    # Anonymous Gregorian algorithm for Easter calculation
+    # Source: https://en.wikipedia.org/wiki/Computus#Anonymous_Gregorian_algorithm
     a = year % 19
     b = year // 100
     c = year % 100
@@ -42,15 +45,15 @@ def calculate_easter(year):
     h = (19 * a + b - d - g + 15) % 30
     i = c // 4
     k = c % 4
-    l = (32 + 2 * e + 2 * i - h - k) % 7
-    m = (a + 11 * h + 22 * l) // 451
-    month = (h + l - 7 * m + 114) // 31
-    day = ((h + l - 7 * m + 114) % 31) + 1
+    leap_offset = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * leap_offset) // 451
+    month = (h + leap_offset - 7 * m + 114) // 31
+    day = ((h + leap_offset - 7 * m + 114) % 31) + 1
     return date(year, month, day)
 
 
 def get_czech_holidays(year):
-    """Get all Czech public holidays for given year"""
+    """Get all Czech public holidays for given year."""
     holidays = []
 
     # Static holidays
@@ -83,7 +86,7 @@ def get_czech_holidays(year):
 
 
 def create_date_range(start_date="2013-01-01", end_date_param=None):
-    """Create date range from start_date to end_date (default yesterday)"""
+    """Create date range from start_date to end_date (default yesterday)."""
     if end_date_param is None:
         end_date_param = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
@@ -91,32 +94,32 @@ def create_date_range(start_date="2013-01-01", end_date_param=None):
 
 
 def generate_datetime_features_data(start_date_param=None, end_date_param=None):
-    """Generate hourly data with datetime features and holiday flags"""
-    # Use create_date_range to get the datetime range
+    """Generate hourly data with datetime features and holiday flags."""
+    # Set default parameters
     if start_date_param is None:
         start_date_param = "2013-01-01"
     if end_date_param is None:
         end_date_param = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
-    # Create hourly date range using the existing function
+    # Create hourly date range
     date_range = create_date_range(start_date_param, end_date_param)
+    print(
+        f"Generating datetime features from {start_date_param} to {end_date_param}..."
+    )
 
+    # Pre-compute holidays for all years in the range
+    years_in_range = {dt.year for dt in date_range}
+    holidays_by_year = {year: get_czech_holidays(year) for year in years_in_range}
+
+    # Generate datetime features with progress bar
     data = []
-
-    # Group by date to get holidays for each year
-    dates_by_year = {}
-    for dt in date_range:
-        year = dt.year
-        if year not in dates_by_year:
-            dates_by_year[year] = get_czech_holidays(year)
-
-    for dt in date_range:
-        year = dt.year
-        holidays = dates_by_year[year]
+    for dt in tqdm(date_range, desc="Processing datetime features"):
+        holidays = holidays_by_year[dt.year]
         current_date = dt.date()
+        next_date = current_date + timedelta(days=1)
 
         is_holiday = current_date in holidays
-        is_before_holiday = current_date + timedelta(days=1) in holidays
+        is_before_holiday = next_date in holidays
 
         data.append(
             {
@@ -130,11 +133,13 @@ def generate_datetime_features_data(start_date_param=None, end_date_param=None):
             }
         )
 
+    total_records = len(data)
+    print(f"Generated {total_records:,} datetime feature records")
     return pd.DataFrame(data)
 
 
 def save_to_csv_files(df, output_dir, file_prefix="datetime_features"):
-    """Save DataFrame as multiple CSV files grouped by year"""
+    """Save DataFrame as multiple CSV files grouped by year."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Select only the required columns
@@ -148,15 +153,19 @@ def save_to_csv_files(df, output_dir, file_prefix="datetime_features"):
         "before_holiday",
     ]
 
-    for year in df["year"].unique():
+    years = sorted(df["year"].unique())
+    print(f"Saving data to {len(years)} files:")
+
+    for year in tqdm(years, desc="Saving files"):
         year_data = df[df["year"] == year][columns_to_save]
         filename = output_dir / f"{file_prefix}_{year}.csv"
         year_data.to_csv(filename, index=False)
-        print(f"Saved {filename}")
+
+    print(f"All files saved to: {output_dir}")
 
 
 def process_datetime_features(end_date_param=None):
-    """Main processing function - entry point for main.py"""
+    """Main processing function - entry point for main.py."""
     # Get the directory relative to main.py
     current_dir = Path(__file__).parent
     output_dir = current_dir / DATA_SAVE_PATH

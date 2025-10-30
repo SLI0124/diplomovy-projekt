@@ -21,7 +21,6 @@ The catch is that it will be executed from ../main.py so create entry points acc
 """
 
 import sys
-import os
 from datetime import datetime, timedelta, date
 from pathlib import Path
 
@@ -39,11 +38,11 @@ def parse_gasnet_file(file_path):
     # Check for files with unexpected number of lines
     total_lines = len(df)
     if total_lines < 24 or total_lines > 26:
-        print(f"WARNING: Suspicious file detected!")
+        print("WARNING: Suspicious file detected!")
         print(f"\tFile: {file_path.name}")
-        print(f"\tExpected: 24-26 lines (24 hours + header + padding)")
+        print("\tExpected: 24-26 lines (24 hours + header + padding)")
         print(f"\tFound: {total_lines} lines")
-        print(f"\tThis file may have missing data or malformed content!")
+        print("\tThis file may have missing data or malformed content!")
         print("-" * 60)
 
     # Convert Datum to datetime to extract datetime components
@@ -129,19 +128,89 @@ def process_consumption_data(end_date_param=None):
     if processed_data is not None:
         save_consumption_data_to_csv(processed_data, output_dir)
         return processed_data
-    else:
-        print("No consumption data was processed.")
-        return None
+
+    print("No consumption data was processed.")
+    return None
+
+
+def get_hours_from_file(file_path, target_date, hour_range):
+    """Extract specific hours from a gasnet file for the target date."""
+    if not file_path.exists():
+        return pd.DataFrame()
+
+    consumption_data = parse_gasnet_file(file_path)
+    if consumption_data is None or len(consumption_data) == 0:
+        return pd.DataFrame()
+
+    # Filter for the target date and hour range
+    target_year = target_date.year
+    target_month = target_date.month
+    target_day = target_date.day
+
+    if hour_range == "early":  # hours 0-6
+        filtered_data = consumption_data[
+            (consumption_data["year"] == target_year)
+            & (consumption_data["month"] == target_month)
+            & (consumption_data["day"] == target_day)
+            & (consumption_data["hour"] <= 6)
+        ]
+    else:  # hours 7-23
+        filtered_data = consumption_data[
+            (consumption_data["year"] == target_year)
+            & (consumption_data["month"] == target_month)
+            & (consumption_data["day"] == target_day)
+            & (consumption_data["hour"] >= 7)
+        ]
+
+    return filtered_data if len(filtered_data) > 0 else pd.DataFrame()
+
+
+def process_single_date(source_dir, current_date):
+    """Process consumption data for a single date."""
+    # Create complete 24-hour structure for this date
+    complete_day = create_complete_day_structure(current_date)
+
+    # Get file paths for previous and current day
+    prev_date = current_date - timedelta(days=1)
+    prev_date_str = prev_date.strftime("%Y%m%d")
+    curr_date_str = current_date.strftime("%Y%m%d")
+
+    prev_file = source_dir / f"{prev_date_str}.csv"
+    curr_file = source_dir / f"{curr_date_str}.csv"
+
+    # Collect available data from both files
+    available_data = []
+
+    # Get hours 0-6 from previous day's file
+    hours_0_6 = get_hours_from_file(prev_file, current_date, "early")
+    if not hours_0_6.empty:
+        available_data.append(hours_0_6)
+
+    # Get hours 7-23 from current day's file
+    hours_7_23 = get_hours_from_file(curr_file, current_date, "late")
+    if not hours_7_23.empty:
+        available_data.append(hours_7_23)
+
+    # Merge available data into the complete day structure
+    if available_data:
+        available_combined = pd.concat(available_data, ignore_index=True)
+        # Update the complete day structure with available data
+        for _, row in available_combined.iterrows():
+            hour_idx = complete_day["hour"] == row["hour"]
+            complete_day.loc[hour_idx, "consumption"] = row["consumption"]
+
+    return complete_day
 
 
 def generate_consumption_data_with_range(source_dir, start_date, end_date):
-    """Process gasnet consumption files within date range, handling cross-file temporal alignment."""
+    """
+    Process gasnet consumption files within date range,
+    handling cross-file temporal alignment.
+    """
     print(f"Processing consumption data from {start_date} to {end_date}...")
 
-    all_data = []
-    current_date = start_date
-
     # Create list of dates to process
+    current_date = start_date
     dates_to_process = []
     while current_date <= end_date:
         dates_to_process.append(current_date)
@@ -151,70 +220,10 @@ def generate_consumption_data_with_range(source_dir, start_date, end_date):
     # NOTE: Gasnet data has a unique structure where each day's 24-hour period is split:
     # - Hours 0-6 of current date are in the previous day's file
     # - Hours 7-23 of current date are in the current day's file
-    for current_date in tqdm(dates_to_process, desc="Processing files"):
-        # Create complete 24-hour structure for this date
-        complete_day = create_complete_day_structure(current_date)
-
-        # For each target date, we need data from two files:
-        # 1. Previous day's file (for hours 0-6 of current date)
-        # 2. Current day's file (for hours 7-23 of current date)
-
-        prev_date = current_date - timedelta(days=1)
-        prev_date_str = prev_date.strftime("%Y%m%d")
-        curr_date_str = current_date.strftime("%Y%m%d")
-
-        prev_file = source_dir / f"{prev_date_str}.csv"
-        curr_file = source_dir / f"{curr_date_str}.csv"
-
-        available_data = []
-
-        # Get hours 0-6 from previous day's file
-        if prev_file.exists():
-            prev_consumption_data = parse_gasnet_file(prev_file)
-            if prev_consumption_data is not None and len(prev_consumption_data) > 0:
-                # Filter for the target date (hours 0-6)
-                target_year = current_date.year
-                target_month = current_date.month
-                target_day = current_date.day
-
-                hours_0_6 = prev_consumption_data[
-                    (prev_consumption_data["year"] == target_year)
-                    & (prev_consumption_data["month"] == target_month)
-                    & (prev_consumption_data["day"] == target_day)
-                    & (prev_consumption_data["hour"] <= 6)
-                ]
-                if len(hours_0_6) > 0:
-                    available_data.append(hours_0_6)
-
-        # Get hours 7-23 from current day's file
-        if curr_file.exists():
-            curr_consumption_data = parse_gasnet_file(curr_file)
-            if curr_consumption_data is not None and len(curr_consumption_data) > 0:
-                # Filter for the target date (hours 7-23)
-                target_year = current_date.year
-                target_month = current_date.month
-                target_day = current_date.day
-
-                hours_7_23 = curr_consumption_data[
-                    (curr_consumption_data["year"] == target_year)
-                    & (curr_consumption_data["month"] == target_month)
-                    & (curr_consumption_data["day"] == target_day)
-                    & (curr_consumption_data["hour"] >= 7)
-                ]
-                if len(hours_7_23) > 0:
-                    available_data.append(hours_7_23)
-
-        # Merge available data into the complete day structure
-        if available_data:
-            # Combine all available data for this day
-            available_combined = pd.concat(available_data, ignore_index=True)
-            # Update the complete day structure with available data
-            for _, row in available_combined.iterrows():
-                hour_idx = complete_day["hour"] == row["hour"]
-                complete_day.loc[hour_idx, "consumption"] = row["consumption"]
-
-        # Always add the complete day (with NA for missing hours)
-        all_data.append(complete_day)
+    all_data = []
+    for process_date in tqdm(dates_to_process, desc="Processing files"):
+        day_data = process_single_date(source_dir, process_date)
+        all_data.append(day_data)
 
     if all_data:
         combined_df = pd.concat(all_data, ignore_index=True)
@@ -222,12 +231,13 @@ def generate_consumption_data_with_range(source_dir, start_date, end_date):
         missing_hours = combined_df["consumption"].isna().sum()
         available_hours = total_hours - missing_hours
         print(
-            f"Processed {total_hours:,} total hours ({available_hours:,} with data, {missing_hours:,} with NA)"
+            f"Processed {total_hours:,} total hours "
+            f"({available_hours:,} with data, {missing_hours:,} with NA)"
         )
         return combined_df
-    else:
-        print("No data found")
-        return None
+
+    print("No data found")
+    return None
 
 
 def save_consumption_data_to_csv(df, output_dir, file_prefix="consumption"):

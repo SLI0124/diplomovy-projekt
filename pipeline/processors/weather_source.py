@@ -11,7 +11,8 @@ The CSV file contains the following columns:
 - wind_direction_10m: wind direction at 10 meters above ground level
 - wind_speed_100m: wind speed at 100 meters above ground level in km/h
 - wind_speed_10m: wind speed at 10 meters above ground level in km/h
-- weather_code: WMO weather interpretation code, see https://open-meteo.com/en/docs for details
+- weather_code: WMO weather interpretation code, see
+  https://open-meteo.com/en/docs for details
 - pressure_msl: mean sea level pressure in hPa
 - surface_pressure: surface pressure in hPa
 - cloud_cover: total cloud cover in %
@@ -26,21 +27,22 @@ The CSV file contains the following columns:
 - snowfall: total snowfall in cm
 - snow_depth: snow depth in cm
 
-Since everything is already in one csv, this file will provide every function needed to load the data and save it as a DataFrame.
+Since everything is already in one csv, this file will provide every function
+needed to load the data and save it as a DataFrame.
 
 date can be thrown away, since we will use datetime features from processors/dates.py
 
 since we are making hourly predictions, for one day we will have 24 entries
 
-The processed data will be saved as multiple CSV files in ../../data/processed/weather/ folder, preferably grouped by year.
-The catch is that it will be executed from ../main.py so create some entry points accordingly.
+The processed data will be saved as multiple CSV files in
+../../data/processed/weather/ folder, preferably grouped by year.
+The catch is that it will be executed from ../main.py so create some entry points
+accordingly.
 """
 
 import sys
-import os
 from datetime import datetime, timedelta, date
 from pathlib import Path
-import glob
 
 import pandas as pd
 from tqdm import tqdm
@@ -51,10 +53,23 @@ DATA_SAVE_PATH = "../../data/processed/weather/"
 
 def parse_weather_file(file_path):
     """Parse the weather CSV file and return processed DataFrame."""
-    print(f"Reading weather data from {file_path}")
-    df = pd.read_csv(file_path)
+    print(f"\tReading weather data from {file_path}")
+
+    try:
+        df = pd.read_csv(file_path)
+        print(f"\tLoaded {len(df):,} raw weather records")
+    except FileNotFoundError as e:
+        print(f"\tError: Weather file not found: {e}")
+        return None
+    except pd.errors.EmptyDataError as e:
+        print(f"\tError: Weather file is empty: {e}")
+        return None
+    except (pd.errors.ParserError, UnicodeDecodeError, PermissionError) as e:
+        print(f"\tError reading weather file: {e}")
+        return None
 
     # Convert date column to datetime
+    print("\tProcessing datetime components...")
     df["date"] = pd.to_datetime(df["date"])
 
     # Extract datetime components
@@ -92,7 +107,9 @@ def parse_weather_file(file_path):
     ]
 
     # Return only the weather columns and drop any rows with all NaN values
+    print("\tFiltering weather columns and removing empty rows...")
     result = df[weather_columns].dropna(how="all")
+    print(f"\tProcessed {len(result):,} weather records")
     return result
 
 
@@ -104,47 +121,52 @@ def process_weather_data_with_range(source_dir, start_date, end_date):
     weather_files = list(source_dir.glob("weather_*.csv"))
 
     if not weather_files:
-        print("No weather data files found")
+        print("\tError: No weather data files found")
         return None
 
     if len(weather_files) > 1:
-        print(f"Warning: Multiple weather files found, using {weather_files[0]}")
+        print(f"\tWarning: Multiple weather files found, using {weather_files[0]}")
 
     weather_file = weather_files[0]
+    print(f"\tFound weather file: {weather_file.name}")
 
     # Parse the weather file
     weather_data = parse_weather_file(weather_file)
 
     if weather_data is None or len(weather_data) == 0:
-        print("No weather data found")
+        print("\tError: No weather data found")
         return None
 
     # Filter data by year range (since we don't have exact date matching like consumption)
     start_year = start_date.year
     end_year = end_date.year
 
+    print(f"\tFiltering data for years {start_year}-{end_year}...")
     filtered_data = weather_data[
         (weather_data["year"] >= start_year) & (weather_data["year"] <= end_year)
     ]
 
-    print(f"Processed {len(filtered_data):,} weather records")
+    print(f"\tFiltered to {len(filtered_data):,} weather records")
     return filtered_data
 
 
 def save_processed_weather_data_to_csv(df, output_dir, file_prefix="weather"):
     """Save weather data split by year."""
+    print("Saving processed weather data...")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     years = sorted(df["year"].unique())
-    print(f"Saving weather data to {len(years)} files:")
+    print(
+        f"\tSplitting data into {len(years)} yearly files ({min(years)}-{max(years)})"
+    )
 
-    for year in tqdm(years, desc="Saving weather files"):
+    for year in tqdm(years, desc="\tSaving weather files", unit="file"):
         year_data = df[df["year"] == year]
         # Keep all datetime components in the saved data
         filename = output_dir / f"{file_prefix}_{year}.csv"
         year_data.to_csv(filename, index=False)
 
-    print(f"All weather files saved to: {output_dir}")
+    print(f"\tAll weather files saved to: {output_dir}")
 
 
 def process_weather_data(start_date_param=None, end_date_param=None):
@@ -158,6 +180,10 @@ def process_weather_data(start_date_param=None, end_date_param=None):
         start_date_param = "2013-01-01"
     if end_date_param is None:
         end_date_param = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    print(f"Date range: {start_date_param} to {end_date_param}")
+    print(f"Source directory: {source_dir}")
+    print(f"Output directory: {output_dir}")
 
     # Validate date format
     if end_date_param is not None:
@@ -189,10 +215,10 @@ def process_weather_data(start_date_param=None, end_date_param=None):
 
     if processed_data is not None:
         save_processed_weather_data_to_csv(processed_data, output_dir)
+
         return processed_data
-    else:
-        print("No weather data was processed.")
-        return None
+
+    return None
 
 
 if __name__ == "__main__":
