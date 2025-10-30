@@ -6,3 +6,5 @@ requests
 pylint
 openmeteo-requests
 retry-requests
+matplotlib
+seaborn

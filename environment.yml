@@ -10,3 +10,5 @@ dependencies:
   - conda-forge::beautifulsoup4
   - anaconda::requests
   - anaconda::pylint
+  - anaconda::matplotlib
+  - conda-forge::seaborn
