@@ -28,6 +28,17 @@ from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 
+
+def get_last_day_of_previous_month():
+    """Calculate the last day of the previous month."""
+    today = date.today()
+    # First day of current month
+    first_day_current_month = today.replace(day=1)
+    # Last day of previous month
+    last_day_previous_month = first_day_current_month - timedelta(days=1)
+    return last_day_previous_month.strftime("%Y-%m-%d")
+
+
 DATA_SAVE_PATH = "../../data/processed/datetime_features/"
 
 
@@ -86,9 +97,9 @@ def get_czech_holidays(year):
 
 
 def create_date_range(start_date="2013-01-01", end_date_param=None):
-    """Create date range from start_date to end_date (default yesterday)."""
+    """Create date range from start_date to end_date (default last day of previous month)."""
     if end_date_param is None:
-        end_date_param = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        end_date_param = get_last_day_of_previous_month()
 
     return pd.date_range(start=start_date, end=end_date_param, freq="h")
 
@@ -99,7 +110,7 @@ def generate_datetime_features_data(start_date_param=None, end_date_param=None):
     if start_date_param is None:
         start_date_param = "2013-01-01"
     if end_date_param is None:
-        end_date_param = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        end_date_param = get_last_day_of_previous_month()
 
     # Create hourly date range
     date_range = create_date_range(start_date_param, end_date_param)

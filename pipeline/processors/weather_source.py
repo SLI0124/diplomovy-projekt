@@ -47,6 +47,17 @@ from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 
+
+def get_last_day_of_previous_month():
+    """Calculate the last day of the previous month."""
+    today = date.today()
+    # First day of current month
+    first_day_current_month = today.replace(day=1)
+    # Last day of previous month
+    last_day_previous_month = first_day_current_month - timedelta(days=1)
+    return last_day_previous_month.strftime("%Y-%m-%d")
+
+
 DATA_SOURCE_PATH = "../../data/raw/weather/"
 DATA_SAVE_PATH = "../../data/processed/weather/"
 
@@ -179,7 +190,7 @@ def process_weather_data(start_date_param=None, end_date_param=None):
     if start_date_param is None:
         start_date_param = "2013-01-01"
     if end_date_param is None:
-        end_date_param = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+        end_date_param = get_last_day_of_previous_month()
 
     print(f"Date range: {start_date_param} to {end_date_param}")
     print(f"Source directory: {source_dir}")
