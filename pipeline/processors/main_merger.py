@@ -55,29 +55,78 @@ def load_year_data(year, datetime_dir, consumption_dir, weather_dir):
         consumption_df = pd.read_csv(consumption_file)
         weather_df = pd.read_csv(weather_file)
 
-        # Validate that all dataframes have the same length
-        lengths = [len(datetime_df), len(consumption_df), len(weather_df)]
-        if len(set(lengths)) > 1:
-            print(f"Warning: Data length mismatch for year {year}:")
-            print(f"  Datetime features: {len(datetime_df)} rows")
-            print(f"  Consumption: {len(consumption_df)} rows")
-            print(f"  Weather: {len(weather_df)} rows")
+        print(f"Year {year} - Initial data sizes:")
+        print(f"  Datetime features: {len(datetime_df)} rows")
+        print(f"  Consumption: {len(consumption_df)} rows")
+        print(f"  Weather: {len(weather_df)} rows")
 
-            # Use the minimum length to avoid index errors
-            min_length = min(lengths)
-            print(f"  Using minimum length: {min_length} rows")
+        # Create datetime join keys for each dataframe
+        # Datetime features already has year, month, day, hour
+        datetime_df["join_key"] = (
+            datetime_df["year"].astype(str)
+            + "_"
+            + datetime_df["month"].astype(str)
+            + "_"
+            + datetime_df["day"].astype(str)
+            + "_"
+            + datetime_df["hour"].astype(str)
+        )
 
-            datetime_df = datetime_df.iloc[:min_length].copy()
-            consumption_df = consumption_df.iloc[:min_length].copy()
-            weather_df = weather_df.iloc[:min_length].copy()
+        # Consumption data should now have year, month, day, hour
+        consumption_df["join_key"] = (
+            consumption_df["year"].astype(str)
+            + "_"
+            + consumption_df["month"].astype(str)
+            + "_"
+            + consumption_df["day"].astype(str)
+            + "_"
+            + consumption_df["hour"].astype(str)
+        )
 
-        # Reset indices to ensure proper concatenation
-        datetime_df = datetime_df.reset_index(drop=True)
-        consumption_df = consumption_df.reset_index(drop=True)
-        weather_df = weather_df.reset_index(drop=True)
+        # Weather data should now have year, month, day, hour
+        weather_df["join_key"] = (
+            weather_df["year"].astype(str)
+            + "_"
+            + weather_df["month"].astype(str)
+            + "_"
+            + weather_df["day"].astype(str)
+            + "_"
+            + weather_df["hour"].astype(str)
+        )
 
-        # Merge the dataframes horizontally (column-wise)
-        merged_df = pd.concat([datetime_df, consumption_df, weather_df], axis=1)
+        # Perform proper joins based on datetime
+        # Start with datetime features as base
+        merged_df = datetime_df.copy()
+
+        # Join consumption data
+        consumption_join = consumption_df[["join_key", "consumption"]].copy()
+        merged_df = merged_df.merge(consumption_join, on="join_key", how="left")
+
+        # Join weather data (excluding duplicate datetime columns)
+        weather_columns = [
+            col
+            for col in weather_df.columns
+            if col not in ["year", "month", "day", "hour"]
+        ]
+        weather_join = weather_df[weather_columns].copy()
+        merged_df = merged_df.merge(weather_join, on="join_key", how="left")
+
+        # Drop the temporary join key
+        merged_df = merged_df.drop("join_key", axis=1)
+
+        print(f"Year {year} - After join: {len(merged_df)} rows")
+
+        # Report missing data
+        consumption_missing = merged_df["consumption"].isna().sum()
+        if consumption_missing > 0:
+            print(f"  Warning: {consumption_missing} rows missing consumption data")
+
+        # Check for missing weather data (exclude join_key which was dropped)
+        weather_data_columns = [col for col in weather_columns if col != "join_key"]
+        if weather_data_columns:
+            weather_missing = merged_df[weather_data_columns].isna().any(axis=1).sum()
+            if weather_missing > 0:
+                print(f"  Warning: {weather_missing} rows missing weather data")
 
         return merged_df
 

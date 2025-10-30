@@ -57,12 +57,18 @@ def parse_weather_file(file_path):
     # Convert date column to datetime
     df["date"] = pd.to_datetime(df["date"])
 
-    # Extract year for grouping
-    df["year"] = df["date"].dt.year
+    # Extract datetime components
+    df["year"] = df["date"].dt.year.astype(int)
+    df["month"] = df["date"].dt.month.astype(int)
+    df["day"] = df["date"].dt.day.astype(int)
+    df["hour"] = df["date"].dt.hour.astype(int)
 
-    # Select weather features (excluding date as mentioned in docstring)
+    # Select weather features (including datetime components, excluding original date)
     weather_columns = [
         "year",
+        "month",
+        "day",
+        "hour",
         "temperature_2m",
         "wind_gusts_10m",
         "wind_direction_100m",
@@ -134,10 +140,9 @@ def save_processed_weather_data_to_csv(df, output_dir, file_prefix="weather"):
 
     for year in tqdm(years, desc="Saving weather files"):
         year_data = df[df["year"] == year]
-        # Drop the year column for saved data as it's already in filename
-        year_data_to_save = year_data.drop(columns=["year"])
+        # Keep all datetime components in the saved data
         filename = output_dir / f"{file_prefix}_{year}.csv"
-        year_data_to_save.to_csv(filename, index=False)
+        year_data.to_csv(filename, index=False)
 
     print(f"All weather files saved to: {output_dir}")
 
