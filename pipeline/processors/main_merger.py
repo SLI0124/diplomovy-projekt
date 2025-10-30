@@ -238,7 +238,7 @@ def save_merged_data_to_csv(merged_data_by_year, output_dir, file_prefix="merged
     print("\t- 1 combined file with all years")
 
 
-def merge_processed_data(start_date_param=None, end_date_param=None):
+def merge_processed_data(end_date_param=None):
     """Main merging function - entry point for main.py."""
     # Get the directory relative to main.py
     current_dir = Path(__file__).parent
@@ -247,25 +247,20 @@ def merge_processed_data(start_date_param=None, end_date_param=None):
     weather_dir = current_dir / WEATHER_PATH
     output_dir = current_dir / MERGED_SAVE_PATH
 
-    if start_date_param is None:
-        start_date_param = "2013-01-01"
+    start_date_param = "2013-01-01"
     if end_date_param is None:
         end_date_param = get_last_day_of_previous_month()
 
     # Validate date format
-    for date_param, param_name in [
-        (end_date_param, "end_date"),
-        (start_date_param, "start_date"),
-    ]:
-        if date_param is not None:
-            try:
-                datetime.strptime(date_param, "%Y-%m-%d")
-            except ValueError:
-                print(
-                    f"ERROR: Invalid {param_name} format '{date_param}'. "
-                    "Please use YYYY-MM-DD format."
-                )
-                sys.exit(1)
+    if end_date_param is not None:
+        try:
+            datetime.strptime(end_date_param, "%Y-%m-%d")
+        except ValueError:
+            print(
+                f"ERROR: Invalid end_date format '{end_date_param}'. "
+                "Please use YYYY-MM-DD format."
+            )
+            sys.exit(1)
 
     # Convert string dates to date objects
     start_date = datetime.strptime(start_date_param, "%Y-%m-%d").date()

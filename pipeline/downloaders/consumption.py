@@ -29,20 +29,16 @@ def ensure_directory(path):
         dir_path.mkdir(parents=True, exist_ok=True)
 
 
-def download_consumption_data(start_date_param=None, end_date_param=None):
+def download_consumption_data(end_date_param=None):
     """Main download function - entry point for main.py"""
-    if start_date_param is None:
-        start_date_param = "2012-12-31"
+    start_date_param = "2012-12-31"
     if end_date_param is None:
         end_date_param = (datetime.date.today() - datetime.timedelta(days=1)).strftime(
             "%Y-%m-%d"
         )
 
     # Convert string dates to date objects
-    if isinstance(start_date_param, str):
-        start_date = datetime.datetime.strptime(start_date_param, "%Y-%m-%d").date()
-    else:
-        start_date = start_date_param
+    start_date = datetime.datetime.strptime(start_date_param, "%Y-%m-%d").date()
 
     if isinstance(end_date_param, str):
         end_date = datetime.datetime.strptime(end_date_param, "%Y-%m-%d").date()

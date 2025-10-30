@@ -104,11 +104,10 @@ def create_date_range(start_date="2013-01-01", end_date_param=None):
     return pd.date_range(start=start_date, end=end_date_param, freq="h")
 
 
-def generate_datetime_features_data(start_date_param=None, end_date_param=None):
+def generate_datetime_features_data(end_date_param=None):
     """Generate hourly data with datetime features and holiday flags."""
     # Set default parameters
-    if start_date_param is None:
-        start_date_param = "2013-01-01"
+    start_date_param = "2013-01-01"
     if end_date_param is None:
         end_date_param = get_last_day_of_previous_month()
 

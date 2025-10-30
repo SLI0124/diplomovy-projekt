@@ -117,18 +117,14 @@ def _process_api_response(response):
     return pd.DataFrame(data=hourly_data)
 
 
-def download_weather_data(start_date_param=None, end_date_param=None):
+def download_weather_data(end_date_param=None):
     """Main download function - entry point for main.py"""
-    if start_date_param is None:
-        start_date_param = "2013-01-01"
+    start_date_param = "2013-01-01"
     if end_date_param is None:
         end_date_param = datetime.date.today().strftime("%Y-%m-%d")
 
     # Convert string dates to date objects if needed
-    if isinstance(start_date_param, str):
-        start_date_obj = datetime.datetime.strptime(start_date_param, "%Y-%m-%d").date()
-    else:
-        start_date_obj = start_date_param
+    start_date_obj = datetime.datetime.strptime(start_date_param, "%Y-%m-%d").date()
 
     if isinstance(end_date_param, str):
         end_date_obj = datetime.datetime.strptime(end_date_param, "%Y-%m-%d").date()

@@ -180,15 +180,14 @@ def save_processed_weather_data_to_csv(df, output_dir, file_prefix="weather"):
     print(f"\tAll weather files saved to: {output_dir}")
 
 
-def process_weather_data(start_date_param=None, end_date_param=None):
+def process_weather_data(end_date_param=None):
     """Main processing function - entry point for main.py"""
     # Get the directory relative to main.py
     current_dir = Path(__file__).parent
     source_dir = current_dir / DATA_SOURCE_PATH
     output_dir = current_dir / DATA_SAVE_PATH
 
-    if start_date_param is None:
-        start_date_param = "2013-01-01"
+    start_date_param = "2013-01-01"
     if end_date_param is None:
         end_date_param = get_last_day_of_previous_month()
 
@@ -203,16 +202,6 @@ def process_weather_data(start_date_param=None, end_date_param=None):
         except ValueError:
             print(
                 f"ERROR: Invalid date format '{end_date_param}'. "
-                f"Please use YYYY-MM-DD format."
-            )
-            sys.exit(1)
-
-    if start_date_param is not None:
-        try:
-            datetime.strptime(start_date_param, "%Y-%m-%d")
-        except ValueError:
-            print(
-                f"ERROR: Invalid date format '{start_date_param}'. "
                 f"Please use YYYY-MM-DD format."
             )
             sys.exit(1)
