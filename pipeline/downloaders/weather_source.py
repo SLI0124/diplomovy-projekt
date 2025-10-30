@@ -38,8 +38,8 @@ def _setup_api_client():
 def _build_api_params(start_date_val, end_date_val):
     """Build API parameters for weather data request."""
     return {
-        "latitude": 49.5667,  # Czech Republic coordinates
-        "longitude": 13.6333,
+        "latitude": 50.1333,
+        "longitude": 14.55, # Kbely Airport
         "start_date": start_date_val.strftime("%Y-%m-%d"),
         "end_date": end_date_val.strftime("%Y-%m-%d"),
         "hourly": [
