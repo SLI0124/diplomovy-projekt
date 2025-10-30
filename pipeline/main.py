@@ -33,8 +33,16 @@ def download_data(download_type: str = None, end_date: str = None) -> None:
         case "weather":
             print("Downloading weather data...")
             downloaders.weather_source.download_weather_data(end_date_param=end_date)
+        case "all":
+            print("Downloading all data types...")
+            print("Downloading gas consumption data...")
+            downloaders.consumption.download_consumption_data(end_date_param=end_date)
+            print("Downloading weather data...")
+            downloaders.weather_source.download_weather_data(end_date_param=end_date)
         case _:
-            raise NotImplementedError("Downloading all data is not implemented yet.")
+            raise NotImplementedError(
+                f"Download type '{download_type}' is not implemented."
+            )
 
 
 def process_data(process_type: str = None, end_date: str = None) -> None:
@@ -59,8 +67,20 @@ def process_data(process_type: str = None, end_date: str = None) -> None:
         case "merge":
             print("Merging all processed data...")
             processors.main_merger.merge_processed_data(end_date_param=end_date)
+        case "all":
+            print("Processing all data types...")
+            print("Processing datetime features data...")
+            processors.dates.process_datetime_features(end_date_param=end_date)
+            print("Processing gas consumption data...")
+            processors.consumption.process_consumption_data(end_date_param=end_date)
+            print("Processing weather data...")
+            processors.weather_source.process_weather_data(end_date_param=end_date)
+            print("Merging all processed data...")
+            processors.main_merger.merge_processed_data(end_date_param=end_date)
         case _:
-            raise NotImplementedError("Processing all data is not implemented yet.")
+            raise NotImplementedError(
+                f"Process type '{process_type}' is not implemented."
+            )
 
 
 def main():
@@ -84,7 +104,11 @@ def main():
             "'merge' for merging all processed data"
         ),
     )
-    parser.add_argument("--all", action="store_true", help="Download and process data")
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Download and process all data types (consumption, weather, dates, and merge)",
+    )
     parser.add_argument(
         "--end-date",
         help=(
@@ -96,18 +120,19 @@ def main():
     args = parser.parse_args()
 
     if args.all:
-        args.download = "consumption"
-        if not args.process:
-            args.process = "consumption"
+        # When --all is specified, download and process all data types
+        download_data("all", args.end_date)
+        process_data("all", args.end_date)
+    else:
+        # Handle individual download and process flags
+        if args.download:
+            download_data(args.download, args.end_date)
 
-    if args.download:
-        download_data(args.download, args.end_date)
+        if args.process:
+            process_data(args.process, args.end_date)
 
-    if args.process:
-        process_data(args.process, args.end_date)
-
-    if not (args.download or args.process):
-        print("No action specified. Use --download, --process or --all.")
+        if not (args.download or args.process):
+            print("No action specified. Use --download, --process or --all.")
 
 
 if __name__ == "__main__":
