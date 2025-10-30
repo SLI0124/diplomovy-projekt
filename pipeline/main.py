@@ -1,3 +1,11 @@
+"""
+Main pipeline entry point for data processing and downloading.
+
+This module provides command-line interface for running various data processing
+and downloading tasks including consumption data, weather data, datetime features,
+and data merging operations.
+"""
+
 import argparse
 from datetime import datetime
 
@@ -10,6 +18,7 @@ import downloaders.weather_source
 
 
 def download_data(download_type: str = None, end_date: str = None) -> None:
+    """Download data based on specified type and end date."""
     if end_date:  # validate date format to be YYYY-MM-DD
         try:
             datetime.strptime(end_date, "%Y-%m-%d")
@@ -29,6 +38,7 @@ def download_data(download_type: str = None, end_date: str = None) -> None:
 
 
 def process_data(process_type: str = None, end_date: str = None) -> None:
+    """Process data based on specified type and end date."""
     if end_date:  # validate date format to be YYYY-MM-DD
         try:
             datetime.strptime(end_date, "%Y-%m-%d")
@@ -54,22 +64,33 @@ def process_data(process_type: str = None, end_date: str = None) -> None:
 
 
 def main():
+    """Main entry point for the data pipeline manager."""
     # this will run all the modules: downloaders, processors, ...
     parser = argparse.ArgumentParser(description="Data Pipeline Manager")
     parser.add_argument(
         "--download",
         choices=["consumption", "weather"],
-        help="Download specific data type: 'consumption' for gas consumption data, 'weather' for weather data",
+        help=(
+            "Download specific data type: 'consumption' for gas consumption data, "
+            "'weather' for weather data"
+        ),
     )
     parser.add_argument(
         "--process",
         choices=["dates", "consumption", "weather", "merge"],
-        help="Process specific data type: 'dates' for datetime features, 'consumption' for gas consumption data, 'weather' for weather data, 'merge' for merging all processed data",
+        help=(
+            "Process specific data type: 'dates' for datetime features, "
+            "'consumption' for gas consumption data, 'weather' for weather data, "
+            "'merge' for merging all processed data"
+        ),
     )
     parser.add_argument("--all", action="store_true", help="Download and process data")
     parser.add_argument(
         "--end-date",
-        help="End date in YYYY-MM-DD format (e.g., 2025-10-28). If not specified, defaults to yesterday.",
+        help=(
+            "End date in YYYY-MM-DD format (e.g., 2025-10-28). "
+            "If not specified, defaults to yesterday."
+        ),
     )
 
     args = parser.parse_args()
