@@ -15,6 +15,7 @@ import processors.weather_source
 import processors.main_merger
 import downloaders.consumption
 import downloaders.weather_source
+import downloaders.price
 
 
 def download_data(download_type: str = None, end_date: str = None) -> None:
@@ -33,12 +34,17 @@ def download_data(download_type: str = None, end_date: str = None) -> None:
         case "weather":
             print("Downloading weather data...")
             downloaders.weather_source.download_weather_data(end_date_param=end_date)
+        case "price":
+            print("Downloading gas price data...")
+            downloaders.price.download_price_data(end_date_param=end_date)
         case "all":
             print("Downloading all data types...")
             print("Downloading gas consumption data...")
             downloaders.consumption.download_consumption_data(end_date_param=end_date)
             print("Downloading weather data...")
             downloaders.weather_source.download_weather_data(end_date_param=end_date)
+            print("Downloading gas price data...")
+            downloaders.price.download_price_data(end_date_param=end_date)
         case _:
             raise NotImplementedError(
                 f"Download type '{download_type}' is not implemented."
@@ -89,10 +95,10 @@ def main():
     parser = argparse.ArgumentParser(description="Data Pipeline Manager")
     parser.add_argument(
         "--download",
-        choices=["consumption", "weather"],
+        choices=["consumption", "weather", "price"],
         help=(
             "Download specific data type: 'consumption' for gas consumption data, "
-            "'weather' for weather data"
+            "'weather' for weather data, 'price' for gas price data"
         ),
     )
     parser.add_argument(
