@@ -8,3 +8,4 @@ openmeteo-requests
 retry-requests
 matplotlib
 seaborn
+xlrd

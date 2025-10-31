@@ -12,3 +12,4 @@ dependencies:
   - anaconda::pylint
   - anaconda::matplotlib
   - conda-forge::seaborn
+  - conda-forge::xlrd
