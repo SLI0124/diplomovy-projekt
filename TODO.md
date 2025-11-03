@@ -4,31 +4,23 @@ This will be a list of things that need to be done in order to finish the projec
 
 ## Immediate
 
-- [X] look for columns that are easily and still obtainable via API endpoints for consultation
-- [X] make clear boundaries of what is downloader, what is processor, what is final dataset assembler
-- [X] add requirements for conda and pip, you can look generally for some environments and project settings overall
-- [X] gas net for consumption data is having maintanance so I need to process them later (they have ratelimit)
-- [X] **CRITICAL**: Fix data inconsistencies in processed files - mismatched row counts between data sources
-  - [X] maybe for current year set the last possible day to last day of previous month instead of yesterday
 - [ ] add price column downloader and processor, take endpoint from `price_downloader.cpp`
-- [ ] update **jupyter notebook** with new data sources, new columns, new logic, new everything  
+- [ ] update **jupyter notebook** with new data sources, new columns, new logic, new everything
+- [ ] omg I found `ppnet` data source for consumption, I need to implement it instead of gasnet or perhaps add a parameter to choose which one to use, I could also download them all  
+  - [ ] this would also mean I need to check main merging logic to avoid naming misconceptions
 
 ## Next steps
 
-- [x] any kind of column saving into `data/processed` folder or something like that
-- [x] create a main downloader script that sequentially calls individual downloader modules; allow selective downloading (e.g., only weather data) or downloading all data at once
-- [x] same logic for processors
 - [ ] I think I am creating *before_holiday* correctly, but in original dataset it seems that it is *actually* after holiday, I should keep that in mind or if I am creating probably a new version of it, I can do whatever the fuck I want
-- [X] at the complete end of pipeline, create final dataset assembler that merges all processed columns into one final dataset ready for modeling, taking care of any necessary alignment of latest dates across all columns or handling missing data appropriately
 - [ ] I've set default start date for all scripts to **2013.1.1**, right now I deleted param for start date, I think it won't be changed at all but it'd be nice to have a way to change it somehow, perhaps I can do like config file with dirs, start date, etc.
 - [ ] I have some duplicate code, create `utils.py` with all functions used across scripts
 - [ ] maybe check *float* and *int* values in final dataset, if one can be one or the other
-- [ ] look for some other potential data source for new features
+- [ ] look for some other potential data source for new features (optional)
 - [ ] type checking
 - [ ] better docstrings with params, return types, etc.
 - [ ] README file for `pipeline` directory
 - [ ] for processors try checking if `raw` files are even existing, if not, throw error or warning, DO NOT call downloader from processor
-- [ ] set up some black, pylint or other code formatting and linting tools
+- [ ] set up some black, pylint or other code formatting and linting tools for repository project
 
 ## Columns implementation status
 
@@ -52,19 +44,15 @@ This will be a list of things that need to be done in order to finish the projec
 - [X] cloud_cover - [data source](http://rp5.ru/metar.php?metar=LKKB&lang=en)
 - [X] visibility [data source](http://rp5.ru/metar.php?metar=LKKB&lang=en)
 - [X] dewpoint - [data source](http://rp5.ru/metar.php?metar=LKKB&lang=en)
+- [ ] quantity — traded volume / amount
+- [ ] price — settlement/trade price
 
 some new columns were added or replaced, need to consult about them
 
 ### Notes for consultation
 
-- `year`, `month`, `day`, `hour` and `day of week` will be handled purely in code, no need to download them from anywhere, I will look into some library that can do it for me, for example pandas or datetime, it will be probably handled in processors directory
-  - since we don't know, what columns will have up to date data, this will be handled at the end and check the the most oldest date in the dataset and rest will be cut from that date forward
-- `before_holiday` and `holiday` will be downloaded from web, I will try to find some API or I will have to scrape it from `https://www.kurzy.cz/kalendar/statni-svatky/{year}/`, this is also
-  - also why the hell is column `before_holiday` actually after holiday? I should ask beforehand and soon to be perfectly clear
 - `price` is in PDF but not in actual dataset csv, it is also in code he provided
 - `consumption` is not available via API, gasnet probably change their endpoints, I will have to ask them directly, old links are in `consumption_downloader.cpp`
-  - I found a potential [source](https://www.gasnet.cz/dalsi-sluzby/pro-stavare-a-projektanty/zadost-o-vektorova-data)
-- another website I found for weather is [this one](https://mesonet.agron.iastate.edu/request/download.phtml?network=CZ__ASOS), but I don't know if it's only for paid users
 
 ---
 
