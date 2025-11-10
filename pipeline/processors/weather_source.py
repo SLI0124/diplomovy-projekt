@@ -148,7 +148,7 @@ def process_weather_data_with_range(source_dir, start_date, end_date):
         print("\tError: No weather data found")
         return None
 
-    # Filter data by year range (since we don't have exact date matching like consumption)
+    # Filter data by year range and exclude first day of next month
     start_year = start_date.year
     end_year = end_date.year
 
@@ -156,6 +156,29 @@ def process_weather_data_with_range(source_dir, start_date, end_date):
     filtered_data = weather_data[
         (weather_data["year"] >= start_year) & (weather_data["year"] <= end_year)
     ]
+
+    # Remove first day of the next month if it exists in the data
+    # (this removes extra data downloaded due to the 1-day buffer in downloader)
+    next_month_start = end_date.replace(day=1) + timedelta(days=32)
+    next_month_start = next_month_start.replace(day=1)
+    
+    if len(filtered_data) > 0:
+        # Create datetime column for precise filtering
+        filtered_data_copy = filtered_data.copy()
+        filtered_data_copy['temp_datetime'] = pd.to_datetime(
+            filtered_data_copy[['year', 'month', 'day', 'hour']]
+        )
+        
+        # Filter out first day of next month
+        next_month_datetime = pd.to_datetime(next_month_start)
+        next_day_datetime = next_month_datetime + timedelta(days=1)
+        
+        # Keep only data before the first day of next month
+        filtered_data = filtered_data_copy[
+            filtered_data_copy['temp_datetime'] < next_month_datetime
+        ].drop('temp_datetime', axis=1)
+        
+        print(f"\tRemoved first day of next month ({next_month_start})")
 
     print(f"\tFiltered to {len(filtered_data):,} weather records")
     return filtered_data
@@ -171,7 +194,7 @@ def save_processed_weather_data_to_csv(df, output_dir, file_prefix="weather"):
         f"\tSplitting data into {len(years)} yearly files ({min(years)}-{max(years)})"
     )
 
-    for year in tqdm(years, desc="\tSaving weather files", unit="file"):
+    for year in tqdm(years, desc="Saving weather files", unit="file"):
         year_data = df[df["year"] == year]
         # Keep all datetime components in the saved data
         filename = output_dir / f"{file_prefix}_{year}.csv"
