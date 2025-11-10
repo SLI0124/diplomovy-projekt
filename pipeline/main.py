@@ -101,10 +101,11 @@ def main():
     parser = argparse.ArgumentParser(description="Data Pipeline Manager")
     parser.add_argument(
         "--download",
-        choices=["consumption", "weather", "price"],
+        choices=["consumption", "weather", "price", "all"],
         help=(
             "Download specific data type: 'consumption' for gas consumption data, "
-            "'weather' for weather data, 'price' for gas price data"
+            "'weather' for weather data, 'price' for gas price data, "
+            "'all' for all data types"
         ),
     )
     parser.add_argument(
