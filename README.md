@@ -26,6 +26,8 @@ pip install -r requirements.txt
 # Vytvoření a aktivace prostředí
 conda env create -f environment.yml
 conda activate master-thesis-sli0124
+# jelikož conda nemá všechny balíčky, je potřeba doinstalovat balíčky přes pip
+pip install -r requirements.txt
 ```
 
 ### ✅ Ověření instalace
