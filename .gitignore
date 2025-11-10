@@ -1,6 +1,5 @@
 .vscode/
 .idea/
 data/*
-!data/original/
 .venv/
 **/__pycache__/
