@@ -13,3 +13,5 @@ dependencies:
   - anaconda::matplotlib
   - conda-forge::seaborn
   - conda-forge::xlrd
+  - anaconda::openpyxl
+  
