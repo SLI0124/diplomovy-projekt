@@ -41,6 +41,21 @@ def get_last_day_of_previous_month():
 DATA_SOURCE_PATH = "../../data/raw/gasnet/"
 DATA_SAVE_PATH = "../../data/processed/consumption/"
 
+# Global lists to collect warnings about misaligned files
+SUSPICIOUS_FILES = []
+SUSPICIOUS_LINES = []
+
+
+def print_suspicious_files():
+    """Print all misaligned files and their line counts after parsing."""
+    if SUSPICIOUS_FILES:
+        print("WARNING: Suspicious files detected!")
+        for fname, lines in zip(SUSPICIOUS_FILES, SUSPICIOUS_LINES):
+            print(f"\tFile: {fname}")
+            print("\tExpected: 24-26 lines (24 hours + header + padding)")
+            print(f"\tFound: {lines} lines")
+            print("-" * 60)
+
 
 def parse_gasnet_file(file_path):
     """Parse a single gasnet CSV file and return processed DataFrame with data quality checks."""
@@ -49,12 +64,8 @@ def parse_gasnet_file(file_path):
     # Check for files with unexpected number of lines
     total_lines = len(df)
     if total_lines < 24 or total_lines > 26:
-        print("WARNING: Suspicious file detected!")
-        print(f"\tFile: {file_path.name}")
-        print("\tExpected: 24-26 lines (24 hours + header + padding)")
-        print(f"\tFound: {total_lines} lines")
-        print("\tThis file may have missing data or malformed content!")
-        print("-" * 60)
+        SUSPICIOUS_FILES.append(file_path.name)
+        SUSPICIOUS_LINES.append(total_lines)
 
     # Convert Datum to datetime to extract datetime components
     df["Datum"] = pd.to_datetime(df["Datum"], format="%d.%m.%Y %H:%M", errors="coerce")
@@ -245,6 +256,9 @@ def generate_consumption_data_with_range(source_dir, start_date, end_date):
             f"Processed {total_hours:,} total hours "
             f"({available_hours:,} with data, {missing_hours:,} with NA)"
         )
+
+        print_suspicious_files()
+        
         return combined_df
 
     print("No data found")

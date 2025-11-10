@@ -130,7 +130,7 @@ def process_price_data_with_range(source_dir, start_date, end_date):
     end_year = end_date.year
 
     # Process each file
-    for file_path in tqdm(price_files, desc="\tProcessing price files"):
+    for file_path in tqdm(price_files, desc="Processing price files"):
         # Extract year from filename: VDT_plyn_MM_YYYY_CZ.xls
         try:
             parts = file_path.stem.split("_")
@@ -180,7 +180,7 @@ def save_processed_price_data_to_csv(df, output_dir, file_prefix="price"):
         f"\tSplitting data into {len(years)} yearly files ({min(years)}-{max(years)})"
     )
 
-    for year in tqdm(years, desc="\tSaving price files", unit="file"):
+    for year in tqdm(years, desc="Saving price files", unit="file"):
         year_data = df[df["year"] == year]
         filename = output_dir / f"{file_prefix}_{year}.csv"
         year_data.to_csv(filename, index=False)

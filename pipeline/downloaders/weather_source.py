@@ -39,7 +39,7 @@ def _build_api_params(start_date_val, end_date_val):
     """Build API parameters for weather data request."""
     return {
         "latitude": 50.1333,
-        "longitude": 14.55, # Kbely Airport
+        "longitude": 14.55,  # Kbely Airport
         "start_date": start_date_val.strftime("%Y-%m-%d"),
         "end_date": end_date_val.strftime("%Y-%m-%d"),
         "hourly": [
@@ -69,11 +69,13 @@ def _build_api_params(start_date_val, end_date_val):
 
 
 def _process_api_response(response):
-    """Process API response and extract weather data."""
+    """Process API response and extract weather data.
+
     print(f"Coordinates: {response.Latitude()}°N {response.Longitude()}°E")
     print(f"Elevation: {response.Elevation()} m asl")
     print(f"Timezone: {response.Timezone()}{response.TimezoneAbbreviation()}")
     print(f"Timezone difference to GMT+0: {response.UtcOffsetSeconds()}s")
+    """
 
     # Process hourly data. The order of variables needs to be the same as requested.
     hourly = response.Hourly()
@@ -135,6 +137,9 @@ def download_weather_data(end_date_param=None):
         end_date_obj = datetime.datetime.strptime(end_date_param, "%Y-%m-%d").date()
     else:
         end_date_obj = end_date_param
+
+    # since the weather source provides data up to 22:00 of the day, we need to adjust end_date by one day to include the last day's data
+    end_date_obj += datetime.timedelta(days=1)
 
     # Validate date format if needed
     if end_date_param is not None and isinstance(end_date_param, str):
