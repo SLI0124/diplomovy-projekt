@@ -16,7 +16,16 @@ from tqdm import tqdm
 
 # Get the project root directory (two levels up from this file)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-DATA_SAVE_PATH = PROJECT_ROOT / "data" / "raw" / "gasnet"
+DATA_CONSUMPTION_ROOT = PROJECT_ROOT / "data" / "raw" / "consumption"
+
+NETWORK_URLS = {
+    "gasnet": "https://www.gasnet.cz/storage/online-toky/gasnet/{date}.csv",
+    "vcpnet": "https://www.gasnet.cz/storage/online-toky/vcpnet/{date}.csv",
+    "jmpnet": "https://www.gasnet.cz/storage/online-toky/jmpnet/{date}.csv",
+    "smpnet": "https://www.gasnet.cz/storage/online-toky/smpnet/{date}.csv",
+}
+
+ENCODING_FALLBACKS = ("utf-8", "cp1250", "iso-8859-2")
 
 
 def ensure_directory(path):
@@ -29,8 +38,50 @@ def ensure_directory(path):
         dir_path.mkdir(parents=True, exist_ok=True)
 
 
-def download_consumption_data(end_date_param=None):
-    """Main download function - entry point for main.py"""
+def _read_csv_with_fallback(url):
+    """Read CSV trying multiple encodings before failing."""
+    last_error = None
+    for encoding in ENCODING_FALLBACKS:
+        try:
+            return pd.read_csv(url, sep=";", encoding=encoding)
+        except UnicodeDecodeError as error:
+            last_error = error
+    # Propagate the last decode error if all fallbacks failed.
+    if last_error is not None:
+        raise last_error
+    # Should not get here, but keep default behaviour for other exceptions.
+    return pd.read_csv(url, sep=";")
+
+
+def _resolve_networks(networks):
+    """Normalize requested networks and filter out unknown ones."""
+    if networks is None:
+        return list(NETWORK_URLS)
+
+    resolved = []
+    for network in networks:
+        key = network.lower()
+        if key not in NETWORK_URLS:
+            print(f"WARNING: Unknown network '{network}'. Skipping.")
+            continue
+        if key not in resolved:
+            resolved.append(key)
+
+    if not resolved:
+        print("No valid networks requested. Nothing to download.")
+
+    return resolved
+
+
+def download_consumption_data(end_date_param=None, networks=None):
+    """Main download function - entry point for main.py.
+
+    Args:
+        end_date_param: Inclusive end date in YYYY-MM-DD format. Defaults to last
+            day of previous month when omitted.
+        networks: Iterable of network identifiers to download. Defaults to all
+            supported networks when omitted.
+    """
     start_date_param = "2012-12-31"
     if end_date_param is None:
         # Get last day of previous month
@@ -59,13 +110,26 @@ def download_consumption_data(end_date_param=None):
             )
             sys.exit(1)
 
-    download_consumption_data_with_range(start_date, end_date)
+    resolved_networks = _resolve_networks(networks)
+    if not resolved_networks:
+        return
+
+    download_consumption_data_with_range(
+        start_date, end_date, networks=resolved_networks
+    )
 
 
 def download_consumption_data_with_range(
-    start_date: datetime.date, end_date_param=None
+    start_date: datetime.date, end_date_param=None, networks=None
 ):
     """Download consumption data for a specific date range."""
+    if networks is None:
+        networks = _resolve_networks(None)
+    else:
+        networks = _resolve_networks(networks)
+
+    if not networks:
+        return
     if end_date_param is None:
         # Get last day of previous month
         today = datetime.date.today()
@@ -98,20 +162,28 @@ def download_consumption_data_with_range(
 
     print(f"Downloading data from {start_date} to {end_date_param}...")
 
-    ensure_directory(DATA_SAVE_PATH)
-
     total_days = (end_date_param - start_date).days + 1
-    print(f"Total days to download: {total_days}")
-    for i in tqdm(range(total_days), desc="Downloading"):
-        current_date = start_date + datetime.timedelta(days=i)
-        date_str = current_date.strftime("%Y%m%d")
-        file_url = f"https://www.gasnet.cz/storage/online-toky/gasnet/{date_str}.csv"
-        file_path = DATA_SAVE_PATH / f"{date_str}.csv"
-        if not file_path.is_file():
+    print(f"Total days to download per network: {total_days}")
+
+    ensure_directory(DATA_CONSUMPTION_ROOT)
+
+    for network in networks:
+        print(f"\nProcessing network '{network}'...")
+        save_dir = DATA_CONSUMPTION_ROOT / network
+        ensure_directory(save_dir)
+        url_template = NETWORK_URLS[network]
+
+        for i in tqdm(range(total_days), desc=f"{network.upper()} downloads"):
+            current_date = start_date + datetime.timedelta(days=i)
+            date_str = current_date.strftime("%Y%m%d")
+            file_url = url_template.format(date=date_str)
+            file_path = save_dir / f"{date_str}.csv"
+            if file_path.is_file():
+                continue
             try:
-                df = pd.read_csv(file_url, sep=";")
+                df = _read_csv_with_fallback(file_url)
                 df.to_csv(file_path, index=False)
-            except (pd.errors.ParserError, ConnectionError, FileNotFoundError) as e:
+            except Exception as e:
                 print(
                     f"Failed to download data for {current_date} from {file_url}: {e}"
                 )
@@ -119,7 +191,10 @@ def download_consumption_data_with_range(
 
 if __name__ == "__main__":
     END_DATE = None
+    NETWORK_ARGS = None
     if len(sys.argv) >= 2:
         END_DATE = sys.argv[1]
+    if len(sys.argv) >= 3:
+        NETWORK_ARGS = sys.argv[2:]
 
-    download_consumption_data(end_date_param=END_DATE)
+    download_consumption_data(end_date_param=END_DATE, networks=NETWORK_ARGS)

@@ -8,6 +8,7 @@ and data merging operations.
 
 import argparse
 from datetime import datetime
+from typing import Optional, Sequence
 
 import processors.dates
 import processors.consumption
@@ -19,8 +20,12 @@ import downloaders.weather_source
 import downloaders.price
 
 
-def download_data(download_type: str = None, end_date: str = None) -> None:
-    """Download data based on specified type and end date."""
+def download_data(
+    download_type: Optional[str] = None,
+    end_date: Optional[str] = None,
+    consumption_networks: Optional[Sequence[str]] = None,
+) -> None:
+    """Download data based on specified type, end date, and requested networks."""
     if end_date:  # validate date format to be YYYY-MM-DD
         try:
             datetime.strptime(end_date, "%Y-%m-%d")
@@ -31,7 +36,9 @@ def download_data(download_type: str = None, end_date: str = None) -> None:
     match download_type:
         case "consumption":
             print("Downloading gas consumption data...")
-            downloaders.consumption.download_consumption_data(end_date_param=end_date)
+            downloaders.consumption.download_consumption_data(
+                end_date_param=end_date, networks=consumption_networks
+            )
         case "weather":
             print("Downloading weather data...")
             downloaders.weather_source.download_weather_data(end_date_param=end_date)
@@ -41,7 +48,9 @@ def download_data(download_type: str = None, end_date: str = None) -> None:
         case "all":
             print("Downloading all data types...")
             print("Downloading gas consumption data...")
-            downloaders.consumption.download_consumption_data(end_date_param=end_date)
+            downloaders.consumption.download_consumption_data(
+                end_date_param=end_date, networks=consumption_networks
+            )
             print("Downloading weather data...")
             downloaders.weather_source.download_weather_data(end_date_param=end_date)
             print("Downloading gas price data...")
@@ -52,7 +61,9 @@ def download_data(download_type: str = None, end_date: str = None) -> None:
             )
 
 
-def process_data(process_type: str = None, end_date: str = None) -> None:
+def process_data(
+    process_type: Optional[str] = None, end_date: Optional[str] = None
+) -> None:
     """Process data based on specified type and end date."""
     if end_date:  # validate date format to be YYYY-MM-DD
         try:
@@ -109,6 +120,16 @@ def main():
         ),
     )
     parser.add_argument(
+        "--consumption-networks",
+        nargs="+",
+        choices=list(downloaders.consumption.NETWORK_URLS),
+        metavar="NETWORK",
+        help=(
+            "Optional list of consumption networks to download "
+            "(default downloads all supported networks)."
+        ),
+    )
+    parser.add_argument(
         "--process",
         choices=["dates", "consumption", "weather", "price", "merge", "all"],
         help=(
@@ -134,12 +155,12 @@ def main():
 
     if args.all:
         # When --all is specified, download and process all data types
-        download_data("all", args.end_date)
+        download_data("all", args.end_date, args.consumption_networks)
         process_data("all", args.end_date)
     else:
         # Handle individual download and process flags
         if args.download:
-            download_data(args.download, args.end_date)
+            download_data(args.download, args.end_date, args.consumption_networks)
 
         if args.process:
             process_data(args.process, args.end_date)
