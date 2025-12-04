@@ -62,7 +62,9 @@ def download_data(
 
 
 def process_data(
-    process_type: Optional[str] = None, end_date: Optional[str] = None
+    process_type: Optional[str] = None,
+    end_date: Optional[str] = None,
+    consumption_networks: Optional[Sequence[str]] = None,
 ) -> None:
     """Process data based on specified type and end date."""
     if end_date:  # validate date format to be YYYY-MM-DD
@@ -78,7 +80,9 @@ def process_data(
             processors.dates.process_datetime_features(end_date_param=end_date)
         case "consumption":
             print("Processing gas consumption data...")
-            processors.consumption.process_consumption_data(end_date_param=end_date)
+            processors.consumption.process_consumption_data(
+                end_date_param=end_date, networks=consumption_networks
+            )
         case "weather":
             print("Processing weather data...")
             processors.weather_source.process_weather_data(end_date_param=end_date)
@@ -87,19 +91,25 @@ def process_data(
             processors.price.process_price_data(end_date_param=end_date)
         case "merge":
             print("Merging all processed data...")
-            processors.main_merger.merge_processed_data(end_date_param=end_date)
+            processors.main_merger.merge_processed_data(
+                end_date_param=end_date, consumption_networks=consumption_networks
+            )
         case "all":
             print("Processing all data types...")
             print("Processing datetime features data...")
             processors.dates.process_datetime_features(end_date_param=end_date)
             print("Processing gas consumption data...")
-            processors.consumption.process_consumption_data(end_date_param=end_date)
+            processors.consumption.process_consumption_data(
+                end_date_param=end_date, networks=consumption_networks
+            )
             print("Processing weather data...")
             processors.weather_source.process_weather_data(end_date_param=end_date)
             print("Processing gas price data...")
             processors.price.process_price_data(end_date_param=end_date)
             print("Merging all processed data...")
-            processors.main_merger.merge_processed_data(end_date_param=end_date)
+            processors.main_merger.merge_processed_data(
+                end_date_param=end_date, consumption_networks=consumption_networks
+            )
         case _:
             raise NotImplementedError(
                 f"Process type '{process_type}' is not implemented."
@@ -156,14 +166,14 @@ def main():
     if args.all:
         # When --all is specified, download and process all data types
         download_data("all", args.end_date, args.consumption_networks)
-        process_data("all", args.end_date)
+        process_data("all", args.end_date, args.consumption_networks)
     else:
         # Handle individual download and process flags
         if args.download:
             download_data(args.download, args.end_date, args.consumption_networks)
 
         if args.process:
-            process_data(args.process, args.end_date)
+            process_data(args.process, args.end_date, args.consumption_networks)
 
         if not (args.download or args.process):
             print("No action specified. Use --download, --process or --all.")

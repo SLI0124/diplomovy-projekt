@@ -21,6 +21,7 @@ The catch is that it will be executed from ../main.py so create entry points acc
 import sys
 from datetime import datetime, timedelta, date
 from pathlib import Path
+from typing import Dict, Iterable, Optional
 
 import pandas as pd
 from tqdm import tqdm
@@ -36,11 +37,13 @@ def get_last_day_of_previous_month():
     return last_day_previous_month.strftime("%Y-%m-%d")
 
 
-DATETIME_FEATURES_PATH = "../../data/processed/datetime_features/"
-CONSUMPTION_PATH = "../../data/processed/consumption/"
-WEATHER_PATH = "../../data/processed/weather/"
-PRICE_PATH = "../../data/processed/price/"
-MERGED_SAVE_PATH = "../../data/processed/merged/"
+# Resolve project structure relative to this file
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+DATETIME_FEATURES_DIR = PROJECT_ROOT / "data" / "processed" / "datetime_features"
+CONSUMPTION_DIR = PROJECT_ROOT / "data" / "processed" / "consumption"
+WEATHER_DIR = PROJECT_ROOT / "data" / "processed" / "weather"
+PRICE_DIR = PROJECT_ROOT / "data" / "processed" / "price"
+MERGED_SAVE_DIR = PROJECT_ROOT / "data" / "processed" / "merged"
 
 
 def create_join_keys(df):
@@ -57,7 +60,11 @@ def create_join_keys(df):
 
 
 def load_and_validate_files(
-    year, datetime_dir, consumption_dir, weather_dir, price_dir
+    year: int,
+    datetime_dir: Path,
+    consumption_dir: Path,
+    weather_dir: Path,
+    price_dir: Path,
 ):
     """Load and validate data files for a specific year."""
     datetime_file = datetime_dir / f"datetime_features_{year}.csv"
@@ -93,7 +100,13 @@ def load_and_validate_files(
         return None, None, None, None
 
 
-def perform_data_joins(datetime_df, consumption_df, weather_df, price_df):
+def perform_data_joins(
+    datetime_df: pd.DataFrame,
+    consumption_df: pd.DataFrame,
+    weather_df: pd.DataFrame,
+    price_df: pd.DataFrame,
+    expected_consumption_networks: Optional[Iterable[str]] = None,
+) -> pd.DataFrame:
     """Perform temporal joins between the four data sources."""
     # Create join keys for all dataframes
     datetime_df["join_key"] = create_join_keys(datetime_df)
@@ -104,8 +117,24 @@ def perform_data_joins(datetime_df, consumption_df, weather_df, price_df):
     # Start with datetime features as base
     merged_df = datetime_df.copy()
 
-    # Join consumption data
-    consumption_join = consumption_df[["join_key", "consumption"]].copy()
+    # Join consumption data (include all derived consumption columns)
+    consumption_columns = [
+        column
+        for column in consumption_df.columns
+        if column not in {"year", "month", "day", "hour"}
+    ]
+    if expected_consumption_networks:
+        expected_columns = {
+            f"consumption_{network}" for network in expected_consumption_networks
+        }
+        expected_columns.add("consumption_total")
+        missing_cols = expected_columns.difference(consumption_columns)
+        if missing_cols:
+            print(
+                "WARNING: Missing expected consumption columns in merged data: "
+                + ", ".join(sorted(missing_cols))
+            )
+    consumption_join = consumption_df[consumption_columns].copy()
     merged_df = merged_df.merge(consumption_join, on="join_key", how="left")
 
     # Join weather data (excluding duplicate datetime columns)
@@ -127,7 +156,14 @@ def perform_data_joins(datetime_df, consumption_df, weather_df, price_df):
     return merged_df
 
 
-def load_year_data(year, datetime_dir, consumption_dir, weather_dir, price_dir):
+def load_year_data(
+    year,
+    datetime_dir,
+    consumption_dir,
+    weather_dir,
+    price_dir,
+    consumption_networks: Optional[Iterable[str]] = None,
+):
     """Load data for a specific year from all four sources."""
     # Load and validate files
     datetime_df, consumption_df, weather_df, price_df = load_and_validate_files(
@@ -137,6 +173,11 @@ def load_year_data(year, datetime_dir, consumption_dir, weather_dir, price_dir):
     if any(df is None for df in [datetime_df, consumption_df, weather_df, price_df]):
         return None
 
+    assert datetime_df is not None
+    assert consumption_df is not None
+    assert weather_df is not None
+    assert price_df is not None
+
     # Print initial data sizes with better formatting
     print(f"Year {year} - Initial data sizes:")
     print(f"\tDatetime features: {len(datetime_df):,} rows")
@@ -145,14 +186,28 @@ def load_year_data(year, datetime_dir, consumption_dir, weather_dir, price_dir):
     print(f"\tPrice: {len(price_df):,} rows")
 
     # Perform joins
-    merged_df = perform_data_joins(datetime_df, consumption_df, weather_df, price_df)
+    merged_df = perform_data_joins(
+        datetime_df,
+        consumption_df,
+        weather_df,
+        price_df,
+        expected_consumption_networks=consumption_networks,
+    )
 
     print(f"Year {year} - After join: {len(merged_df):,} rows")
 
     # Report missing data with better formatting
-    consumption_missing = merged_df["consumption"].isna().sum()
-    if consumption_missing > 0:
-        print(f"\tWarning: {consumption_missing:,} rows missing consumption data")
+    consumption_columns = [
+        column
+        for column in merged_df.columns
+        if column.startswith("consumption_") or column == "consumption_total"
+    ]
+    if consumption_columns:
+        consumption_missing = merged_df[consumption_columns].isna().any(axis=1).sum()
+        if consumption_missing > 0:
+            print(
+                f"\tWarning: {consumption_missing:,} rows missing one or more consumption values"
+            )
 
     price_missing = merged_df["weighted_avg_price_eur_mwh"].isna().sum()
     if price_missing > 0:
@@ -198,7 +253,13 @@ def get_available_years(datetime_dir, consumption_dir, weather_dir, price_dir):
 
 
 def merge_data_for_range(
-    start_date, end_date, datetime_dir, consumption_dir, weather_dir, price_dir
+    start_date: date,
+    end_date: date,
+    datetime_dir: Path,
+    consumption_dir: Path,
+    weather_dir: Path,
+    price_dir: Path,
+    consumption_networks: Optional[Iterable[str]] = None,
 ):
     """Merge data for all years within the specified date range."""
     start_year = start_date.year
@@ -225,7 +286,12 @@ def merge_data_for_range(
 
     for year in tqdm(years_to_process, desc="Merging data by year"):
         merged_df = load_year_data(
-            year, datetime_dir, consumption_dir, weather_dir, price_dir
+            year,
+            datetime_dir,
+            consumption_dir,
+            weather_dir,
+            price_dir,
+            consumption_networks,
         )
         if merged_df is not None:
             merged_data_by_year[year] = merged_df
@@ -240,7 +306,11 @@ def merge_data_for_range(
     return None
 
 
-def save_merged_data_to_csv(merged_data_by_year, output_dir, file_prefix="merged"):
+def save_merged_data_to_csv(
+    merged_data_by_year: Dict[int, pd.DataFrame],
+    output_dir: Path,
+    file_prefix: str = "merged",
+):
     """Save merged data split by year and also as one combined file."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -270,15 +340,16 @@ def save_merged_data_to_csv(merged_data_by_year, output_dir, file_prefix="merged
     print("\t- 1 combined file with all years")
 
 
-def merge_processed_data(end_date_param=None):
+def merge_processed_data(
+    end_date_param=None, consumption_networks: Optional[Iterable[str]] = None
+):
     """Main merging function - entry point for main.py."""
     # Get the directory relative to main.py
-    current_dir = Path(__file__).parent
-    datetime_dir = current_dir / DATETIME_FEATURES_PATH
-    consumption_dir = current_dir / CONSUMPTION_PATH
-    weather_dir = current_dir / WEATHER_PATH
-    price_dir = current_dir / PRICE_PATH
-    output_dir = current_dir / MERGED_SAVE_PATH
+    datetime_dir = DATETIME_FEATURES_DIR
+    consumption_dir = CONSUMPTION_DIR
+    weather_dir = WEATHER_DIR
+    price_dir = PRICE_DIR
+    output_dir = MERGED_SAVE_DIR
 
     start_date_param = "2013-01-01"
     if end_date_param is None:
@@ -300,8 +371,18 @@ def merge_processed_data(end_date_param=None):
     end_date = datetime.strptime(end_date_param, "%Y-%m-%d").date()
 
     # Merge data in date range
+    normalized_networks = None
+    if consumption_networks:
+        normalized_networks = [network.lower() for network in consumption_networks]
+
     merged_data = merge_data_for_range(
-        start_date, end_date, datetime_dir, consumption_dir, weather_dir, price_dir
+        start_date,
+        end_date,
+        datetime_dir,
+        consumption_dir,
+        weather_dir,
+        price_dir,
+        normalized_networks,
     )
 
     if merged_data is not None:
