@@ -10,3 +10,4 @@ matplotlib
 seaborn
 xlrd
 openpyxl
+scikit-learn

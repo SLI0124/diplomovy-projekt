@@ -14,4 +14,4 @@ dependencies:
   - conda-forge::seaborn
   - conda-forge::xlrd
   - anaconda::openpyxl
-  
+  - anaconda::scikit-learn
