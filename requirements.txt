@@ -11,3 +11,4 @@ seaborn
 xlrd
 openpyxl
 scikit-learn
+ruff
