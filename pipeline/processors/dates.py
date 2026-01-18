@@ -1,8 +1,8 @@
 """
 Module for generating datetime features with Czech holidays.
 
-This file will create columns year, month, day, hour, day_of_week, holiday,
-and before_holiday from 1.1.2013 to given end date, preferably last day of previous month.
+This file will create columns year, month, day, hour, day_of_week, holiday, and
+before_holiday from 1.1.2013 to given end date, preferably last day of previous month.
 
 Uses Czech public holidays as source.
 
@@ -22,7 +22,7 @@ points accordingly.
 """
 
 import sys
-from datetime import datetime, timedelta, date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -97,7 +97,8 @@ def get_czech_holidays(year):
 
 
 def create_date_range(start_date="2013-01-01", end_date_param=None):
-    """Create date range from start_date to end_date (default last day of previous month)."""
+    """Create date range from start_date to end_date (default last day of
+    previous month)."""
     if end_date_param is None:
         end_date_param = get_last_day_of_previous_month()
 

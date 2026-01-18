@@ -1,9 +1,11 @@
 """
 Module for processing raw consumption data from all available distribution networks.
 
-This script processes raw consumption CSV files stored under data/raw/consumption/<network>/.
+This script processes raw consumption
+CSV files stored under data/raw/consumption/<network>/.
 
-Each network's data has a unique structure where each day's 24-hour period is split across two files:
+Each network's data has a unique structure
+where each day's 24-hour period is split across two files:
 - Hours 0-6 of the current day are in the previous day's file
 - Hours 7-23 of the current day are in the current day's file
 
@@ -13,18 +15,19 @@ Datum,ID,Hodnota,Nazev
 1.1.2013 8:00,21637,426805,Zona_Gasnet
 ...
 
-We extract 'Datum' (datetime) and 'Hodnota' (consumption value) columns for each network.
-The processed data maintains complete 24-hour structures with NA values for missing hours
+We extract 'Datum' (datetime) and 'Hodnota' (consumption value) column for each network.
+The processed data maintains complete 24-hour structures with NA value for missing hours
 and provides a dedicated consumption column per network.
 
-Processed data is saved as multiple CSV files in ../../data/processed/consumption/, grouped by year.
-The catch is that it will be executed from ../main.py so create entry points accordingly.
+Processed data is saved as multiple CSV files in ../../data/processed/consumption/,
+grouped by year. The catch is that it will be executed from ../main.py so create entry
+points accordingly.
 """
 
 import sys
-from datetime import datetime, timedelta, date
-from pathlib import Path
 from collections import defaultdict
+from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
@@ -194,8 +197,7 @@ def generate_consumption_data_with_range(
     """Process consumption files for all networks within the given date range."""
     if not network_dirs:
         print(
-            f"No consumption networks found in {DATA_SOURCE_ROOT}. "
-            "Nothing to process."
+            f"No consumption networks found in {DATA_SOURCE_ROOT}. Nothing to process."
         )
         return None
 
@@ -252,7 +254,8 @@ def process_consumption_data(
         end_date = datetime.strptime(end_date_param, "%Y-%m-%d").date()
     except ValueError:
         print(
-            f"ERROR: Invalid date format '{end_date_param}'. Please use YYYY-MM-DD format."
+            f"ERROR: Invalid date format '{end_date_param}'. \
+                Please use YYYY-MM-DD format."
         )
         sys.exit(1)
 

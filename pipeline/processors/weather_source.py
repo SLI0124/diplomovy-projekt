@@ -41,7 +41,7 @@ accordingly.
 """
 
 import sys
-from datetime import datetime, timedelta, date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -83,11 +83,12 @@ def parse_weather_file(file_path):
     print("\tProcessing datetime components...")
     df["date"] = pd.to_datetime(df["date"])
 
-    # Extract datetime components
-    df["year"] = df["date"].dt.year.astype(int)
-    df["month"] = df["date"].dt.month.astype(int)
-    df["day"] = df["date"].dt.day.astype(int)
-    df["hour"] = df["date"].dt.hour.astype(int)
+    # Extract datetime components and take from them year, month, day, hour
+    dt_index = pd.DatetimeIndex(df["date"])
+    df["year"] = dt_index.year.astype(int)
+    df["month"] = dt_index.month.astype(int)
+    df["day"] = dt_index.day.astype(int)
+    df["hour"] = dt_index.hour.astype(int)
 
     # Select weather features (including datetime components, excluding original date)
     weather_columns = [
@@ -161,23 +162,22 @@ def process_weather_data_with_range(source_dir, start_date, end_date):
     # (this removes extra data downloaded due to the 1-day buffer in downloader)
     next_month_start = end_date.replace(day=1) + timedelta(days=32)
     next_month_start = next_month_start.replace(day=1)
-    
+
     if len(filtered_data) > 0:
         # Create datetime column for precise filtering
         filtered_data_copy = filtered_data.copy()
-        filtered_data_copy['temp_datetime'] = pd.to_datetime(
-            filtered_data_copy[['year', 'month', 'day', 'hour']]
+        filtered_data_copy["temp_datetime"] = pd.to_datetime(
+            filtered_data_copy[["year", "month", "day", "hour"]]
         )
-        
+
         # Filter out first day of next month
         next_month_datetime = pd.to_datetime(next_month_start)
-        next_day_datetime = next_month_datetime + timedelta(days=1)
-        
+
         # Keep only data before the first day of next month
         filtered_data = filtered_data_copy[
-            filtered_data_copy['temp_datetime'] < next_month_datetime
-        ].drop('temp_datetime', axis=1)
-        
+            filtered_data_copy["temp_datetime"] < next_month_datetime
+        ].drop("temp_datetime", axis=1)
+
         print(f"\tRemoved first day of next month ({next_month_start})")
 
     print(f"\tFiltered to {len(filtered_data):,} weather records")

@@ -31,7 +31,7 @@ This will be a list of things that need to be done in order to finish the projec
 
 ---
 
-- [ ] set up some black, pylint or other code formatting and linting tools for repository project
+- [X] set up some black, pylint or other code formatting and linting tools for repository project
 - more notebooks:
   - [ ] check merging of each year of each column and in total, do some kind of analysis of how many values were missing and how merging fixed that
   - [ ] data analysis of missing values

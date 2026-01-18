@@ -8,8 +8,8 @@ Each month has its own Excel file in the format: VDT_plyn_MM_YYYY_CZ.xls
 Sample URL: https://www.ote-cr.cz/pubweb/attachments/127/2024/month06/VDT_plyn_06_2024_CZ.xls
 """
 
-import sys
 import datetime
+import sys
 from pathlib import Path
 
 import requests
@@ -129,7 +129,8 @@ def download_price_data_with_range(start_date: datetime.date, end_date_param=Non
 
     if start_date > end_date_param:
         print(
-            f"Start date {start_date} is after end date {end_date_param}. Nothing to download."
+            f"Start date {start_date} is after end date {end_date_param}. \
+                Nothing to download."
         )
         return
 

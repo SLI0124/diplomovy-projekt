@@ -7,8 +7,8 @@ Gasnet provides data from 7:00 of the current day to 6:00 of the next day.
 So for to start from 2013-01-01, we need to download from 2012-12-31.
 """
 
-import sys
 import datetime
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -156,7 +156,8 @@ def download_consumption_data_with_range(
 
     if start_date > end_date_param:
         print(
-            f"Start date {start_date} is after end date {end_date_param}. Nothing to download."
+            f"Start date {start_date} is after end date {end_date_param}. \
+                Nothing to download."
         )
         return
 

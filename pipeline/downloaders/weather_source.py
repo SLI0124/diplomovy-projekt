@@ -7,8 +7,8 @@ precipitation, and other meteorological variables.
 Data is available from 2013-01-01 onwards.
 """
 
-import sys
 import datetime
+import sys
 from pathlib import Path
 
 import openmeteo_requests
@@ -32,7 +32,7 @@ def ensure_directory(path):
 def _setup_api_client():
     """Setup the Open-Meteo API client with retry configuration."""
     retry_session = retry(retries=5, backoff_factor=0.2)
-    return openmeteo_requests.Client(session=retry_session)
+    return openmeteo_requests.Client(session=retry_session)  # type: ignore
 
 
 def _build_api_params(start_date_val, end_date_val):
@@ -138,7 +138,8 @@ def download_weather_data(end_date_param=None):
     else:
         end_date_obj = end_date_param
 
-    # since the weather source provides data up to 22:00 of the day, we need to adjust end_date by one day to include the last day's data
+    # since the weather source provides data up to 22:00 of the day
+    # we need to adjust end_date by one day to include the last day's data
     end_date_obj += datetime.timedelta(days=1)
 
     # Validate date format if needed
@@ -177,7 +178,8 @@ def download_weather_data_with_range(
 
     if start_date_val > end_date_val:
         print(
-            f"Start date {start_date_val} is after end date {end_date_val}. Nothing to download."
+            f"Start date {start_date_val} is after end date {end_date_val}. \
+                Nothing to download."
         )
         return
 

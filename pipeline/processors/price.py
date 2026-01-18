@@ -12,17 +12,18 @@ The XLS files contain gas trading data with the following structure:
   - Min. cena (EUR/MWh) (minimum price)
   - Max. cena (EUR/MWh) (maximum price)
 
-The catch is that dates are in daily format, not hourly like in weather or consumption data.
-Data is available for each day: 01/01/2013, 02/01/2013, ..., 31/01/2013, etc.
+The catch is that dates are in daily format, not hourly like in weather or consumption
+data. Data is available for each day: 01/01/2013, 02/01/2013, ..., 31/01/2013, etc.
 
 Files are organized by month: VDT_plyn_MM_YYYY_CZ.xls
 
-Processed data is saved as multiple CSV files in ../../data/processed/price/, grouped by year.
-The catch is that it will be executed from ../main.py so create entry points accordingly.
+Processed data is saved as multiple CSV files in ../../data/processed/price/, grouped
+by year. The catch is that it will be executed from ../main.py so create entry point
+ accordingly.
 """
 
 import sys
-from datetime import datetime, timedelta, date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd

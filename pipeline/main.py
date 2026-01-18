@@ -10,14 +10,14 @@ import argparse
 from datetime import datetime
 from typing import Optional, Sequence
 
-import processors.dates
-import processors.consumption
-import processors.weather_source
-import processors.price
-import processors.main_merger
 import downloaders.consumption
-import downloaders.weather_source
 import downloaders.price
+import downloaders.weather_source
+import processors.consumption
+import processors.dates
+import processors.main_merger
+import processors.price
+import processors.weather_source
 
 
 def download_data(
@@ -151,7 +151,8 @@ def main():
     parser.add_argument(
         "--all",
         action="store_true",
-        help="Download and process all data types (consumption, weather, price, dates, and merge)",
+        help="Download and process all data types (consumption, weather, price, dates, \
+            and merge)",
     )
     parser.add_argument(
         "--end-date",

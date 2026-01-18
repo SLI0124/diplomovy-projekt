@@ -15,11 +15,11 @@ ensuring proper temporal alignment across all data sources.
 The merged data is saved as multiple CSV files in ../../data/processed/merged/,
 grouped by year, plus a combined file with all years.
 
-The catch is that it will be executed from ../main.py so create entry points accordingly.
+The catch is that it will be executed from ../main.py so create entry point accordingly.
 """
 
 import sys
-from datetime import datetime, timedelta, date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, Iterable, Optional
 
@@ -206,7 +206,8 @@ def load_year_data(
         consumption_missing = merged_df[consumption_columns].isna().any(axis=1).sum()
         if consumption_missing > 0:
             print(
-                f"\tWarning: {consumption_missing:,} rows missing one or more consumption values"
+                f"\tWarning: {consumption_missing:,} rows missing one \
+                    or more consumption values"
             )
 
     price_missing = merged_df["weighted_avg_price_eur_mwh"].isna().sum()
