@@ -4,26 +4,22 @@ This will be a list of things that need to be done in order to finish the projec
 
 ## Immediate
 
-- [x] I found `ppnet` data source for consumption, right now I have multiple sources for consumption so it wouldn't be such a big hassle to add it but their most oldest data I can download is from **2015.1.1**
-  - one way is to completely ignore it and keep current sources
-  - another way is to upload already existing data I have from previous projects that was given to me
-  - **nevermind!!!**, website cannot display data before 2015 but we **can download** them anyway, so let's do that the traditional way (this took my 3 hours of today's time to figure it out, had to do hard reset of like 4 commits because of this realization)
-  - *double nevermind!!!*, found out that those data are not available for download, it will return success but the file contains message that data are not available for the requested date, so I have to upload my old data from previous projects anyway
-- [x] refactor merging script, it's kinda messy right now and I don't know how it exactly works
+- [ ] notebook for checking missing values (for each year and in total; columns, rows, etc. - we might have some leakage that we need to find ASAP)
+- [ ] EDA notebook (data have changed since last time, need to explore it again)
+- [ ] check *float* and *int* values in final dataset, if one can be one or the other (for that little disk space saving and speed up)
+- [ ] refactor notebook for machine learning part (right now it's a kinda mess that worked for initial experiments and presentation)
 
 ## Next steps
 
 - [ ] I've set default start date for all scripts to **2013.1.1**, right now I deleted param for start date, I think it won't be changed at all but it'd be nice to have a way to change it somehow, perhaps I can do like config file with dirs, start date, help functions, etc.
+- [ ] I have some duplicate code, create `utils.py` with all functions used across scripts that will work as some kind of config file (maybe even `config.py` or `config.yml` with dirs, start date, end date, etc. - need to think about what can be configured and what will be placed there)
 
 ---
 
-- [ ] I have some duplicate code, create `utils.py` with all functions used across scripts that will work as some kind of config file
-  - [ ] maybe create `config.py` or `config.yml` with all dirs, start date, end date, etc.?
-- [ ] maybe check *float* and *int* values in final dataset, if one can be one or the other
-- [ ] type checking
-- [ ] better docstrings with params, return types, etc.
-- [ ] README file for `pipeline` directory
-- [ ] add `argparse` to all scripts for better CLI usage
+- [ ] type checking, e.g. with add type hints to all functions and classes
+- [ ] better docstrings with params, return types, etc., preferably to all functions and classes
+- [ ] add `argparse` to all scripts for better CLI usage and overall experience
+- [ ] README file for `pipeline` directory, explain what each script does and how to use them, what are the inputs and outputs, conditions, etc.
 
 ---
 
@@ -33,10 +29,6 @@ This will be a list of things that need to be done in order to finish the projec
 
 ---
 
-- [X] set up some black, pylint or other code formatting and linting tools for repository project
-- more notebooks:
-  - [ ] check merging of each year of each column and in total, do some kind of analysis of how many values were missing and how merging fixed that
-  - [ ] data analysis of missing values
 - refactor
   - [ ] downloaders
   - [ ] processors
@@ -44,8 +36,6 @@ This will be a list of things that need to be done in order to finish the projec
   - [ ] utils
   - [ ] config
   - [ ] main script
-  - [ ] jupyter notebooks
-- [ ] tests for merging?
 - [ ] finally get into the modeling and AI part of the project
 
 ### Notes after consultation
@@ -56,5 +46,5 @@ This will be a list of things that need to be done in order to finish the projec
 - then I can use those models as baseline for more complex models
 - fine-tune the params for those big models
 - try to do multiple models for different time intervals
-  - like train till 2018 and test on 2019, etc.
+  - train till 2018 and test on 2019, etc. - incrementally widen the train set until the end of data where we have only few months to test on or something in similar fashion
 - then we will see the breakpoint where model starts to fail, e.g. right after the Ukraine war started
