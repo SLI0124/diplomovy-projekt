@@ -1,10 +1,11 @@
 """
-Module for downloading gas consumption data from Gasnet.
+Module for downloading gas consumption data from distribution networks.
 
-Downloads daily CSV files from gasnet.cz for gas consumption data.
-Data is available from 2013-01-01 onwards.
+Downloads daily CSV files from gasnet.cz (gasnet/vcpnet/jmpnet/smpnet)
+and ppdistribuce.cz (ppnet) for gas consumption data.
 Gasnet provides data from 7:00 of the current day to 6:00 of the next day.
 So for to start from 2013-01-01, we need to download from 2012-12-31.
+PPNET provides data from 2016-01-01 onwards and uses a 12-hour clock without AM/PM.
 """
 
 import datetime
@@ -23,9 +24,14 @@ NETWORK_URLS = {
     "vcpnet": "https://www.gasnet.cz/storage/online-toky/vcpnet/{date}.csv",
     "jmpnet": "https://www.gasnet.cz/storage/online-toky/jmpnet/{date}.csv",
     "smpnet": "https://www.gasnet.cz/storage/online-toky/smpnet/{date}.csv",
+    "ppnet": "https://www.ppdistribuce.cz/online-toky/csv.php?date={date}",
 }
 
 ENCODING_FALLBACKS = ("utf-8", "cp1250", "iso-8859-2")
+
+MIN_DATE_BY_NETWORK = {
+    "ppnet": datetime.date(2016, 1, 1),
+}
 
 
 def ensure_directory(path):
@@ -49,8 +55,47 @@ def _read_csv_with_fallback(url):
     # Propagate the last decode error if all fallbacks failed.
     if last_error is not None:
         raise last_error
-    # Should not get here, but keep default behaviour for other exceptions.
+    # Should not get here, but keep default behavior for other exceptions.
     return pd.read_csv(url, sep=";")
+
+
+def _normalize_ppnet_datetime(datum_series: pd.Series) -> pd.Series:
+    """Normalize PPNET timestamps by inferring AM/PM from row order.
+
+    PPNET uses a 12-hour clock without AM/PM. We enforce a non-decreasing
+    time series by adding 12-hour increments when the parsed timestamp
+    would otherwise move backwards.
+    """
+    parsed = pd.to_datetime(datum_series, format="%Y-%m-%d %H:%M:%S", errors="coerce")
+    corrected = []
+    previous = None
+
+    for value in parsed:
+        if pd.isna(value):
+            corrected.append(pd.NaT)
+            continue
+
+        candidate = value
+        if previous is not None:
+            while candidate < previous:
+                candidate += pd.Timedelta(hours=12)
+
+        corrected.append(candidate)
+        previous = candidate
+
+    return pd.Series(corrected)
+
+
+def _prepare_ppnet_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize PPNET CSV to match downstream consumption processing."""
+    if "Datum" not in df.columns or "Hodnota" not in df.columns:
+        raise ValueError("PPNET CSV is missing required columns 'Datum'/'Hodnota'.")
+
+    normalized_dt = pd.to_datetime(_normalize_ppnet_datetime(df["Datum"]))
+    df = df.copy()
+    df["Datum"] = normalized_dt.dt.strftime("%d.%m.%Y %H:%M")
+    df["Hodnota"] = pd.to_numeric(df["Hodnota"], errors="coerce")
+    return df[["Datum", "Hodnota"]]
 
 
 def _resolve_networks(networks):
@@ -163,26 +208,40 @@ def download_consumption_data_with_range(
 
     print(f"Downloading data from {start_date} to {end_date_param}...")
 
-    total_days = (end_date_param - start_date).days + 1
-    print(f"Total days to download per network: {total_days}")
-
     ensure_directory(DATA_CONSUMPTION_ROOT)
 
     for network in networks:
+        network_min_date = MIN_DATE_BY_NETWORK.get(network, datetime.date(2012, 12, 31))
+        network_start_date = max(start_date, network_min_date)
+        if network_start_date > end_date_param:
+            print(
+                f"Skipping network '{network}' because start date {network_start_date} \
+                    is after end date {end_date_param}."
+            )
+            continue
+
+        total_days = (end_date_param - network_start_date).days + 1
+        print(f"Total days to download for '{network}': {total_days}")
+
         print(f"\nProcessing network '{network}'...")
         save_dir = DATA_CONSUMPTION_ROOT / network
         ensure_directory(save_dir)
         url_template = NETWORK_URLS[network]
 
         for i in tqdm(range(total_days), desc=f"{network.upper()} downloads"):
-            current_date = start_date + datetime.timedelta(days=i)
+            current_date = network_start_date + datetime.timedelta(days=i)
             date_str = current_date.strftime("%Y%m%d")
-            file_url = url_template.format(date=date_str)
+            url_date = (
+                current_date.strftime("%Y-%m-%d") if network == "ppnet" else date_str
+            )
+            file_url = url_template.format(date=url_date)
             file_path = save_dir / f"{date_str}.csv"
             if file_path.is_file():
                 continue
             try:
                 df = _read_csv_with_fallback(file_url)
+                if network == "ppnet":
+                    df = _prepare_ppnet_dataframe(df)
                 df.to_csv(file_path, index=False)
             except Exception as e:
                 print(
