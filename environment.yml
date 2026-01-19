@@ -4,7 +4,7 @@ channels:
   - anaconda
   - defaults
 dependencies:
-  - pip
+  - anaconda::pip
   - conda-forge::pytorch
   - anaconda::pandas
   - anaconda::tqdm
@@ -17,6 +17,7 @@ dependencies:
   - anaconda::openpyxl
   - anaconda::scikit-learn
   - conda-forge::ruff
+  - conda-forge::ipykernel
   - pip:
       - openmeteo-requests
       - retry-requests
