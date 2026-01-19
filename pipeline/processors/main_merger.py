@@ -1,25 +1,20 @@
-"""
-Module for merging processed data from dates, consumption, weather, and price sources.
+"""pipeline.processors.main_merger
 
-This script merges processed data from:
-- ../../data/processed/datetime_features/ (year, month, day, hour, day_of_week,
-  holiday, before_holiday)
-- ../../data/processed/consumption/ (consumption values)
-- ../../data/processed/weather/ (20 weather features)
-- ../../data/processed/price/ (traded_volume_mwh, weighted_avg_price_eur_mwh,
-  min_price_eur_mwh, max_price_eur_mwh)
+Merges processed data from dates, consumption, weather, and price sources.
 
-The merge is done using date-based joins on year_month_day_hour keys,
-ensuring proper temporal alignment across all data sources.
+Key requirement: do not drop any row coming from any input file. This merger
+therefore performs FULL OUTER merges on a normalized timestamp key (derived
+from year/month/day/hour). When a source doesn't have a matching row for a
+timestamp, the merged output keeps the row and leaves empty values for that
+source's columns.
 
-The merged data is saved as multiple CSV files in ../../data/processed/merged/,
-grouped by year, plus a combined file with all years.
-
-The catch is that it will be executed from ../main.py so create entry point accordingly.
+Outputs are written to data/processed/merged/ as yearly files plus one combined
+file with all years.
 """
 
 import sys
 from datetime import date, datetime, timedelta
+from functools import reduce
 from pathlib import Path
 from typing import Dict, Iterable, Optional
 
@@ -39,121 +34,143 @@ def get_last_day_of_previous_month():
 
 # Resolve project structure relative to this file
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-DATETIME_FEATURES_DIR = PROJECT_ROOT / "data" / "processed" / "datetime_features"
-CONSUMPTION_DIR = PROJECT_ROOT / "data" / "processed" / "consumption"
-WEATHER_DIR = PROJECT_ROOT / "data" / "processed" / "weather"
-PRICE_DIR = PROJECT_ROOT / "data" / "processed" / "price"
-MERGED_SAVE_DIR = PROJECT_ROOT / "data" / "processed" / "merged"
+DATA_ROOT = PROJECT_ROOT / "data" / "processed"
+
+DATETIME_FEATURES_DIR = DATA_ROOT / "datetime_features"
+CONSUMPTION_DIR = DATA_ROOT / "consumption"
+WEATHER_DIR = DATA_ROOT / "weather"
+PRICE_DIR = DATA_ROOT / "price"
+MERGED_SAVE_DIR = DATA_ROOT / "merged"
 
 
-def create_join_keys(df):
-    """Create temporal join keys for dataframe merging."""
-    return (
-        df["year"].astype(str)
-        + "_"
-        + df["month"].astype(str)
-        + "_"
-        + df["day"].astype(str)
-        + "_"
-        + df["hour"].astype(str)
+def _read_csv_if_exists(path: Path) -> Optional[pd.DataFrame]:
+    """Read a CSV file if it exists, otherwise return None."""
+    if not path.exists():
+        return None
+    try:
+        return pd.read_csv(path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError) as e:
+        print(f"Error loading '{path}': {e}")
+        return None
+
+
+def _ensure_datetime_parts(df: pd.DataFrame, *, source: str) -> None:
+    """Ensure that the DataFrame has the required datetime part columns."""
+    required = {"year", "month", "day", "hour"}
+    missing = required.difference(df.columns)
+    if missing:
+        raise ValueError(
+            f"Source '{source}' is missing required columns: "
+            + ", ".join(sorted(missing))
+        )
+
+
+def _add_timestamp_and_dup_index(df: pd.DataFrame, *, source: str) -> pd.DataFrame:
+    """Create a normalized timestamp key and a duplicate index.
+
+    Duplicate index preserves rows for repeated timestamps (e.g. DST-related
+    duplicated hours) without dropping data.
+    """
+    # Validate required columns
+    _ensure_datetime_parts(df, source=source)
+
+    # Work on a copy to avoid mutating callers.
+    out = df.copy()
+
+    for col in ["year", "month", "day", "hour"]:
+        out[col] = pd.to_numeric(out[col], errors="coerce")
+
+    out["timestamp"] = pd.to_datetime(
+        {
+            "year": out["year"],
+            "month": out["month"],
+            "day": out["day"],
+            "hour": out["hour"],
+        },
+        errors="coerce",
     )
 
+    nat_count = out["timestamp"].isna().sum()
+    if nat_count:
+        print(
+            f"Warning: source '{source}' has {nat_count:,} rows with invalid "
+            "timestamp parts"
+        )
 
-def load_and_validate_files(
+    out["dup_idx"] = out.groupby("timestamp", dropna=False).cumcount()
+    return out
+
+
+def _prepare_source_for_merge(
+    df: pd.DataFrame,
+    *,
+    source: str,
     year: int,
-    datetime_dir: Path,
-    consumption_dir: Path,
-    weather_dir: Path,
-    price_dir: Path,
-):
-    """Load and validate data files for a specific year."""
-    datetime_file = datetime_dir / f"datetime_features_{year}.csv"
-    consumption_file = consumption_dir / f"consumption_{year}.csv"
-    weather_file = weather_dir / f"weather_{year}.csv"
-    price_file = price_dir / f"price_{year}.csv"
-
-    # Check if all required files exist
-    missing_files = []
-    for file_path, name in [
-        (datetime_file, "datetime_features"),
-        (consumption_file, "consumption"),
-        (weather_file, "weather"),
-        (price_file, "price"),
-    ]:
-        if not file_path.exists():
-            missing_files.append(f"{name}_{year}.csv")
-
-    if missing_files:
-        print(f"Warning: Missing files for year {year}: {', '.join(missing_files)}")
-        return None, None, None, None
-
-    # Load the data
-    try:
-        datetime_df = pd.read_csv(datetime_file)
-        consumption_df = pd.read_csv(consumption_file)
-        weather_df = pd.read_csv(weather_file)
-        price_df = pd.read_csv(price_file)
-        return datetime_df, consumption_df, weather_df, price_df
-
-    except (pd.errors.EmptyDataError, pd.errors.ParserError) as e:
-        print(f"Error loading data for year {year}: {e}")
-        return None, None, None, None
-
-
-def perform_data_joins(
-    datetime_df: pd.DataFrame,
-    consumption_df: pd.DataFrame,
-    weather_df: pd.DataFrame,
-    price_df: pd.DataFrame,
-    expected_consumption_networks: Optional[Iterable[str]] = None,
 ) -> pd.DataFrame:
-    """Perform temporal joins between the four data sources."""
-    # Create join keys for all dataframes
-    datetime_df["join_key"] = create_join_keys(datetime_df)
-    consumption_df["join_key"] = create_join_keys(consumption_df)
-    weather_df["join_key"] = create_join_keys(weather_df)
-    price_df["join_key"] = create_join_keys(price_df)
+    """Prepare a source DataFrame for merging by adding timestamp and dup_idx."""
+    df2 = _add_timestamp_and_dup_index(df, source=source)
+    # Filter to the requested year as a safety check.
+    df2 = df2[df2["year"] == year].copy()
 
-    # Start with datetime features as base
-    merged_df = datetime_df.copy()
-
-    # Join consumption data (include all derived consumption columns)
-    consumption_columns = [
-        column
-        for column in consumption_df.columns
-        if column not in {"year", "month", "day", "hour"}
+    # Keep only payload columns (drop year/month/day/hour to prevent collisions).
+    payload_columns = [
+        c
+        for c in df2.columns
+        if c not in {"year", "month", "day", "hour"}
+        and c not in {"timestamp", "dup_idx"}
     ]
-    if expected_consumption_networks:
-        expected_columns = {
-            f"consumption_{network}" for network in expected_consumption_networks
-        }
-        expected_columns.add("consumption_total")
-        missing_cols = expected_columns.difference(consumption_columns)
-        if missing_cols:
-            print(
-                "WARNING: Missing expected consumption columns in merged data: "
-                + ", ".join(sorted(missing_cols))
-            )
-    consumption_join = consumption_df[consumption_columns].copy()
-    merged_df = merged_df.merge(consumption_join, on="join_key", how="left")
 
-    # Join weather data (excluding duplicate datetime columns)
-    weather_columns = [
-        col for col in weather_df.columns if col not in ["year", "month", "day", "hour"]
+    result = df2[["timestamp", "dup_idx", *payload_columns]].copy()
+    result = result.sort_values(["timestamp", "dup_idx"], kind="stable")
+    return result
+
+
+def _outer_merge_all(sources: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Perform outer merges on all provided source DataFrames."""
+    prepared = [df for df in sources.values() if df is not None and not df.empty]
+
+    if not prepared:
+        return pd.DataFrame(columns=["year", "month", "day", "hour"])
+
+    merged = reduce(
+        lambda left, right: left.merge(right, on=["timestamp", "dup_idx"], how="outer"),
+        prepared,
+    )
+
+    merged = merged.sort_values(["timestamp", "dup_idx"], kind="stable")
+
+    # Ensure dtype is datetime64[ns] for .dt accessors.
+    merged["timestamp"] = pd.to_datetime(merged["timestamp"], errors="coerce")
+
+    # Recreate calendar columns from timestamp; NaT stays empty.
+    merged.insert(0, "hour", merged["timestamp"].dt.hour)  # type: ignore[attr-defined]
+    merged.insert(0, "day", merged["timestamp"].dt.day)  # type: ignore[attr-defined]
+    merged.insert(0, "month", merged["timestamp"].dt.month)  # type: ignore[attr-defined]
+    merged.insert(0, "year", merged["timestamp"].dt.year)  # type: ignore[attr-defined]
+
+    return merged
+
+
+def _year_file(dir_path: Path, prefix: str, year: int) -> Path:
+    """Construct the file path for a given year and prefix in the directory."""
+    return dir_path / f"{prefix}_{year}.csv"
+
+
+def _summarize_missing(df: pd.DataFrame) -> dict[str, int]:
+    """Summarize missing data counts for key columns in the merged DataFrame."""
+    out: dict[str, int] = {}
+    consumption_cols = [
+        c
+        for c in df.columns
+        if c.startswith("consumption_") or c == "consumption_total"
     ]
-    weather_join = weather_df[weather_columns].copy()
-    merged_df = merged_df.merge(weather_join, on="join_key", how="left")
-
-    # Join price data (excluding duplicate datetime columns)
-    price_columns = [
-        col for col in price_df.columns if col not in ["year", "month", "day", "hour"]
-    ]
-    price_join = price_df[price_columns].copy()
-    merged_df = merged_df.merge(price_join, on="join_key", how="left")
-
-    # Drop the temporary join key
-    merged_df = merged_df.drop("join_key", axis=1)
-    return merged_df
+    if consumption_cols:
+        out["missing_consumption_rows"] = int(
+            df[consumption_cols].isna().any(axis=1).sum()
+        )
+    if "weighted_avg_price_eur_mwh" in df.columns:
+        out["missing_price_rows"] = int(df["weighted_avg_price_eur_mwh"].isna().sum())
+    return out
 
 
 def load_year_data(
@@ -164,93 +181,70 @@ def load_year_data(
     price_dir,
     consumption_networks: Optional[Iterable[str]] = None,
 ):
-    """Load data for a specific year from all four sources."""
-    # Load and validate files
-    datetime_df, consumption_df, weather_df, price_df = load_and_validate_files(
-        year, datetime_dir, consumption_dir, weather_dir, price_dir
-    )
+    """Load and outer-merge data for a specific year.
 
-    if any(df is None for df in [datetime_df, consumption_df, weather_df, price_df]):
-        return None
+    Returns a tuple of (merged_df, stats_dict) or (None, stats_dict) if nothing
+    can be loaded.
+    """
+    raw_sources: dict[str, Optional[pd.DataFrame]] = {
+        "datetime_features": _read_csv_if_exists(
+            _year_file(datetime_dir, "datetime_features", year)
+        ),
+        "consumption": _read_csv_if_exists(
+            _year_file(consumption_dir, "consumption", year)
+        ),
+        "weather": _read_csv_if_exists(_year_file(weather_dir, "weather", year)),
+        "price": _read_csv_if_exists(_year_file(price_dir, "price", year)),
+    }
 
-    assert datetime_df is not None
-    assert consumption_df is not None
-    assert weather_df is not None
-    assert price_df is not None
+    stats: dict[str, object] = {
+        "year": year,
+        "input_rows": {k: (0 if v is None else len(v)) for k, v in raw_sources.items()},
+    }
 
-    # Print initial data sizes with better formatting
-    print(f"Year {year} - Initial data sizes:")
-    print(f"\tDatetime features: {len(datetime_df):,} rows")
-    print(f"\tConsumption: {len(consumption_df):,} rows")
-    print(f"\tWeather: {len(weather_df):,} rows")
-    print(f"\tPrice: {len(price_df):,} rows")
+    if all(df is None for df in raw_sources.values()):
+        return None, stats
 
-    # Perform joins
-    merged_df = perform_data_joins(
-        datetime_df,
-        consumption_df,
-        weather_df,
-        price_df,
-        expected_consumption_networks=consumption_networks,
-    )
+    prepared: Dict[str, pd.DataFrame] = {
+        name: _prepare_source_for_merge(df, source=name, year=year)
+        for name, df in raw_sources.items()
+        if df is not None
+    }
 
-    print(f"Year {year} - After join: {len(merged_df):,} rows")
+    merged_df = _outer_merge_all(prepared)
 
-    # Report missing data with better formatting
-    consumption_columns = [
-        column
-        for column in merged_df.columns
-        if column.startswith("consumption_") or column == "consumption_total"
-    ]
-    if consumption_columns:
-        consumption_missing = merged_df[consumption_columns].isna().any(axis=1).sum()
-        if consumption_missing > 0:
-            print(
-                f"\tWarning: {consumption_missing:,} rows missing one \
-                    or more consumption values"
-            )
+    if consumption_networks:
+        expected = {f"consumption_{n}" for n in consumption_networks}
+        expected.add("consumption_total")
+        missing_expected = sorted(expected.difference(merged_df.columns))
+        if missing_expected:
+            stats["missing_expected_consumption_columns"] = missing_expected
 
-    price_missing = merged_df["weighted_avg_price_eur_mwh"].isna().sum()
-    if price_missing > 0:
-        print(f"\tWarning: {price_missing:,} rows missing price data")
-
-    return merged_df
+    stats["merged_rows"] = len(merged_df)
+    stats["missing"] = _summarize_missing(merged_df)
+    return merged_df, stats
 
 
 def get_available_years(datetime_dir, consumption_dir, weather_dir, price_dir):
-    """Get years that have data available in all four sources."""
-    datetime_years = set()
-    consumption_years = set()
-    weather_years = set()
-    price_years = set()
+    """Get years that have data available in any source.
 
-    # Extract years from datetime features files
-    for file in datetime_dir.glob("datetime_features_*.csv"):
-        year = file.stem.split("_")[-1]
-        if year.isdigit():
-            datetime_years.add(int(year))
+    We merge using OUTER joins and keep missing values, so a year can be merged
+    even if some sources are missing.
+    """
+    years: set[int] = set()
 
-    # Extract years from consumption files
-    for file in consumption_dir.glob("consumption_*.csv"):
-        year = file.stem.split("_")[-1]
-        if year.isdigit():
-            consumption_years.add(int(year))
+    for pattern, dir_path in [
+        ("datetime_features_*.csv", datetime_dir),
+        ("consumption_*.csv", consumption_dir),
+        ("weather_*.csv", weather_dir),
+        ("price_*.csv", price_dir),
+    ]:
+        for file in dir_path.glob(pattern):
+            year_str = file.stem.split("_")[-1]
+            if year_str.isdigit():
+                years.add(int(year_str))
 
-    # Extract years from weather files
-    for file in weather_dir.glob("weather_*.csv"):
-        year = file.stem.split("_")[-1]
-        if year.isdigit():
-            weather_years.add(int(year))
-
-    # Extract years from price files
-    for file in price_dir.glob("price_*.csv"):
-        year = file.stem.split("_")[-1]
-        if year.isdigit():
-            price_years.add(int(year))
-
-    # Return intersection of all four sets (years available in all sources)
-    common_years = datetime_years & consumption_years & weather_years & price_years
-    return sorted(list(common_years))
+    return sorted(years)
 
 
 def merge_data_for_range(
@@ -280,13 +274,14 @@ def merge_data_for_range(
         print(f"No data available for years {start_year}-{end_year}")
         return None
 
-    print(f"Processing years: {years_to_process}")
-
     merged_data_by_year = {}
-    total_records = 0
 
-    for year in tqdm(years_to_process, desc="Merging data by year"):
-        merged_df = load_year_data(
+    stats_by_year: list[dict[str, object]] = []
+    start_dt = pd.to_datetime(start_date)
+    end_dt = pd.to_datetime(end_date) + pd.Timedelta(hours=23)
+
+    for year in tqdm(years_to_process, desc="Merging years", unit="year"):
+        merged_df, stats = load_year_data(
             year,
             datetime_dir,
             consumption_dir,
@@ -294,17 +289,40 @@ def merge_data_for_range(
             price_dir,
             consumption_networks,
         )
-        if merged_df is not None:
-            merged_data_by_year[year] = merged_df
-            total_records += len(merged_df)
-            print(f"\tYear {year}: {len(merged_df):,} records merged")
+        stats_by_year.append(stats)
+        if merged_df is None:
+            continue
 
-    if merged_data_by_year:
-        print(f"Total merged records: {total_records:,}")
-        return merged_data_by_year
+        if "timestamp" in merged_df.columns:
+            keep = merged_df["timestamp"].isna() | (
+                (merged_df["timestamp"] >= start_dt)
+                & (merged_df["timestamp"] <= end_dt)
+            )
+            merged_df = merged_df.loc[keep].copy()
 
-    print("No data was successfully merged")
-    return None
+        merged_data_by_year[year] = merged_df
+
+    if not merged_data_by_year:
+        print("No data was successfully merged")
+        return None
+
+    merged_years = sorted(merged_data_by_year)
+    total_records = sum(len(merged_data_by_year[y]) for y in merged_years)
+    print(f"Merged years: {merged_years}")
+    print(f"Total merged records: {total_records:,}")
+
+    missing_cols_years: list[tuple[int, list[str]]] = []
+    for s in stats_by_year:
+        year_val = s.get("year")
+        cols = s.get("missing_expected_consumption_columns")
+        if isinstance(year_val, int) and isinstance(cols, list) and cols:
+            missing_cols_years.append((year_val, [str(c) for c in cols]))
+    if missing_cols_years:
+        print("Missing expected consumption columns (by year):")
+        for y, cols in missing_cols_years:
+            print(f"\t{y}: {', '.join(cols)}")
+
+    return merged_data_by_year
 
 
 def save_merged_data_to_csv(
@@ -315,30 +333,26 @@ def save_merged_data_to_csv(
     """Save merged data split by year and also as one combined file."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Saving merged data to {len(merged_data_by_year)} yearly files:")
-
     # Save individual year files
     sorted_years = sorted(merged_data_by_year.keys())
-    for year in tqdm(sorted_years, desc="Saving yearly files"):
-        year_data = merged_data_by_year[year]
+    for year in tqdm(sorted_years, desc="Saving yearly files", unit="file"):
+        year_data = merged_data_by_year[year].copy()
+        year_data = year_data.drop(columns=["timestamp", "dup_idx"], errors="ignore")
         filename = output_dir / f"{file_prefix}_{year}.csv"
         year_data.to_csv(filename, index=False)
 
     # Combine all years into one DataFrame and save as single file
-    print("Creating combined file with all years...")
     all_years_data = [merged_data_by_year[year] for year in sorted_years]
 
     if all_years_data:
         combined_df = pd.concat(all_years_data, ignore_index=True)
+        combined_df = combined_df.drop(
+            columns=["timestamp", "dup_idx"], errors="ignore"
+        )
         combined_filename = output_dir / f"{file_prefix}_all_years.csv"
-
-        print(f"Saving combined file with {len(combined_df):,} total records...")
         combined_df.to_csv(combined_filename, index=False)
-        print(f"Combined file saved: {combined_filename}")
 
-    print(f"All files saved to: {output_dir}")
-    print(f"\t- {len(merged_data_by_year)} yearly files")
-    print("\t- 1 combined file with all years")
+    print(f"Saved: {len(sorted_years)} yearly files + merged_all_years.csv")
 
 
 def merge_processed_data(
@@ -365,7 +379,7 @@ def merge_processed_data(
                 f"ERROR: Invalid end_date format '{end_date_param}'. "
                 "Please use YYYY-MM-DD format."
             )
-            sys.exit(1)
+            return None
 
     # Convert string dates to date objects
     start_date = datetime.strptime(start_date_param, "%Y-%m-%d").date()

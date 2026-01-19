@@ -9,7 +9,7 @@ This will be a list of things that need to be done in order to finish the projec
   - another way is to upload already existing data I have from previous projects that was given to me
   - **nevermind!!!**, website cannot display data before 2015 but we **can download** them anyway, so let's do that the traditional way (this took my 3 hours of today's time to figure it out, had to do hard reset of like 4 commits because of this realization)
   - *double nevermind!!!*, found out that those data are not available for download, it will return success but the file contains message that data are not available for the requested date, so I have to upload my old data from previous projects anyway
-- [ ] refactor merging script, it's kinda messy right now and I don't know how it exactly works
+- [x] refactor merging script, it's kinda messy right now and I don't know how it exactly works
 
 ## Next steps
 
