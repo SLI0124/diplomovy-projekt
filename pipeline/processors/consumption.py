@@ -53,6 +53,28 @@ DATA_SAVE_PATH = PROJECT_ROOT / "data" / "processed" / "consumption"
 SUSPICIOUS_FILES: Dict[str, List[Tuple[str, int]]] = defaultdict(list)
 
 
+def _normalize_ppnet_datetime(datum_series: pd.Series) -> pd.Series:
+    """Normalize PPNET timestamps by inferring AM/PM from row order."""
+    parsed = pd.to_datetime(datum_series, format="%Y-%m-%d %H:%M:%S", errors="coerce")
+
+    corrected = []
+    previous = None
+    for value in parsed:
+        if pd.isna(value):
+            corrected.append(pd.NaT)
+            continue
+
+        candidate = value
+        if previous is not None:
+            while candidate < previous:
+                candidate += pd.Timedelta(hours=12)
+
+        corrected.append(candidate)
+        previous = candidate
+
+    return pd.Series(corrected)
+
+
 def discover_network_paths() -> Dict[str, Path]:
     """Return mapping of available consumption networks to their data directories."""
     if not DATA_SOURCE_ROOT.exists():
@@ -81,15 +103,26 @@ def print_suspicious_files() -> None:
 
 def parse_consumption_file(file_path: Path, network: str) -> pd.DataFrame:
     """Parse a single consumption CSV file and return normalized data."""
-    df = pd.read_csv(file_path, sep=",")
+    if network == "ppnet":
+        df = pd.read_csv(file_path, sep=None, engine="python")
+        df.columns = df.columns.str.strip().str.strip('"')
+    else:
+        df = pd.read_csv(file_path, sep=",")
+
+    if "Datum" not in df.columns or "Hodnota" not in df.columns:
+        print(f"WARNING: Missing columns in {file_path.name}. Skipping file.")
+        return pd.DataFrame(columns=["year", "month", "day", "hour", "consumption"])
 
     total_lines = len(df)
     if total_lines < 24 or total_lines > 26:
         SUSPICIOUS_FILES[network].append((file_path.name, total_lines))
 
-    datum_series: pd.Series = pd.to_datetime(
-        df["Datum"], format="%d.%m.%Y %H:%M", errors="coerce"
-    )
+    if network == "ppnet":
+        datum_series = _normalize_ppnet_datetime(df["Datum"])
+    else:
+        datum_series = pd.to_datetime(
+            df["Datum"], format="%d.%m.%Y %H:%M", errors="coerce"
+        )
     df["Datum"] = datum_series
     datetime_index = pd.DatetimeIndex(datum_series)
     df["year"] = datetime_index.year

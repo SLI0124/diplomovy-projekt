@@ -4,10 +4,12 @@ This will be a list of things that need to be done in order to finish the projec
 
 ## Immediate
 
-- [ ] I found `ppnet` data source for consumption, right now I have multiple sources for consumption so it wouldn't be such a big hassle to add it but their most oldest data I can download is from **2015.1.1**
+- [x] I found `ppnet` data source for consumption, right now I have multiple sources for consumption so it wouldn't be such a big hassle to add it but their most oldest data I can download is from **2015.1.1**
   - one way is to completely ignore it and keep current sources
   - another way is to upload already existing data I have from previous projects that was given to me
   - **nevermind!!!**, website cannot display data before 2015 but we **can download** them anyway, so let's do that the traditional way (this took my 3 hours of today's time to figure it out, had to do hard reset of like 4 commits because of this realization)
+  - *double nevermind!!!*, found out that those data are not available for download, it will return success but the file contains message that data are not available for the requested date, so I have to upload my old data from previous projects anyway
+- [ ] refactor merging script, it's kinda messy right now and I don't know how it exactly works
 
 ## Next steps
 
@@ -21,13 +23,13 @@ This will be a list of things that need to be done in order to finish the projec
 - [ ] type checking
 - [ ] better docstrings with params, return types, etc.
 - [ ] README file for `pipeline` directory
+- [ ] add `argparse` to all scripts for better CLI usage
 
 ---
 
 - [ ] for processors try checking if `raw` files are even existing, if not, throw error or warning
   - DO NOT call downloader from processor and vice versa, implement single responsibility principle and don't mix those two things, do own implementation in each module
 - [ ] speed up the processing the consumption data, right now I think it can be sped up somehow, it's kinda slow
-- [ ] refactor merging script, it's kinda messy right now and I don't know how it exactly works
 
 ---
 
@@ -44,6 +46,7 @@ This will be a list of things that need to be done in order to finish the projec
   - [ ] main script
   - [ ] jupyter notebooks
 - [ ] tests for merging?
+- [ ] finally get into the modeling and AI part of the project
 
 ### Notes after consultation
 
