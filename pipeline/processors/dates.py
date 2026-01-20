@@ -1,51 +1,44 @@
 """
-Module for generating datetime features with Czech holidays.
+Generate hourly datetime features with Czech public holidays.
 
-This file will create columns year, month, day, hour, day_of_week, holiday, and
-before_holiday from 1.1.2013 to given end date, preferably last day of previous month.
-
-Uses Czech public holidays as source.
-
-All holidays have static dates except Easter.
-
-There is algorithm to calculate easter dates:
-https://en.wikipedia.org/wiki/Computus#Anonymous_Gregorian_algorithm
-
-The structure will be year month day hour day_of_week holiday before_holiday,
-so for one day you need 24 rows.
-
-It will be saved as multiple csv files in ../../data/raw/datetime_features/
-folder, preferably grouped by year.
-
-The catch is that it will be executed from ../main.py so create some entry
-points accordingly.
+Creates features (year, month, day, hour, day_of_week, holiday, before_holiday)
+from 2013-01-01 to specified end date. Outputs CSV files grouped by year to
+../../data/processed/datetime_features/. Designed to be called from ../main.py.
 """
 
-import sys
+import argparse
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
 from tqdm import tqdm
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+DATA_SAVE_PATH = PROJECT_ROOT / "data" / "processed" / "datetime_features"
 
-def get_last_day_of_previous_month():
-    """Calculate the last day of the previous month."""
+DEFAULT_START_DATE = date(2013, 1, 1)
+
+
+def get_last_day_of_previous_month() -> date:
+    """Get the last day of the previous month.
+
+    Returns:
+        date: Last day of the previous month.
+    """
     today = date.today()
-    # First day of current month
     first_day_current_month = today.replace(day=1)
-    # Last day of previous month
-    last_day_previous_month = first_day_current_month - timedelta(days=1)
-    return last_day_previous_month.strftime("%Y-%m-%d")
+    return first_day_current_month - timedelta(days=1)
 
 
-DATA_SAVE_PATH = "../../data/processed/datetime_features/"
+def calculate_easter(year: int) -> date:
+    """Calculate Easter date using the Anonymous Gregorian algorithm.
 
+    Args:
+        year (int): Year to calculate Easter for.
 
-def calculate_easter(year):
-    """Calculate Easter date using Anonymous Gregorian algorithm."""
-    # Anonymous Gregorian algorithm for Easter calculation
-    # Source: https://en.wikipedia.org/wiki/Computus#Anonymous_Gregorian_algorithm
+    Returns:
+        date: Easter Sunday date for the given year.
+    """
     a = year % 19
     b = year // 100
     c = year % 100
@@ -63,74 +56,67 @@ def calculate_easter(year):
     return date(year, month, day)
 
 
-def get_czech_holidays(year):
-    """Get all Czech public holidays for given year."""
-    holidays = []
+def get_czech_holidays(year: int) -> set[date]:
+    """Get all Czech public holidays for the given year.
 
-    # Static holidays
-    holidays.extend(
-        [
-            date(year, 1, 1),  # New Year's Day
-            date(year, 5, 1),  # Labour Day
-            date(year, 5, 8),  # Victory in Europe Day
-            date(year, 7, 5),  # Saints Cyril and Methodius Day
-            date(year, 7, 6),  # Jan Hus Day
-            date(year, 9, 28),  # Czech Statehood Day
-            date(year, 10, 28),  # Independence Day
-            date(year, 11, 17),  # Struggle for Freedom and Democracy Day
-            date(year, 12, 24),  # Christmas Eve
-            date(year, 12, 25),  # Christmas Day
-            date(year, 12, 26),  # St. Stephen's Day
-        ]
-    )
+    Args:
+        year (int): Year to get holidays for.
 
-    # Easter-based holidays
+    Returns:
+        set[date]: Set of holiday dates.
+    """
     easter = calculate_easter(year)
-    holidays.extend(
-        [
-            easter,  # Easter Sunday
-            easter + timedelta(days=1),  # Easter Monday
-        ]
-    )
-
-    return set(holidays)
-
-
-def create_date_range(start_date="2013-01-01", end_date_param=None):
-    """Create date range from start_date to end_date (default last day of
-    previous month)."""
-    if end_date_param is None:
-        end_date_param = get_last_day_of_previous_month()
-
-    return pd.date_range(start=start_date, end=end_date_param, freq="h")
+    return {
+        date(year, 1, 1),  # New Year's Day
+        date(year, 5, 1),  # Labour Day
+        date(year, 5, 8),  # Liberation Day
+        date(year, 7, 5),  # Saints Cyril and Methodius Day
+        date(year, 7, 6),  # Jan Hus Day
+        date(year, 9, 28),  # St. Wenceslas Day (Czech Statehood Day)
+        date(year, 10, 28),  # Independent Czechoslovak State Day
+        date(year, 11, 17),  # Struggle for Freedom and Democracy Day
+        date(year, 12, 24),  # Christmas Eve
+        date(year, 12, 25),  # Christmas Day
+        date(year, 12, 26),  # St. Stephen's Day
+        easter,  # Easter Sunday
+        easter + timedelta(days=1),  # Easter Monday
+    }
 
 
-def generate_datetime_features_data(end_date_param=None):
-    """Generate hourly data with datetime features and holiday flags."""
-    # Set default parameters
-    start_date_param = "2013-01-01"
-    if end_date_param is None:
-        end_date_param = get_last_day_of_previous_month()
+def create_date_range(start_date: date, end_date: date) -> pd.DatetimeIndex:
+    """Create an hourly date range.
 
-    # Create hourly date range
-    date_range = create_date_range(start_date_param, end_date_param)
-    print(
-        f"Generating datetime features from {start_date_param} to {end_date_param}..."
-    )
+    Args:
+        start_date (date): Start date for the range.
+        end_date (date): End date for the range.
 
-    # Pre-compute holidays for all years in the range
+    Returns:
+        pd.DatetimeIndex: Hourly datetime index.
+    """
+    return pd.date_range(start=start_date, end=end_date, freq="h")
+
+
+def generate_datetime_features_data(end_date: date) -> pd.DataFrame:
+    """Generate hourly data with datetime features and holiday flags.
+
+    Args:
+        end_date (date): End date for the feature generation.
+
+    Returns:
+        pd.DataFrame: Datetime features for each hour.
+    """
+    date_range = create_date_range(DEFAULT_START_DATE, end_date)
+    print(f"Generating datetime features from {DEFAULT_START_DATE} to {end_date}.")
+
     years_in_range = {dt.year for dt in date_range}
     holidays_by_year = {year: get_czech_holidays(year) for year in years_in_range}
 
-    # Generate datetime features with progress bar
     data = []
     for dt in tqdm(date_range, desc="Processing datetime features"):
         holidays = holidays_by_year[dt.year]
-        current_date = dt.date()
-        next_date = current_date + timedelta(days=1)
-
-        is_holiday = current_date in holidays
-        is_before_holiday = next_date in holidays
+        processed_date = dt.date()
+        is_holiday = processed_date in holidays
+        is_before_holiday = (processed_date + timedelta(days=1)) in holidays
 
         data.append(
             {
@@ -144,16 +130,27 @@ def generate_datetime_features_data(end_date_param=None):
             }
         )
 
-    total_records = len(data)
-    print(f"Generated {total_records:,} datetime feature records")
+    print(f"Generated {len(data):,} datetime feature records")
     return pd.DataFrame(data)
 
 
-def save_to_csv_files(df, output_dir, file_prefix="datetime_features"):
-    """Save DataFrame as multiple CSV files grouped by year."""
+def save_to_csv_files(
+    df: pd.DataFrame,
+    output_dir: Path,
+    file_prefix: str = "datetime_features",
+) -> None:
+    """Save DataFrame as multiple CSV files grouped by year.
+
+    Args:
+        df (pd.DataFrame): DataFrame to save.
+        output_dir (Path): Directory to save files to.
+        file_prefix (str): Prefix for output filenames.
+
+    Returns:
+        None
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Select only the required columns
     columns_to_save = [
         "year",
         "month",
@@ -172,34 +169,61 @@ def save_to_csv_files(df, output_dir, file_prefix="datetime_features"):
         filename = output_dir / f"{file_prefix}_{year}.csv"
         year_data.to_csv(filename, index=False)
 
-    print(f"All files saved to: {output_dir}")
+    print(f"All files saved to: {output_dir.resolve()}\n")
 
 
-def process_datetime_features(end_date_param=None):
-    """Main processing function - entry point for main.py."""
-    # Get the directory relative to main.py
-    current_dir = Path(__file__).parent
-    output_dir = current_dir / DATA_SAVE_PATH
+def _parse_and_validate_date(value: str) -> str:
+    """Validate YYYY-MM-DD string format.
 
-    if end_date_param is not None:
-        try:
-            datetime.strptime(end_date_param, "%Y-%m-%d")
-        except ValueError:
-            print(
-                f"ERROR: Invalid date format '{end_date_param}'. "
-                f"Please use YYYY-MM-DD format."
-            )
-            sys.exit(1)
+    Args:
+        value (str): Date string to validate.
 
-    dataframe = generate_datetime_features_data(end_date_param=end_date_param)
+    Returns:
+        str: Validated date string.
+
+    Raises:
+        ValueError: If date format is invalid.
+    """
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        raise ValueError(f"Invalid date format: {value}. Expected YYYY-MM-DD.")
+
+    return value
+
+
+def process_datetime_features(end_date_param: str | None = None) -> pd.DataFrame:
+    """Main processing function - entry point for main.py.
+
+    Args:
+        end_date_param (str | None): End date in YYYY-MM-DD format,
+                                      or None for last day of previous month.
+
+    Returns:
+        pd.DataFrame: Generated datetime feature data.
+    """
+    # Convert string to date only once at the entry point
+    if end_date_param is None:
+        end_date = get_last_day_of_previous_month()
+    else:
+        end_date = datetime.strptime(end_date_param, "%Y-%m-%d").date()
+
+    output_dir = Path(__file__).parent / DATA_SAVE_PATH
+    dataframe = generate_datetime_features_data(end_date=end_date)
     save_to_csv_files(dataframe, output_dir)
 
     return dataframe
 
 
 if __name__ == "__main__":
-    END_DATE = None
-    if len(sys.argv) >= 2:
-        END_DATE = sys.argv[1]
-
-    process_datetime_features(end_date_param=END_DATE)
+    parser = argparse.ArgumentParser(
+        description="Generate datetime features with Czech holidays."
+    )
+    parser.add_argument(
+        "--end-date",
+        type=_parse_and_validate_date,
+        default=None,
+        help="End date in YYYY-MM-DD format (default: last day of previous month).",
+    )
+    args = parser.parse_args()
+    process_datetime_features(end_date_param=args.end_date)
