@@ -11,6 +11,7 @@ This will be a list of things that need to be done in order to finish the projec
 
 ## Next steps
 
+- [ ] start date and end date should be set in one place (probably main script with help of `config.py` or `config.yml`) and passed to all the scripts and their functions, right now they are scattered across multiple scripts and it's hard to keep track of them
 - [ ] I've set default start date for all scripts to **2013.1.1**, right now I deleted param for start date, I think it won't be changed at all but it'd be nice to have a way to change it somehow, perhaps I can do like config file with dirs, start date, help functions, etc.
 - [ ] I have some duplicate code, create `utils.py` with all functions used across scripts that will work as some kind of config file (maybe even `config.py` or `config.yml` with dirs, start date, end date, etc. - need to think about what can be configured and what will be placed there)
 
