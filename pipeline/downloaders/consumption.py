@@ -10,14 +10,13 @@ PPNET provides data from 2016-01-01 onwards and uses a 12-hour clock without AM/
 
 import datetime
 import sys
-from pathlib import Path
 
+import config
 import pandas as pd
+import utils
 from tqdm import tqdm
 
-# Get the project root directory (two levels up from this file)
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DATA_CONSUMPTION_ROOT = PROJECT_ROOT / "data" / "raw" / "consumption"
+DATA_CONSUMPTION_ROOT = config.RAW_CONSUMPTION_DIR
 
 NETWORK_URLS = {
     "gasnet": "https://www.gasnet.cz/storage/online-toky/gasnet/{date}.csv",
@@ -30,18 +29,8 @@ NETWORK_URLS = {
 ENCODING_FALLBACKS = ("utf-8", "cp1250", "iso-8859-2")
 
 MIN_DATE_BY_NETWORK = {
-    "ppnet": datetime.date(2016, 1, 1),
+    "ppnet": config.PPNET_MIN_DATE,
 }
-
-
-def ensure_directory(path):
-    """Ensure that the directory exists, creating it if necessary."""
-    if isinstance(path, str):
-        dir_path = Path(path)
-    else:
-        dir_path = path
-    if not dir_path.exists():
-        dir_path.mkdir(parents=True, exist_ok=True)
 
 
 def _read_csv_with_fallback(url):
@@ -127,33 +116,12 @@ def download_consumption_data(end_date_param=None, networks=None):
         networks: Iterable of network identifiers to download. Defaults to all
             supported networks when omitted.
     """
-    start_date_param = "2012-12-31"
-    if end_date_param is None:
-        # Get last day of previous month
-        today = datetime.date.today()
-        first_day_current_month = today.replace(day=1)
-        end_date_param = (
-            first_day_current_month - datetime.timedelta(days=1)
-        ).strftime("%Y-%m-%d")
-
-    # Convert string dates to date objects
-    start_date = datetime.datetime.strptime(start_date_param, "%Y-%m-%d").date()
-
-    if isinstance(end_date_param, str):
-        end_date = datetime.datetime.strptime(end_date_param, "%Y-%m-%d").date()
-    else:
-        end_date = end_date_param
-
-    # Validate date format if needed
-    if end_date_param is not None and isinstance(end_date_param, str):
-        try:
-            datetime.datetime.strptime(end_date_param, "%Y-%m-%d")
-        except ValueError:
-            print(
-                f"ERROR: Invalid date format '{end_date_param}'. "
-                f"Please use YYYY-MM-DD format."
-            )
-            sys.exit(1)
+    start_date = config.CONSUMPTION_DOWNLOAD_START_DATE
+    try:
+        end_date = utils.resolve_end_date(end_date_param)
+    except ValueError as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
 
     resolved_networks = _resolve_networks(networks)
     if not resolved_networks:
@@ -176,10 +144,7 @@ def download_consumption_data_with_range(
     if not networks:
         return
     if end_date_param is None:
-        # Get last day of previous month
-        today = datetime.date.today()
-        first_day_current_month = today.replace(day=1)
-        end_date_param = first_day_current_month - datetime.timedelta(days=1)
+        end_date_param = utils.get_last_day_of_previous_month()
         print(
             f"No end date provided. Using last day of previous month: {end_date_param}"
         )
@@ -188,16 +153,14 @@ def download_consumption_data_with_range(
     if isinstance(end_date_param, datetime.datetime):
         end_date_param = end_date_param.date()
 
-    if start_date < datetime.date(
-        2012, 12, 31
-    ):  # hardcoded based on data availability from previous downloader
+    if start_date < config.CONSUMPTION_MIN_DATE:
         print(
             "Start date cannot be before 31.12.2012 since it is the first "
             "available data from previous dataset."
         )
-        delta_days = (datetime.date(2012, 12, 31) - start_date).days
+        delta_days = (config.CONSUMPTION_MIN_DATE - start_date).days
         print(f"Adjusting start date by {delta_days} days to 31.12.2012.")
-        start_date = datetime.date(2012, 12, 31)
+        start_date = config.CONSUMPTION_MIN_DATE
 
     if start_date > end_date_param:
         print(
@@ -208,7 +171,7 @@ def download_consumption_data_with_range(
 
     print(f"Downloading data from {start_date} to {end_date_param}...")
 
-    ensure_directory(DATA_CONSUMPTION_ROOT)
+    utils.ensure_directory(DATA_CONSUMPTION_ROOT)
 
     for network in networks:
         network_min_date = MIN_DATE_BY_NETWORK.get(network, datetime.date(2012, 12, 31))
@@ -225,7 +188,7 @@ def download_consumption_data_with_range(
 
         print(f"\nProcessing network '{network}'...")
         save_dir = DATA_CONSUMPTION_ROOT / network
-        ensure_directory(save_dir)
+        utils.ensure_directory(save_dir)
         url_template = NETWORK_URLS[network]
 
         for i in tqdm(range(total_days), desc=f"{network.upper()} downloads"):

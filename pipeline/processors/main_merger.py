@@ -13,34 +13,21 @@ file with all years.
 """
 
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date
 from functools import reduce
 from pathlib import Path
 from typing import Dict, Iterable, Optional
 
+import config
 import pandas as pd
+import utils
 from tqdm import tqdm
 
-
-def get_last_day_of_previous_month():
-    """Calculate the last day of the previous month."""
-    today = date.today()
-    # First day of current month
-    first_day_current_month = today.replace(day=1)
-    # Last day of previous month
-    last_day_previous_month = first_day_current_month - timedelta(days=1)
-    return last_day_previous_month.strftime("%Y-%m-%d")
-
-
-# Resolve project structure relative to this file
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DATA_ROOT = PROJECT_ROOT / "data" / "processed"
-
-DATETIME_FEATURES_DIR = DATA_ROOT / "datetime_features"
-CONSUMPTION_DIR = DATA_ROOT / "consumption"
-WEATHER_DIR = DATA_ROOT / "weather"
-PRICE_DIR = DATA_ROOT / "price"
-MERGED_SAVE_DIR = DATA_ROOT / "merged"
+DATETIME_FEATURES_DIR = config.PROCESSED_DATETIME_FEATURES_DIR
+CONSUMPTION_DIR = config.PROCESSED_CONSUMPTION_DIR
+WEATHER_DIR = config.PROCESSED_WEATHER_DIR
+PRICE_DIR = config.PROCESSED_PRICE_DIR
+MERGED_SAVE_DIR = config.PROCESSED_MERGED_DIR
 
 
 def _read_csv_if_exists(path: Path) -> Optional[pd.DataFrame]:
@@ -359,31 +346,18 @@ def merge_processed_data(
     end_date_param=None, consumption_networks: Optional[Iterable[str]] = None
 ):
     """Main merging function - entry point for main.py."""
-    # Get the directory relative to main.py
     datetime_dir = DATETIME_FEATURES_DIR
     consumption_dir = CONSUMPTION_DIR
     weather_dir = WEATHER_DIR
     price_dir = PRICE_DIR
     output_dir = MERGED_SAVE_DIR
 
-    start_date_param = "2013-01-01"
-    if end_date_param is None:
-        end_date_param = get_last_day_of_previous_month()
-
-    # Validate date format
-    if end_date_param is not None:
-        try:
-            datetime.strptime(end_date_param, "%Y-%m-%d")
-        except ValueError:
-            print(
-                f"ERROR: Invalid end_date format '{end_date_param}'. "
-                "Please use YYYY-MM-DD format."
-            )
-            return None
-
-    # Convert string dates to date objects
-    start_date = datetime.strptime(start_date_param, "%Y-%m-%d").date()
-    end_date = datetime.strptime(end_date_param, "%Y-%m-%d").date()
+    start_date = config.MERGE_START_DATE
+    try:
+        end_date = utils.resolve_end_date(end_date_param)
+    except ValueError as exc:
+        print(f"ERROR: {exc}")
+        return None
 
     # Merge data in date range
     normalized_networks = None

@@ -41,25 +41,15 @@ accordingly.
 """
 
 import sys
-from datetime import date, datetime, timedelta
-from pathlib import Path
+from datetime import timedelta
 
+import config
 import pandas as pd
+import utils
 from tqdm import tqdm
 
-
-def get_last_day_of_previous_month():
-    """Calculate the last day of the previous month."""
-    today = date.today()
-    # First day of current month
-    first_day_current_month = today.replace(day=1)
-    # Last day of previous month
-    last_day_previous_month = first_day_current_month - timedelta(days=1)
-    return last_day_previous_month.strftime("%Y-%m-%d")
-
-
-DATA_SOURCE_PATH = "../../data/raw/weather/"
-DATA_SAVE_PATH = "../../data/processed/weather/"
+DATA_SOURCE_PATH = config.RAW_WEATHER_DIR
+DATA_SAVE_PATH = config.PROCESSED_WEATHER_DIR
 
 
 def parse_weather_file(file_path):
@@ -205,33 +195,19 @@ def save_processed_weather_data_to_csv(df, output_dir, file_prefix="weather"):
 
 def process_weather_data(end_date_param=None):
     """Main processing function - entry point for main.py"""
-    # Get the directory relative to main.py
-    current_dir = Path(__file__).parent
-    source_dir = current_dir / DATA_SOURCE_PATH
-    output_dir = current_dir / DATA_SAVE_PATH
+    source_dir = DATA_SOURCE_PATH
+    output_dir = DATA_SAVE_PATH
 
-    start_date_param = "2013-01-01"
-    if end_date_param is None:
-        end_date_param = get_last_day_of_previous_month()
+    start_date = config.WEATHER_START_DATE
+    try:
+        end_date = utils.resolve_end_date(end_date_param)
+    except ValueError as exc:
+        print(f"ERROR: {exc}")
+        sys.exit(1)
 
-    print(f"Date range: {start_date_param} to {end_date_param}")
+    print(f"Date range: {start_date} to {end_date}")
     print(f"Source directory: {source_dir}")
     print(f"Output directory: {output_dir}")
-
-    # Validate date format
-    if end_date_param is not None:
-        try:
-            datetime.strptime(end_date_param, "%Y-%m-%d")
-        except ValueError:
-            print(
-                f"ERROR: Invalid date format '{end_date_param}'. "
-                f"Please use YYYY-MM-DD format."
-            )
-            sys.exit(1)
-
-    # Convert string dates to date objects
-    start_date = datetime.strptime(start_date_param, "%Y-%m-%d").date()
-    end_date = datetime.strptime(end_date_param, "%Y-%m-%d").date()
 
     # Process weather data in date range
     processed_data = process_weather_data_with_range(source_dir, start_date, end_date)

@@ -1,0 +1,60 @@
+"""Central configuration for pipeline defaults and paths."""
+
+from datetime import date
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+RAW_DIR = DATA_DIR / "raw"
+PROCESSED_DIR = DATA_DIR / "processed"
+
+# Raw data directories
+RAW_CONSUMPTION_DIR = RAW_DIR / "consumption"
+RAW_PRICE_DIR = RAW_DIR / "price"
+RAW_WEATHER_DIR = RAW_DIR / "weather"
+
+# Processed data directories
+PROCESSED_CONSUMPTION_DIR = PROCESSED_DIR / "consumption"
+PROCESSED_PRICE_DIR = PROCESSED_DIR / "price"
+PROCESSED_WEATHER_DIR = PROCESSED_DIR / "weather"
+PROCESSED_DATETIME_FEATURES_DIR = PROCESSED_DIR / "datetime_features"
+PROCESSED_MERGED_DIR = PROCESSED_DIR / "merged"
+
+# Date defaults
+COMMON_START_DATE = date(2013, 1, 1)
+CONSUMPTION_DOWNLOAD_START_DATE = date(2012, 12, 31)
+CONSUMPTION_PROCESS_START_DATE = COMMON_START_DATE
+PRICE_START_DATE = COMMON_START_DATE
+WEATHER_START_DATE = COMMON_START_DATE
+MERGE_START_DATE = COMMON_START_DATE
+
+# Network-specific constraints
+PPNET_MIN_DATE = date(2016, 1, 1)
+CONSUMPTION_MIN_DATE = CONSUMPTION_DOWNLOAD_START_DATE
+
+# Weather API settings
+WEATHER_LATITUDE = 50.1333
+WEATHER_LONGITUDE = 14.55
+WEATHER_TIMEZONE = "Europe/Berlin"
+WEATHER_VARIABLES = [
+    "temperature_2m",
+    "wind_gusts_10m",
+    "wind_direction_100m",
+    "wind_direction_10m",
+    "wind_speed_100m",
+    "wind_speed_10m",
+    "weather_code",
+    "pressure_msl",
+    "surface_pressure",
+    "cloud_cover",
+    "cloud_cover_low",
+    "cloud_cover_mid",
+    "cloud_cover_high",
+    "relative_humidity_2m",
+    "dew_point_2m",
+    "apparent_temperature",
+    "precipitation",
+    "rain",
+    "snowfall",
+    "snow_depth",
+]

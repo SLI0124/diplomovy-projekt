@@ -26,28 +26,17 @@ points accordingly.
 
 import sys
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
+import config
 import pandas as pd
+import utils
 from tqdm import tqdm
 
-
-def get_last_day_of_previous_month():
-    """Calculate the last day of the previous month."""
-    today = date.today()
-    # First day of current month
-    first_day_current_month = today.replace(day=1)
-    # Last day of previous month
-    last_day_previous_month = first_day_current_month - timedelta(days=1)
-    return last_day_previous_month.strftime("%Y-%m-%d")
-
-
-# Resolve project structure relative to this file
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DATA_SOURCE_ROOT = PROJECT_ROOT / "data" / "raw" / "consumption"
-DATA_SAVE_PATH = PROJECT_ROOT / "data" / "processed" / "consumption"
+DATA_SOURCE_ROOT = config.RAW_CONSUMPTION_DIR
+DATA_SAVE_PATH = config.PROCESSED_CONSUMPTION_DIR
 
 # Track suspicious file metadata per network
 SUSPICIOUS_FILES: Dict[str, List[Tuple[str, int]]] = defaultdict(list)
@@ -279,20 +268,12 @@ def process_consumption_data(
     """Main processing function - entry point for main.py."""
     SUSPICIOUS_FILES.clear()
 
-    start_date_param = "2013-01-01"
-    if end_date_param is None:
-        end_date_param = get_last_day_of_previous_month()
-
+    start_date = config.CONSUMPTION_PROCESS_START_DATE
     try:
-        end_date = datetime.strptime(end_date_param, "%Y-%m-%d").date()
-    except ValueError:
-        print(
-            f"ERROR: Invalid date format '{end_date_param}'. \
-                Please use YYYY-MM-DD format."
-        )
+        end_date = utils.resolve_end_date(end_date_param)
+    except ValueError as exc:
+        print(f"ERROR: {exc}")
         sys.exit(1)
-
-    start_date = datetime.strptime(start_date_param, "%Y-%m-%d").date()
 
     available_dirs = discover_network_paths()
     if not available_dirs:

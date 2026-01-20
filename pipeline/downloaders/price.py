@@ -10,24 +10,13 @@ Sample URL: https://www.ote-cr.cz/pubweb/attachments/127/2024/month06/VDT_plyn_0
 
 import datetime
 import sys
-from pathlib import Path
 
+import config
 import requests
+import utils
 from tqdm import tqdm
 
-# Get the project root directory (two levels up from this file)
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DATA_SAVE_PATH = PROJECT_ROOT / "data" / "raw" / "price"
-
-
-def ensure_directory(path):
-    """Ensure that the directory exists, creating it if necessary."""
-    if isinstance(path, str):
-        dir_path = Path(path)
-    else:
-        dir_path = path
-    if not dir_path.exists():
-        dir_path.mkdir(parents=True, exist_ok=True)
+DATA_SAVE_PATH = config.RAW_PRICE_DIR
 
 
 def _generate_months_to_download(start_date: datetime.date, end_date: datetime.date):
@@ -72,33 +61,12 @@ def _download_single_file(year: int, month: int):
 
 def download_price_data(end_date_param=None):
     """Main download function - entry point for main.py"""
-    start_date_param = "2013-01-01"
-    if end_date_param is None:
-        # Get last day of previous month
-        today = datetime.date.today()
-        first_day_current_month = today.replace(day=1)
-        end_date_param = (
-            first_day_current_month - datetime.timedelta(days=1)
-        ).strftime("%Y-%m-%d")
-
-    # Convert string dates to date objects
-    start_date = datetime.datetime.strptime(start_date_param, "%Y-%m-%d").date()
-
-    if isinstance(end_date_param, str):
-        end_date = datetime.datetime.strptime(end_date_param, "%Y-%m-%d").date()
-    else:
-        end_date = end_date_param
-
-    # Validate date format if needed
-    if end_date_param is not None and isinstance(end_date_param, str):
-        try:
-            datetime.datetime.strptime(end_date_param, "%Y-%m-%d")
-        except ValueError:
-            print(
-                f"ERROR: Invalid date format '{end_date_param}'. "
-                f"Please use YYYY-MM-DD format."
-            )
-            sys.exit(1)
+    start_date = config.PRICE_START_DATE
+    try:
+        end_date = utils.resolve_end_date(end_date_param)
+    except ValueError as exc:
+        print(f"ERROR: {exc}")
+        sys.exit(1)
 
     download_price_data_with_range(start_date, end_date)
 
@@ -106,10 +74,7 @@ def download_price_data(end_date_param=None):
 def download_price_data_with_range(start_date: datetime.date, end_date_param=None):
     """Download price data for a specific date range."""
     if end_date_param is None:
-        # Get last day of previous month
-        today = datetime.date.today()
-        first_day_current_month = today.replace(day=1)
-        end_date_param = first_day_current_month - datetime.timedelta(days=1)
+        end_date_param = utils.get_last_day_of_previous_month()
         print(
             f"No end date provided. Using last day of previous month: {end_date_param}"
         )
@@ -118,14 +83,14 @@ def download_price_data_with_range(start_date: datetime.date, end_date_param=Non
     if isinstance(end_date_param, datetime.datetime):
         end_date_param = end_date_param.date()
 
-    if start_date < datetime.date(2013, 1, 1):  # hardcoded based on data availability
+    if start_date < config.PRICE_START_DATE:
         print(
             "Start date cannot be before 01.01.2013 since it is the first "
             "available data from OTE-CR price dataset."
         )
-        delta_days = (datetime.date(2013, 1, 1) - start_date).days
+        delta_days = (config.PRICE_START_DATE - start_date).days
         print(f"Adjusting start date by {delta_days} days to 01.01.2013.")
-        start_date = datetime.date(2013, 1, 1)
+        start_date = config.PRICE_START_DATE
 
     if start_date > end_date_param:
         print(
@@ -136,7 +101,7 @@ def download_price_data_with_range(start_date: datetime.date, end_date_param=Non
 
     print(f"Downloading price data from {start_date} to {end_date_param}...")
 
-    ensure_directory(DATA_SAVE_PATH)
+    utils.ensure_directory(DATA_SAVE_PATH)
 
     # Generate list of months to download
     months_to_download = _generate_months_to_download(start_date, end_date_param)

@@ -9,24 +9,14 @@ Data is available from 2013-01-01 onwards.
 
 import datetime
 import sys
-from pathlib import Path
 
+import config
 import openmeteo_requests
 import pandas as pd
+import utils
 from retry_requests import retry
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DATA_SAVE_PATH = PROJECT_ROOT / "data" / "raw" / "weather"
-
-
-def ensure_directory(path):
-    """Ensure that the directory exists, creating it if necessary."""
-    if isinstance(path, str):
-        dir_path = Path(path)
-    else:
-        dir_path = path
-    if not dir_path.exists():
-        dir_path.mkdir(parents=True, exist_ok=True)
+DATA_SAVE_PATH = config.RAW_WEATHER_DIR
 
 
 def _setup_api_client():
@@ -38,33 +28,12 @@ def _setup_api_client():
 def _build_api_params(start_date_val, end_date_val):
     """Build API parameters for weather data request."""
     return {
-        "latitude": 50.1333,
-        "longitude": 14.55,  # Kbely Airport
+        "latitude": config.WEATHER_LATITUDE,
+        "longitude": config.WEATHER_LONGITUDE,  # Kbely Airport
         "start_date": start_date_val.strftime("%Y-%m-%d"),
         "end_date": end_date_val.strftime("%Y-%m-%d"),
-        "hourly": [
-            "temperature_2m",
-            "wind_gusts_10m",
-            "wind_direction_100m",
-            "wind_direction_10m",
-            "wind_speed_100m",
-            "wind_speed_10m",
-            "weather_code",
-            "pressure_msl",
-            "surface_pressure",
-            "cloud_cover",
-            "cloud_cover_low",
-            "cloud_cover_mid",
-            "cloud_cover_high",
-            "relative_humidity_2m",
-            "dew_point_2m",
-            "apparent_temperature",
-            "precipitation",
-            "rain",
-            "snowfall",
-            "snow_depth",
-        ],
-        "timezone": "Europe/Berlin",
+        "hourly": config.WEATHER_VARIABLES,
+        "timezone": config.WEATHER_TIMEZONE,
     }
 
 
@@ -90,30 +59,7 @@ def _process_api_response(response):
     }
 
     # Map all weather variables
-    variable_names = [
-        "temperature_2m",
-        "wind_gusts_10m",
-        "wind_direction_100m",
-        "wind_direction_10m",
-        "wind_speed_100m",
-        "wind_speed_10m",
-        "weather_code",
-        "pressure_msl",
-        "surface_pressure",
-        "cloud_cover",
-        "cloud_cover_low",
-        "cloud_cover_mid",
-        "cloud_cover_high",
-        "relative_humidity_2m",
-        "dew_point_2m",
-        "apparent_temperature",
-        "precipitation",
-        "rain",
-        "snowfall",
-        "snow_depth",
-    ]
-
-    for i, var_name in enumerate(variable_names):
+    for i, var_name in enumerate(config.WEATHER_VARIABLES):
         hourly_data[var_name] = hourly.Variables(i).ValuesAsNumpy()
 
     return pd.DataFrame(data=hourly_data)
@@ -121,37 +67,16 @@ def _process_api_response(response):
 
 def download_weather_data(end_date_param=None):
     """Main download function - entry point for main.py"""
-    start_date_param = "2013-01-01"
-    if end_date_param is None:
-        # Get last day of previous month
-        today = datetime.date.today()
-        first_day_current_month = today.replace(day=1)
-        end_date_param = (
-            first_day_current_month - datetime.timedelta(days=1)
-        ).strftime("%Y-%m-%d")
-
-    # Convert string dates to date objects if needed
-    start_date_obj = datetime.datetime.strptime(start_date_param, "%Y-%m-%d").date()
-
-    if isinstance(end_date_param, str):
-        end_date_obj = datetime.datetime.strptime(end_date_param, "%Y-%m-%d").date()
-    else:
-        end_date_obj = end_date_param
+    start_date_obj = config.WEATHER_START_DATE
+    try:
+        end_date_obj = utils.resolve_end_date(end_date_param)
+    except ValueError as exc:
+        print(f"ERROR: {exc}")
+        sys.exit(1)
 
     # since the weather source provides data up to 22:00 of the day
     # we need to adjust end_date by one day to include the last day's data
     end_date_obj += datetime.timedelta(days=1)
-
-    # Validate date format if needed
-    if end_date_param is not None and isinstance(end_date_param, str):
-        try:
-            datetime.datetime.strptime(end_date_param, "%Y-%m-%d")
-        except ValueError:
-            print(
-                f"ERROR: Invalid date format '{end_date_param}'. "
-                f"Please use YYYY-MM-DD format."
-            )
-            sys.exit(1)
 
     download_weather_data_with_range(start_date_obj, end_date_obj)
 
@@ -185,7 +110,7 @@ def download_weather_data_with_range(
 
     print(f"Downloading weather data from {start_date_val} to {end_date_val}...")
 
-    ensure_directory(DATA_SAVE_PATH)
+    utils.ensure_directory(DATA_SAVE_PATH)
 
     try:
         openmeteo = _setup_api_client()

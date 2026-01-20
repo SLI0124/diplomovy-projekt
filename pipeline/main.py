@@ -7,7 +7,6 @@ and data merging operations.
 """
 
 import argparse
-from datetime import datetime
 from typing import Optional, Sequence
 
 import downloaders.consumption
@@ -18,6 +17,7 @@ import processors.dates
 import processors.main_merger
 import processors.price
 import processors.weather_source
+import utils
 
 
 def download_data(
@@ -26,11 +26,11 @@ def download_data(
     consumption_networks: Optional[Sequence[str]] = None,
 ) -> None:
     """Download data based on specified type, end date, and requested networks."""
-    if end_date:  # validate date format to be YYYY-MM-DD
+    if end_date:
         try:
-            datetime.strptime(end_date, "%Y-%m-%d")
-        except ValueError:
-            print("Invalid date format. Please use 'YYYY-MM-DD'.")
+            utils.validate_date_str(end_date)
+        except ValueError as exc:
+            print(exc)
             return
 
     match download_type:
@@ -67,11 +67,11 @@ def process_data(
     consumption_networks: Optional[Sequence[str]] = None,
 ) -> None:
     """Process data based on specified type and end date."""
-    if end_date:  # validate date format to be YYYY-MM-DD
+    if end_date:
         try:
-            datetime.strptime(end_date, "%Y-%m-%d")
-        except ValueError:
-            print("Invalid date format. Please use 'YYYY-MM-DD'.")
+            utils.validate_date_str(end_date)
+        except ValueError as exc:
+            print(exc)
             return
 
     match process_type:

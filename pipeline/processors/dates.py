@@ -10,24 +10,13 @@ import argparse
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+import config
 import pandas as pd
+import utils
 from tqdm import tqdm
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-DATA_SAVE_PATH = PROJECT_ROOT / "data" / "processed" / "datetime_features"
-
-DEFAULT_START_DATE = date(2013, 1, 1)
-
-
-def get_last_day_of_previous_month() -> date:
-    """Get the last day of the previous month.
-
-    Returns:
-        date: Last day of the previous month.
-    """
-    today = date.today()
-    first_day_current_month = today.replace(day=1)
-    return first_day_current_month - timedelta(days=1)
+DATA_SAVE_PATH = config.PROCESSED_DATETIME_FEATURES_DIR
+DEFAULT_START_DATE = config.COMMON_START_DATE
 
 
 def calculate_easter(year: int) -> date:
@@ -203,12 +192,12 @@ def process_datetime_features(end_date_param: str | None = None) -> pd.DataFrame
         pd.DataFrame: Generated datetime feature data.
     """
     # Convert string to date only once at the entry point
-    if end_date_param is None:
-        end_date = get_last_day_of_previous_month()
-    else:
-        end_date = datetime.strptime(end_date_param, "%Y-%m-%d").date()
+    try:
+        end_date = utils.resolve_end_date(end_date_param)
+    except ValueError as exc:
+        raise ValueError(str(exc)) from exc
 
-    output_dir = Path(__file__).parent / DATA_SAVE_PATH
+    output_dir = DATA_SAVE_PATH
     dataframe = generate_datetime_features_data(end_date=end_date)
     save_to_csv_files(dataframe, output_dir)
 
