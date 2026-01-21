@@ -1,15 +1,10 @@
-"""
-Module for downloading gas price data from OTE-CR.
+"""Download monthly gas price data from OTE-CR."""
 
-Downloads monthly Excel files from ote-cr.cz for gas price data.
-Data is available from 2013-01 onwards.
-Each month has its own Excel file in the format: VDT_plyn_MM_YYYY_CZ.xls
+from __future__ import annotations
 
-Sample URL: https://www.ote-cr.cz/pubweb/attachments/127/2024/month06/VDT_plyn_06_2024_CZ.xls
-"""
-
+import argparse
 import datetime
-import sys
+from typing import Optional, Tuple
 
 import config
 import requests
@@ -17,17 +12,28 @@ import utils
 from tqdm import tqdm
 
 DATA_SAVE_PATH = config.RAW_PRICE_DIR
+BASE_URL = "https://www.ote-cr.cz/pubweb/attachments/127"
 
 
-def _generate_months_to_download(start_date: datetime.date, end_date: datetime.date):
-    """Generate list of (year, month) tuples for the given date range."""
-    months_to_download = []
-    current_date = start_date.replace(day=1)  # Start from first day of start month
-    end_month = end_date.replace(day=1)  # End at first day of end month
+def _generate_months_to_download(
+    start_date: datetime.date,
+    end_date: datetime.date,
+) -> list[Tuple[int, int]]:
+    """Generate (year, month) tuples for the given date range.
+
+    Args:
+        start_date (datetime.date): First date to include.
+        end_date (datetime.date): Last date to include.
+
+    Returns:
+        List of (year, month) tuples.
+    """
+    months_to_download: list[Tuple[int, int]] = []
+    current_date = start_date.replace(day=1)
+    end_month = end_date.replace(day=1)
 
     while current_date <= end_month:
         months_to_download.append((current_date.year, current_date.month))
-        # Move to next month
         if current_date.month == 12:
             current_date = current_date.replace(year=current_date.year + 1, month=1)
         else:
@@ -36,13 +42,18 @@ def _generate_months_to_download(start_date: datetime.date, end_date: datetime.d
     return months_to_download
 
 
-def _download_single_file(year: int, month: int):
-    """Download a single price file for the given year and month."""
+def _download_single_file(year: int, month: int) -> bool:
+    """Download a single price file for the given year and month.
+
+    Args:
+        year (int): Target year.
+        month (int): Target month.
+
+    Returns:
+        True if a file was downloaded, False otherwise.
+    """
     month_str = f"{month:02d}"
-    file_url = (
-        f"https://www.ote-cr.cz/pubweb/attachments/127/{year}/"
-        f"month{month_str}/VDT_plyn_{month_str}_{year}_CZ.xls"
-    )
+    file_url = f"{BASE_URL}/{year}/month{month_str}/VDT_plyn_{month_str}_{year}_CZ.xls"
     file_path = DATA_SAVE_PATH / f"VDT_plyn_{month_str}_{year}_CZ.xls"
 
     if not file_path.is_file():
@@ -53,35 +64,44 @@ def _download_single_file(year: int, month: int):
             with open(file_path, "wb") as f:
                 f.write(response.content)
 
-        except (requests.RequestException, ConnectionError, TimeoutError) as e:
+            return True
+
+        except (requests.RequestException, ConnectionError, TimeoutError) as exc:
             print(
-                f"Failed to download data for {year}-{month:02d} from {file_url}: {e}"
+                f"Failed to download data for {year}-{month:02d} from {file_url}: {exc}"
             )
+    return False
 
 
-def download_price_data(end_date_param=None):
-    """Main download function - entry point for main.py"""
+def download_price_data(end_date_param: Optional[utils.DateLike] = None) -> int:
+    """Download price data using default start date.
+
+    Args:
+        end_date_param: End date as YYYY-MM-DD string, date, datetime, or None.
+
+    Returns:
+        Count of files downloaded.
+    """
     start_date = config.PRICE_START_DATE
-    try:
-        end_date = utils.resolve_end_date(end_date_param)
-    except ValueError as exc:
-        print(f"ERROR: {exc}")
-        sys.exit(1)
-
-    download_price_data_with_range(start_date, end_date)
+    end_date = utils.resolve_end_date(end_date_param)
+    return download_price_data_with_range(start_date, end_date)
 
 
-def download_price_data_with_range(start_date: datetime.date, end_date_param=None):
-    """Download price data for a specific date range."""
-    if end_date_param is None:
-        end_date_param = utils.get_last_day_of_previous_month()
-        print(
-            f"No end date provided. Using last day of previous month: {end_date_param}"
-        )
+def download_price_data_with_range(
+    start_date: datetime.date,
+    end_date_param: Optional[utils.DateLike] = None,
+) -> int:
+    """Download price data for a specific date range.
 
-    # normalize if user passed a datetime
-    if isinstance(end_date_param, datetime.datetime):
-        end_date_param = end_date_param.date()
+    Args:
+        start_date (datetime.date): First date to include.
+        end_date_param (Optional[utils.DateLike]): End date as YYYY-MM-DD string,
+        datetime.date, datetime.datetime, or None.
+
+    Returns:
+        Count of files downloaded.
+    """
+    end_date = utils.resolve_end_date(end_date_param)
 
     if start_date < config.PRICE_START_DATE:
         print(
@@ -92,29 +112,35 @@ def download_price_data_with_range(start_date: datetime.date, end_date_param=Non
         print(f"Adjusting start date by {delta_days} days to 01.01.2013.")
         start_date = config.PRICE_START_DATE
 
-    if start_date > end_date_param:
+    if start_date > end_date:
         print(
-            f"Start date {start_date} is after end date {end_date_param}. \
-                Nothing to download."
+            f"Start date {start_date} is after end date {end_date}. "
+            "Nothing to download."
         )
-        return
+        return 0
 
-    print(f"Downloading price data from {start_date} to {end_date_param}...")
+    print(f"Downloading price data from {start_date} to {end_date}...")
 
     utils.ensure_directory(DATA_SAVE_PATH)
 
-    # Generate list of months to download
-    months_to_download = _generate_months_to_download(start_date, end_date_param)
+    months_to_download = _generate_months_to_download(start_date, end_date)
     print(f"Total months to download: {len(months_to_download)}")
 
-    # Download each file
+    downloaded = 0
     for year, month in tqdm(months_to_download, desc="Downloading"):
-        _download_single_file(year, month)
+        if _download_single_file(year, month):
+            downloaded += 1
+
+    return downloaded
 
 
 if __name__ == "__main__":
-    END_DATE = None
-    if len(sys.argv) >= 2:
-        END_DATE = sys.argv[1]
-
-    download_price_data(end_date_param=END_DATE)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--end-date",
+        type=utils.validate_date_str,
+        default=None,
+        help="End date in YYYY-MM-DD format (default: last day of previous month).",
+    )
+    args = parser.parse_args()
+    download_price_data(end_date_param=args.end_date)
