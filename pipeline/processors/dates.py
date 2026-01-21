@@ -6,7 +6,6 @@ from 2013-01-01 to specified end date. Outputs CSV files grouped by year to
 ../../data/processed/datetime_features/. Designed to be called from ../main.py.
 """
 
-import argparse
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -202,17 +201,3 @@ def process_datetime_features(end_date_param: str | None = None) -> pd.DataFrame
     save_to_csv_files(dataframe, output_dir)
 
     return dataframe
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Generate datetime features with Czech holidays."
-    )
-    parser.add_argument(
-        "--end-date",
-        type=_parse_and_validate_date,
-        default=None,
-        help="End date in YYYY-MM-DD format (default: last day of previous month).",
-    )
-    args = parser.parse_args()
-    process_datetime_features(end_date_param=args.end_date)

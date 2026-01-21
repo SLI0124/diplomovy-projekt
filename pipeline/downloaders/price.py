@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import datetime
 from typing import Optional, Tuple
 
@@ -105,11 +104,13 @@ def download_price_data_with_range(
 
     if start_date < config.PRICE_START_DATE:
         print(
-            "Start date cannot be before 01.01.2013 since it is the first "
-            "available data from OTE-CR price dataset."
+            f"Start date cannot be before {config.PRICE_START_DATE} since it is the \
+                first available data from OTE-CR price dataset."
         )
         delta_days = (config.PRICE_START_DATE - start_date).days
-        print(f"Adjusting start date by {delta_days} days to 01.01.2013.")
+        print(
+            f"Adjusting start date by {delta_days} days to {config.PRICE_START_DATE}."
+        )
         start_date = config.PRICE_START_DATE
 
     if start_date > end_date:
@@ -132,15 +133,3 @@ def download_price_data_with_range(
             downloaded += 1
 
     return downloaded
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--end-date",
-        type=utils.validate_date_str,
-        default=None,
-        help="End date in YYYY-MM-DD format (default: last day of previous month).",
-    )
-    args = parser.parse_args()
-    download_price_data(end_date_param=args.end_date)
