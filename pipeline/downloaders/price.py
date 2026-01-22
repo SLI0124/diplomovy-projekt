@@ -21,8 +21,8 @@ def _generate_months_to_download(
     """Generate (year, month) tuples for the given date range.
 
     Args:
-        start_date (datetime.date): First date to include.
-        end_date (datetime.date): Last date to include.
+        start_date: First date to include.
+        end_date: Last date to include.
 
     Returns:
         List of (year, month) tuples.
@@ -45,8 +45,8 @@ def _download_single_file(year: int, month: int) -> bool:
     """Download a single price file for the given year and month.
 
     Args:
-        year (int): Target year.
-        month (int): Target month.
+        year: Target year.
+        month: Target month.
 
     Returns:
         True if a file was downloaded, False otherwise.
@@ -93,9 +93,8 @@ def download_price_data_with_range(
     """Download price data for a specific date range.
 
     Args:
-        start_date (datetime.date): First date to include.
-        end_date_param (Optional[utils.DateLike]): End date as YYYY-MM-DD string,
-        datetime.date, datetime.datetime, or None.
+        start_date: First date to include.
+        end_date_param: End date as YYYY-MM-DD string, date, datetime, or None.
 
     Returns:
         Count of files downloaded.

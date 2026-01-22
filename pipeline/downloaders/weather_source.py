@@ -1,14 +1,11 @@
-"""
-Module for downloading weather data from Open-Meteo API.
+"""Download historical hourly weather data from Open-Meteo.
 
-Downloads hourly weather data for the Czech Republic region using the
-Open-Meteo Archive API. Data includes temperature, humidity, pressure, wind,
-precipitation, and other meteorological variables.
-Data is available from 2013-01-01 onwards.
+This module fetches weather observations from the Open-Meteo Archive API for the
+coordinates configured in [pipeline/config.py](pipeline/config.py).
 """
 
 import datetime
-import sys
+from typing import Optional
 
 import config
 import openmeteo_requests
@@ -19,14 +16,29 @@ from retry_requests import retry
 DATA_SAVE_PATH = config.RAW_WEATHER_DIR
 
 
-def _setup_api_client():
-    """Setup the Open-Meteo API client with retry configuration."""
+def _setup_api_client() -> openmeteo_requests.Client:
+    """Create an Open-Meteo API client with retries.
+
+    Returns:
+        openmeteo_requests.Client: Configured API client.
+    """
     retry_session = retry(retries=5, backoff_factor=0.2)
     return openmeteo_requests.Client(session=retry_session)  # type: ignore
 
 
-def _build_api_params(start_date_val, end_date_val):
-    """Build API parameters for weather data request."""
+def _build_api_params(
+    start_date_val: datetime.date,
+    end_date_val: datetime.date,
+) -> dict[str, object]:
+    """Build parameters for the Open-Meteo archive request.
+
+    Args:
+        start_date_val: Inclusive start date.
+        end_date_val: Inclusive end date.
+
+    Returns:
+        Dict of request parameters for `Client.weather_api`.
+    """
     return {
         "latitude": config.WEATHER_LATITUDE,
         "longitude": config.WEATHER_LONGITUDE,  # Kbely Airport
@@ -37,16 +49,16 @@ def _build_api_params(start_date_val, end_date_val):
     }
 
 
-def _process_api_response(response):
-    """Process API response and extract weather data.
+def _process_api_response(response) -> pd.DataFrame:
+    """Convert a single Open-Meteo response into a DataFrame.
 
-    print(f"Coordinates: {response.Latitude()}°N {response.Longitude()}°E")
-    print(f"Elevation: {response.Elevation()} m asl")
-    print(f"Timezone: {response.Timezone()}{response.TimezoneAbbreviation()}")
-    print(f"Timezone difference to GMT+0: {response.UtcOffsetSeconds()}s")
+    Args:
+        response: One response returned by `Client.weather_api`.
+
+    Returns:
+        pandas.DataFrame: Hourly time series with a `date` column and one column
+        per variable from `config.WEATHER_VARIABLES`.
     """
-
-    # Process hourly data. The order of variables needs to be the same as requested.
     hourly = response.Hourly()
 
     hourly_data = {
@@ -58,21 +70,21 @@ def _process_api_response(response):
         )
     }
 
-    # Map all weather variables
     for i, var_name in enumerate(config.WEATHER_VARIABLES):
         hourly_data[var_name] = hourly.Variables(i).ValuesAsNumpy()
 
     return pd.DataFrame(data=hourly_data)
 
 
-def download_weather_data(end_date_param=None):
-    """Main download function - entry point for main.py"""
+def download_weather_data(end_date_param: Optional[utils.DateLike] = None) -> None:
+    """Download weather data using configured defaults.
+
+    Args:
+        end_date_param: End date as YYYY-MM-DD string, date, datetime, or None.
+            When None, defaults to the last day of the previous month.
+    """
     start_date_obj = config.WEATHER_START_DATE
-    try:
-        end_date_obj = utils.resolve_end_date(end_date_param)
-    except ValueError as exc:
-        print(f"ERROR: {exc}")
-        sys.exit(1)
+    end_date_obj = utils.resolve_end_date(end_date_param)
 
     # since the weather source provides data up to 22:00 of the day
     # we need to adjust end_date by one day to include the last day's data
@@ -82,29 +94,33 @@ def download_weather_data(end_date_param=None):
 
 
 def download_weather_data_with_range(
-    start_date_val: datetime.date, end_date_val: datetime.date
-):
-    """Download weather data for a specific date range."""
+    start_date_val: datetime.date,
+    end_date_param: Optional[utils.DateLike] = None,
+) -> None:
+    """Download weather data for a specific date range.
 
-    # normalize if user passed a datetime
-    if isinstance(end_date_val, datetime.datetime):
-        end_date_val = end_date_val.date()
+    Args:
+        start_date_val: Inclusive start date.
+        end_date_param: Inclusive end date as YYYY-MM-DD string, date, datetime,
+            or None.
+    """
+    end_date_val = utils.resolve_end_date(end_date_param)
 
-    if start_date_val < datetime.date(
-        2013, 1, 1
-    ):  # hardcoded based on data availability
+    if start_date_val < config.WEATHER_START_DATE:
         print(
-            "Start date cannot be before 01.01.2013 since it is the first "
-            "available data from weather API."
+            f"Start date cannot be before {config.WEATHER_START_DATE} since it is the "
+            "first available data from weather API."
         )
-        delta_days = (datetime.date(2013, 1, 1) - start_date_val).days
-        print(f"Adjusting start date by {delta_days} days to 01.01.2013.")
-        start_date_val = datetime.date(2013, 1, 1)
+        delta_days = (config.WEATHER_START_DATE - start_date_val).days
+        print(
+            f"Adjusting start date by {delta_days} days to {config.WEATHER_START_DATE}."
+        )
+        start_date_val = config.WEATHER_START_DATE
 
     if start_date_val > end_date_val:
         print(
-            f"Start date {start_date_val} is after end date {end_date_val}. \
-                Nothing to download."
+            f"Start date {start_date_val} is after end date {end_date_val}. "
+            "Nothing to download."
         )
         return
 
@@ -131,12 +147,3 @@ def download_weather_data_with_range(
 
     except (ConnectionError, TimeoutError, ValueError, KeyError) as e:
         print(f"Failed to download weather data: {e}")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    end_date = None
-    if len(sys.argv) >= 2:
-        end_date = sys.argv[1]
-
-    download_weather_data(end_date_param=end_date)
