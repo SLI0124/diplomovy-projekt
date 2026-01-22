@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from typing import Optional, Tuple
+from typing import Optional
 
 import config
 import requests
@@ -17,7 +17,7 @@ BASE_URL = "https://www.ote-cr.cz/pubweb/attachments/127"
 def _generate_months_to_download(
     start_date: datetime.date,
     end_date: datetime.date,
-) -> list[Tuple[int, int]]:
+) -> list[tuple[int, int]]:
     """Generate (year, month) tuples for the given date range.
 
     Args:
@@ -27,7 +27,7 @@ def _generate_months_to_download(
     Returns:
         List of (year, month) tuples.
     """
-    months_to_download: list[Tuple[int, int]] = []
+    months_to_download: list[tuple[int, int]] = []
     current_date = start_date.replace(day=1)
     end_month = end_date.replace(day=1)
 
@@ -81,9 +81,7 @@ def download_price_data(end_date_param: Optional[utils.DateLike] = None) -> int:
     Returns:
         Count of files downloaded.
     """
-    start_date = config.PRICE_START_DATE
-    end_date = utils.resolve_end_date(end_date_param)
-    return download_price_data_with_range(start_date, end_date)
+    return download_price_data_with_range(config.PRICE_START_DATE, end_date_param)
 
 
 def download_price_data_with_range(
@@ -103,8 +101,8 @@ def download_price_data_with_range(
 
     if start_date < config.PRICE_START_DATE:
         print(
-            f"Start date cannot be before {config.PRICE_START_DATE} since it is the \
-                first available data from OTE-CR price dataset."
+            f"Start date cannot be before {config.PRICE_START_DATE} since it is the "
+            "first available data from OTE-CR price dataset."
         )
         delta_days = (config.PRICE_START_DATE - start_date).days
         print(

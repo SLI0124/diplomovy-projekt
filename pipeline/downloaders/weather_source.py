@@ -1,7 +1,6 @@
 """Download historical hourly weather data from Open-Meteo.
 
-This module fetches weather observations from the Open-Meteo Archive API for the
-coordinates configured in [pipeline/config.py](pipeline/config.py).
+The location and variables are defined in `pipeline/config.py`.
 """
 
 import datetime
@@ -41,7 +40,7 @@ def _build_api_params(
     """
     return {
         "latitude": config.WEATHER_LATITUDE,
-        "longitude": config.WEATHER_LONGITUDE,  # Kbely Airport
+        "longitude": config.WEATHER_LONGITUDE,
         "start_date": start_date_val.strftime("%Y-%m-%d"),
         "end_date": end_date_val.strftime("%Y-%m-%d"),
         "hourly": config.WEATHER_VARIABLES,
@@ -57,7 +56,7 @@ def _process_api_response(response) -> pd.DataFrame:
 
     Returns:
         pandas.DataFrame: Hourly time series with a `date` column and one column
-        per variable from `config.WEATHER_VARIABLES`.
+            per variable from `config.WEATHER_VARIABLES`.
     """
     hourly = response.Hourly()
 
@@ -83,14 +82,7 @@ def download_weather_data(end_date_param: Optional[utils.DateLike] = None) -> No
         end_date_param: End date as YYYY-MM-DD string, date, datetime, or None.
             When None, defaults to the last day of the previous month.
     """
-    start_date_obj = config.WEATHER_START_DATE
-    end_date_obj = utils.resolve_end_date(end_date_param)
-
-    # since the weather source provides data up to 22:00 of the day
-    # we need to adjust end_date by one day to include the last day's data
-    end_date_obj += datetime.timedelta(days=1)
-
-    download_weather_data_with_range(start_date_obj, end_date_obj)
+    download_weather_data_with_range(config.WEATHER_START_DATE, end_date_param)
 
 
 def download_weather_data_with_range(
@@ -102,9 +94,10 @@ def download_weather_data_with_range(
     Args:
         start_date_val: Inclusive start date.
         end_date_param: Inclusive end date as YYYY-MM-DD string, date, datetime,
-            or None.
+            or None. The implementation adds 1 day internally to cover the last
+            day's late-night hours.
     """
-    end_date_val = utils.resolve_end_date(end_date_param)
+    end_date_val = utils.resolve_end_date(end_date_param) + datetime.timedelta(days=1)
 
     if start_date_val < config.WEATHER_START_DATE:
         print(

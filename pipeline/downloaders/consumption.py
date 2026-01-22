@@ -1,7 +1,7 @@
 """Download daily gas consumption data from distribution networks.
 
-This module downloads per-day CSV files for multiple networks (GasNet variants
-and PP Distribuce) into the raw consumption directory.
+GasNet provides data from 07:00 of the current day to 06:00 of the next day.
+To cover 2013-01-01, the downloader starts at 2012-12-31.
 """
 
 import datetime
@@ -41,16 +41,14 @@ def _read_csv_with_fallback(url: str) -> pd.DataFrame:
     Raises:
         UnicodeDecodeError: If all fallback encodings fail.
     """
-    last_error = None
+    last_error: UnicodeDecodeError | None = None
     for encoding in ENCODING_FALLBACKS:
         try:
             return pd.read_csv(url, sep=";", encoding=encoding)
         except UnicodeDecodeError as error:
             last_error = error
-    # Propagate the last decode error if all fallbacks failed.
     if last_error is not None:
         raise last_error
-    # Should not get here, but keep default behavior for other exceptions.
     return pd.read_csv(url, sep=";")
 
 
@@ -144,15 +142,7 @@ def download_consumption_data(
         networks: Iterable of network identifiers to download (defaults to all).
     """
     start_date = config.CONSUMPTION_DOWNLOAD_START_DATE
-    end_date = utils.resolve_end_date(end_date_param)
-
-    resolved_networks = _resolve_networks(networks)
-    if not resolved_networks:
-        return
-
-    download_consumption_data_with_range(
-        start_date, end_date, networks=resolved_networks
-    )
+    download_consumption_data_with_range(start_date, end_date_param, networks=networks)
 
 
 def download_consumption_data_with_range(
@@ -229,7 +219,7 @@ def download_consumption_data_with_range(
                 if network == "ppnet":
                     df = _prepare_ppnet_dataframe(df)
                 df.to_csv(file_path, index=False)
-            except (UnicodeDecodeError, pd.errors.ParserError, ValueError) as e:
+            except (UnicodeDecodeError, ValueError, pd.errors.EmptyDataError) as exc:
                 print(
-                    f"Failed to download data for {current_date} from {file_url}: {e}"
+                    f"Failed to download data for {current_date} from {file_url}: {exc}"
                 )
