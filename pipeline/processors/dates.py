@@ -6,7 +6,7 @@ from 2013-01-01 to specified end date. Outputs CSV files grouped by year to
 ../../data/processed/datetime_features/. Designed to be called from ../main.py.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 import config
@@ -22,7 +22,7 @@ def calculate_easter(year: int) -> date:
     """Calculate Easter date using the Anonymous Gregorian algorithm.
 
     Args:
-        year (int): Year to calculate Easter for.
+        year: Year to calculate Easter for.
 
     Returns:
         date: Easter Sunday date for the given year.
@@ -48,7 +48,7 @@ def get_czech_holidays(year: int) -> set[date]:
     """Get all Czech public holidays for the given year.
 
     Args:
-        year (int): Year to get holidays for.
+        year: Year to get holidays for.
 
     Returns:
         set[date]: Set of holiday dates.
@@ -75,8 +75,8 @@ def create_date_range(start_date: date, end_date: date) -> pd.DatetimeIndex:
     """Create an hourly date range.
 
     Args:
-        start_date (date): Start date for the range.
-        end_date (date): End date for the range.
+        start_date: Start date for the range.
+        end_date: End date for the range.
 
     Returns:
         pd.DatetimeIndex: Hourly datetime index.
@@ -88,7 +88,7 @@ def generate_datetime_features_data(end_date: date) -> pd.DataFrame:
     """Generate hourly data with datetime features and holiday flags.
 
     Args:
-        end_date (date): End date for the feature generation.
+        end_date: End date for the feature generation.
 
     Returns:
         pd.DataFrame: Datetime features for each hour.
@@ -104,7 +104,7 @@ def generate_datetime_features_data(end_date: date) -> pd.DataFrame:
         holidays = holidays_by_year[dt.year]
         processed_date = dt.date()
         is_holiday = processed_date in holidays
-        is_before_holiday = (processed_date + timedelta(days=1)) in holidays
+        is_before_holiday = processed_date + timedelta(days=1) in holidays
 
         data.append(
             {
@@ -130,14 +130,14 @@ def save_to_csv_files(
     """Save DataFrame as multiple CSV files grouped by year.
 
     Args:
-        df (pd.DataFrame): DataFrame to save.
-        output_dir (Path): Directory to save files to.
-        file_prefix (str): Prefix for output filenames.
+        df: DataFrame to save.
+        output_dir: Directory to save files to.
+        file_prefix: Prefix for output filenames.
 
     Returns:
         None
     """
-    output_dir.mkdir(parents=True, exist_ok=True)
+    utils.ensure_directory(output_dir)
 
     columns_to_save = [
         "year",
@@ -160,41 +160,19 @@ def save_to_csv_files(
     print(f"All files saved to: {output_dir.resolve()}\n")
 
 
-def _parse_and_validate_date(value: str) -> str:
-    """Validate YYYY-MM-DD string format.
-
-    Args:
-        value (str): Date string to validate.
-
-    Returns:
-        str: Validated date string.
-
-    Raises:
-        ValueError: If date format is invalid.
-    """
-    try:
-        datetime.strptime(value, "%Y-%m-%d")
-    except ValueError:
-        raise ValueError(f"Invalid date format: {value}. Expected YYYY-MM-DD.")
-
-    return value
-
-
-def process_datetime_features(end_date_param: str | None = None) -> pd.DataFrame:
+def process_datetime_features(
+    end_date_param: str | None = None,
+) -> pd.DataFrame:
     """Main processing function - entry point for main.py.
 
     Args:
-        end_date_param (str | None): End date in YYYY-MM-DD format,
-                                      or None for last day of previous month.
+        end_date_param: End date in YYYY-MM-DD format,
+                        or None for last day of previous month.
 
     Returns:
         pd.DataFrame: Generated datetime feature data.
     """
-    # Convert string to date only once at the entry point
-    try:
-        end_date = utils.resolve_end_date(end_date_param)
-    except ValueError as exc:
-        raise ValueError(str(exc)) from exc
+    end_date = utils.resolve_end_date(end_date_param)
 
     output_dir = DATA_SAVE_PATH
     dataframe = generate_datetime_features_data(end_date=end_date)

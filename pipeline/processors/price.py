@@ -1,28 +1,10 @@
-"""
-Module for processing raw price data.
+"""Process raw OTE-CR gas price XLS files into hourly CSVs."""
 
-This script processes raw price data files from ../../data/raw/price/.
+from __future__ import annotations
 
-The XLS files contain gas trading data with the following structure:
-- Multiple header rows, data starts from row 5 (0-indexed row 4)
-- Columns are:
-  - Plynárenský den (trading day)
-  - Zobchodované množství (MWh) (traded volume)
-  - Vážený průměr cen (EUR/MWh) (weighted average price)
-  - Min. cena (EUR/MWh) (minimum price)
-  - Max. cena (EUR/MWh) (maximum price)
-
-The catch is that dates are in daily format, not hourly like in weather or consumption
-data. Data is available for each day: 01/01/2013, 02/01/2013, ..., 31/01/2013, etc.
-
-Files are organized by month: VDT_plyn_MM_YYYY_CZ.xls
-
-Processed data is saved as multiple CSV files in ../../data/processed/price/, grouped
-by year. The catch is that it will be executed from ../main.py so create entry point
- accordingly.
-"""
-
-import sys
+from datetime import date
+from pathlib import Path
+from typing import Optional
 
 import config
 import pandas as pd
@@ -33,23 +15,28 @@ DATA_SOURCE_PATH = config.RAW_PRICE_DIR
 DATA_SAVE_PATH = config.PROCESSED_PRICE_DIR
 
 
-def parse_price_file(file_path):
-    """Parse a price XLS file and return processed DataFrame with exactly 7 columns."""
+def parse_price_file(file_path: Path) -> pd.DataFrame:
+    """Parse one monthly price XLS file.
+
+    Args:
+        file_path: Path to a monthly XLS file.
+
+    Returns:
+        pandas.DataFrame: Hourly rows with columns
+        [year, month, day, hour, traded_volume_mwh, weighted_avg_price_eur_mwh,
+        min_price_eur_mwh, max_price_eur_mwh].
+    """
     try:
-        # Try xlrd first for .xls files, then openpyxl for .xlsx
+        # there are two different Excel formats in use, try both engines
         try:
             df = pd.read_excel(file_path, skiprows=4, engine="xlrd")
         except Exception:
             df = pd.read_excel(file_path, skiprows=4, engine="openpyxl")
 
-        # Skip the first row which contains the Czech headers
         df = df.iloc[1:].copy()
-
-        # Convert date column (first column) to datetime and extract components
         date_col = pd.to_datetime(df.iloc[:, 0], errors="coerce")
 
-        # Create daily result DataFrame with converted data
-        daily_result = pd.DataFrame(
+        daily = pd.DataFrame(
             {
                 "year": date_col.dt.year.astype("Int64"),
                 "month": date_col.dt.month.astype("Int64"),
@@ -69,27 +56,26 @@ def parse_price_file(file_path):
             }
         )
 
-        # Remove rows with invalid dates
-        daily_result = daily_result.dropna(subset=["year", "month", "day"])
+        daily = daily.dropna(subset=["year", "month", "day"]).reset_index(drop=True)
+        if daily.empty:
+            return pd.DataFrame()
 
-        # Expand each day to 24 hours (0-23) with same price values
-        hourly_data = []
-        for _, row in daily_result.iterrows():
-            for hour in range(24):
-                hourly_row = {
-                    "year": row["year"],
-                    "month": row["month"],
-                    "day": row["day"],
-                    "hour": hour,
-                    "traded_volume_mwh": row["traded_volume_mwh"],
-                    "weighted_avg_price_eur_mwh": row["weighted_avg_price_eur_mwh"],
-                    "min_price_eur_mwh": row["min_price_eur_mwh"],
-                    "max_price_eur_mwh": row["max_price_eur_mwh"],
-                }
-                hourly_data.append(hourly_row)
-
-        result = pd.DataFrame(hourly_data)
-        return result
+        # Assign hour 0..23 for each day
+        hourly = daily.loc[daily.index.repeat(24)].reset_index(drop=True)
+        hourly["hour"] = list(range(24)) * len(daily)
+        hourly["hour"] = hourly["hour"].astype("Int64")
+        return hourly[
+            [
+                "year",
+                "month",
+                "day",
+                "hour",
+                "traded_volume_mwh",
+                "weighted_avg_price_eur_mwh",
+                "min_price_eur_mwh",
+                "max_price_eur_mwh",
+            ]
+        ]
 
     except (
         pd.errors.EmptyDataError,
@@ -97,13 +83,26 @@ def parse_price_file(file_path):
         FileNotFoundError,
         ValueError,
         ImportError,
-    ) as e:
-        print(f"\tError parsing {file_path}: {e}")
+    ) as exc:
+        print(f"\tError parsing {file_path}: {exc}")
         return pd.DataFrame()
 
 
-def process_price_data_with_range(source_dir, start_date, end_date):
-    """Process price data files within the specified date range."""
+def process_price_data_with_range(
+    source_dir: Path,
+    start_date: date,
+    end_date: date,
+) -> Optional[pd.DataFrame]:
+    """Process price data files within the specified date range.
+
+    Args:
+        source_dir: Directory with downloaded XLS files.
+        start_date: Inclusive start date.
+        end_date: Inclusive end date.
+
+    Returns:
+        A combined DataFrame or None if nothing was processed.
+    """
     print(f"Processing price data from {start_date} to {end_date}...")
 
     # Find all price XLS files
@@ -119,7 +118,6 @@ def process_price_data_with_range(source_dir, start_date, end_date):
     start_year = start_date.year
     end_year = end_date.year
 
-    # Process each file
     for file_path in tqdm(price_files, desc="Processing price files"):
         # Extract year from filename: VDT_plyn_MM_YYYY_CZ.xls
         try:
@@ -136,8 +134,8 @@ def process_price_data_with_range(source_dir, start_date, end_date):
             if file_data is not None and len(file_data) > 0:
                 all_data.append(file_data)
 
-        except (IndexError, ValueError) as e:
-            print(f"\tWarning: Could not parse filename {file_path.name}: {e}")
+        except (IndexError, ValueError) as exc:
+            print(f"\tWarning: Could not parse filename {file_path.name}: {exc}")
             continue
 
     if all_data:
@@ -160,10 +158,20 @@ def process_price_data_with_range(source_dir, start_date, end_date):
     return None
 
 
-def save_processed_price_data_to_csv(df, output_dir, file_prefix="price"):
-    """Save price data split by year."""
+def save_processed_price_data_to_csv(
+    df: pd.DataFrame,
+    output_dir: Path,
+    file_prefix: str = "price",
+) -> None:
+    """Save processed price data grouped by year.
+
+    Args:
+        df: Processed hourly price data.
+        output_dir: Destination directory.
+        file_prefix: Output filename prefix.
+    """
     print("Saving processed price data...")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    utils.ensure_directory(output_dir)
 
     years = sorted(df["year"].unique())
     print(
@@ -178,35 +186,25 @@ def save_processed_price_data_to_csv(df, output_dir, file_prefix="price"):
     print(f"\tAll price files saved to: {output_dir}")
 
 
-def process_price_data(end_date_param=None):
-    """Main processing function - entry point for main.py"""
-    source_dir = DATA_SOURCE_PATH
-    output_dir = DATA_SAVE_PATH
+def process_price_data(
+    end_date_param: Optional[utils.DateLike] = None,
+) -> Optional[pd.DataFrame]:
+    """Entry point used by [pipeline/main.py](pipeline/main.py).
 
+    Args:
+        end_date_param: End date as YYYY-MM-DD string, date, datetime, or None.
+
+    Returns:
+        Processed hourly price data, or None if nothing was processed.
+    """
     start_date = config.PRICE_START_DATE
-    try:
-        end_date = utils.resolve_end_date(end_date_param)
-    except ValueError as exc:
-        print(f"ERROR: {exc}")
-        sys.exit(1)
+    end_date = utils.resolve_end_date(end_date_param)
 
-    print(f"Date range: {start_date} to {end_date}")
-    print(f"Source directory: {source_dir}")
-    print(f"Output directory: {output_dir}")
+    processed_data = process_price_data_with_range(
+        DATA_SOURCE_PATH, start_date, end_date
+    )
+    if processed_data is None:
+        return None
 
-    # Process price data in date range
-    processed_data = process_price_data_with_range(source_dir, start_date, end_date)
-
-    if processed_data is not None:
-        save_processed_price_data_to_csv(processed_data, output_dir)
-        return processed_data
-
-    return None
-
-
-if __name__ == "__main__":
-    END_DATE = None
-    if len(sys.argv) >= 2:
-        END_DATE = sys.argv[1]
-
-    process_price_data(end_date_param=END_DATE)
+    save_processed_price_data_to_csv(processed_data, DATA_SAVE_PATH)
+    return processed_data

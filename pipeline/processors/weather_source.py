@@ -1,47 +1,10 @@
-"""
-Module for processing raw weather data.
+"""Process downloaded weather CSV into per-year processed files."""
 
-This script will load ../../data/raw/weather/ weather data
+from __future__ import annotations
 
-The CSV file contains the following columns:
-- date: datetime of the measurement, pretty self-explanatory
-- temperature_2m: air temperature at 2 meters above ground level in °C
-- wind_gusts_10m: maximum wind gust at 10 meters above ground level in km/h
-- wind_direction_100m: wind direction at 100 meters above ground level
-- wind_direction_10m: wind direction at 10 meters above ground level
-- wind_speed_100m: wind speed at 100 meters above ground level in km/h
-- wind_speed_10m: wind speed at 10 meters above ground level in km/h
-- weather_code: WMO weather interpretation code, see
-  https://open-meteo.com/en/docs for details
-- pressure_msl: mean sea level pressure in hPa
-- surface_pressure: surface pressure in hPa
-- cloud_cover: total cloud cover in %
-- cloud_cover_low: low level cloud cover in %
-- cloud_cover_mid: mid level cloud cover in %
-- cloud_cover_high: high level cloud cover in %
-- relative_humidity_2m: relative humidity at 2 meters above ground level in %
-- dew_point_2m: dew point temperature at 2 meters above ground level in °C
-- apparent_temperature: perceived temperature at 2 meters above ground level in °C
-- precipitation: total precipitation in mm
-- rain: total rain in mm
-- snowfall: total snowfall in cm
-- snow_depth: snow depth in cm
-
-Since everything is already in one csv, this file will provide every function
-needed to load the data and save it as a DataFrame.
-
-date can be thrown away, since we will use datetime features from processors/dates.py
-
-since we are making hourly predictions, for one day we will have 24 entries
-
-The processed data will be saved as multiple CSV files in
-../../data/processed/weather/ folder, preferably grouped by year.
-The catch is that it will be executed from ../main.py so create some entry points
-accordingly.
-"""
-
-import sys
-from datetime import timedelta
+from datetime import date, timedelta
+from pathlib import Path
+from typing import Optional
 
 import config
 import pandas as pd
@@ -52,72 +15,55 @@ DATA_SOURCE_PATH = config.RAW_WEATHER_DIR
 DATA_SAVE_PATH = config.PROCESSED_WEATHER_DIR
 
 
-def parse_weather_file(file_path):
-    """Parse the weather CSV file and return processed DataFrame."""
-    print(f"\tReading weather data from {file_path}")
+def parse_weather_file(file_path: Path) -> Optional[pd.DataFrame]:
+    """Load the raw weather CSV and add year/month/day/hour columns.
 
+    Args:
+        file_path: Path to a raw weather CSV.
+
+    Returns:
+        A processed DataFrame, or None on read/parse error.
+    """
     try:
         df = pd.read_csv(file_path)
-        print(f"\tLoaded {len(df):,} raw weather records")
-    except FileNotFoundError as e:
-        print(f"\tError: Weather file not found: {e}")
+    except FileNotFoundError as exc:
+        print(f"\tError: Weather file not found: {exc}")
         return None
-    except pd.errors.EmptyDataError as e:
-        print(f"\tError: Weather file is empty: {e}")
+    except pd.errors.EmptyDataError as exc:
+        print(f"\tError: Weather file is empty: {exc}")
         return None
-    except (pd.errors.ParserError, UnicodeDecodeError, PermissionError) as e:
-        print(f"\tError reading weather file: {e}")
+    except (pd.errors.ParserError, UnicodeDecodeError, PermissionError) as exc:
+        print(f"\tError reading weather file: {exc}")
         return None
 
-    # Convert date column to datetime
-    print("\tProcessing datetime components...")
     df["date"] = pd.to_datetime(df["date"])
 
-    # Extract datetime components and take from them year, month, day, hour
     dt_index = pd.DatetimeIndex(df["date"])
-    df["year"] = dt_index.year.astype(int)
-    df["month"] = dt_index.month.astype(int)
-    df["day"] = dt_index.day.astype(int)
-    df["hour"] = dt_index.hour.astype(int)
+    df["year"] = dt_index.year.astype("Int64")
+    df["month"] = dt_index.month.astype("Int64")
+    df["day"] = dt_index.day.astype("Int64")
+    df["hour"] = dt_index.hour.astype("Int64")
 
-    # Select weather features (including datetime components, excluding original date)
-    weather_columns = [
-        "year",
-        "month",
-        "day",
-        "hour",
-        "temperature_2m",
-        "wind_gusts_10m",
-        "wind_direction_100m",
-        "wind_direction_10m",
-        "wind_speed_100m",
-        "wind_speed_10m",
-        "weather_code",
-        "pressure_msl",
-        "surface_pressure",
-        "cloud_cover",
-        "cloud_cover_low",
-        "cloud_cover_mid",
-        "cloud_cover_high",
-        "relative_humidity_2m",
-        "dew_point_2m",
-        "apparent_temperature",
-        "precipitation",
-        "rain",
-        "snowfall",
-        "snow_depth",
-    ]
+    weather_columns = ["year", "month", "day", "hour", *config.WEATHER_VARIABLES]
 
-    # Return only the weather columns and drop any rows with all NaN values
-    print("\tFiltering weather columns and removing empty rows...")
-    result = df[weather_columns].dropna(how="all")
-    print(f"\tProcessed {len(result):,} weather records")
-    return result
+    return df[weather_columns].dropna(how="all")
 
 
-def process_weather_data_with_range(source_dir, start_date, end_date):
-    """Process weather data files within the specified date range."""
-    print(f"Processing weather data from {start_date} to {end_date}...")
+def process_weather_data_with_range(
+    source_dir: Path,
+    start_date: date,
+    end_date: date,
+) -> Optional[pd.DataFrame]:
+    """Process weather data within a specific date range.
+
+    Args:
+        source_dir: Directory containing downloaded raw weather CSV(s).
+        start_date: Inclusive start date.
+        end_date: Inclusive end date.
+
+    Returns:
+        Processed DataFrame filtered to the requested date range, or None.
+    """
 
     # Find the weather CSV file (should be only one)
     weather_files = list(source_dir.glob("weather_*.csv"))
@@ -132,52 +78,33 @@ def process_weather_data_with_range(source_dir, start_date, end_date):
     weather_file = weather_files[0]
     print(f"\tFound weather file: {weather_file.name}")
 
-    # Parse the weather file
     weather_data = parse_weather_file(weather_file)
-
-    if weather_data is None or len(weather_data) == 0:
+    if weather_data is None or weather_data.empty:
         print("\tError: No weather data found")
         return None
 
-    # Filter data by year range and exclude first day of next month
-    start_year = start_date.year
-    end_year = end_date.year
-
-    print(f"\tFiltering data for years {start_year}-{end_year}...")
-    filtered_data = weather_data[
-        (weather_data["year"] >= start_year) & (weather_data["year"] <= end_year)
-    ]
-
-    # Remove first day of the next month if it exists in the data
-    # (this removes extra data downloaded due to the 1-day buffer in downloader)
-    next_month_start = end_date.replace(day=1) + timedelta(days=32)
-    next_month_start = next_month_start.replace(day=1)
-
-    if len(filtered_data) > 0:
-        # Create datetime column for precise filtering
-        filtered_data_copy = filtered_data.copy()
-        filtered_data_copy["temp_datetime"] = pd.to_datetime(
-            filtered_data_copy[["year", "month", "day", "hour"]]
-        )
-
-        # Filter out first day of next month
-        next_month_datetime = pd.to_datetime(next_month_start)
-
-        # Keep only data before the first day of next month
-        filtered_data = filtered_data_copy[
-            filtered_data_copy["temp_datetime"] < next_month_datetime
-        ].drop("temp_datetime", axis=1)
-
-        print(f"\tRemoved first day of next month ({next_month_start})")
-
-    print(f"\tFiltered to {len(filtered_data):,} weather records")
-    return filtered_data
+    dt_col = pd.to_datetime(weather_data[["year", "month", "day", "hour"]])
+    start_dt = pd.to_datetime(start_date)
+    end_dt_exclusive = pd.to_datetime(end_date + timedelta(days=1))
+    mask = (dt_col >= start_dt) & (dt_col < end_dt_exclusive)
+    filtered = weather_data.loc[mask].copy()
+    return filtered
 
 
-def save_processed_weather_data_to_csv(df, output_dir, file_prefix="weather"):
-    """Save weather data split by year."""
+def save_processed_weather_data_to_csv(
+    df: pd.DataFrame,
+    output_dir: Path,
+    file_prefix: str = "weather",
+) -> None:
+    """Save processed weather data grouped by year.
+
+    Args:
+        df: Processed weather data.
+        output_dir: Directory to save processed files to.
+        file_prefix: Prefix for output filenames.
+    """
     print("Saving processed weather data...")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    utils.ensure_directory(output_dir)
 
     years = sorted(df["year"].unique())
     print(
@@ -193,36 +120,25 @@ def save_processed_weather_data_to_csv(df, output_dir, file_prefix="weather"):
     print(f"\tAll weather files saved to: {output_dir}")
 
 
-def process_weather_data(end_date_param=None):
-    """Main processing function - entry point for main.py"""
-    source_dir = DATA_SOURCE_PATH
-    output_dir = DATA_SAVE_PATH
+def process_weather_data(
+    end_date_param: Optional[utils.DateLike] = None,
+) -> Optional[pd.DataFrame]:
+    """Entry point used by [pipeline/main.py](pipeline/main.py).
 
+    Args:
+        end_date_param: End date as YYYY-MM-DD string, date, datetime, or None.
+
+    Returns:
+        Optional[pd.DataFrame]: Processed weather data DataFrame or None on error.
+    """
     start_date = config.WEATHER_START_DATE
-    try:
-        end_date = utils.resolve_end_date(end_date_param)
-    except ValueError as exc:
-        print(f"ERROR: {exc}")
-        sys.exit(1)
+    end_date = utils.resolve_end_date(end_date_param)
 
-    print(f"Date range: {start_date} to {end_date}")
-    print(f"Source directory: {source_dir}")
-    print(f"Output directory: {output_dir}")
+    processed_data = process_weather_data_with_range(
+        DATA_SOURCE_PATH, start_date, end_date
+    )
+    if processed_data is None:
+        return None
 
-    # Process weather data in date range
-    processed_data = process_weather_data_with_range(source_dir, start_date, end_date)
-
-    if processed_data is not None:
-        save_processed_weather_data_to_csv(processed_data, output_dir)
-
-        return processed_data
-
-    return None
-
-
-if __name__ == "__main__":
-    END_DATE = None
-    if len(sys.argv) >= 2:
-        END_DATE = sys.argv[1]
-
-    process_weather_data(end_date_param=END_DATE)
+    save_processed_weather_data_to_csv(processed_data, DATA_SAVE_PATH)
+    return processed_data

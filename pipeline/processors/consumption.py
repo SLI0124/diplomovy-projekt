@@ -1,30 +1,5 @@
-"""
-Module for processing raw consumption data from all available distribution networks.
+"""Process raw network consumption CSVs into hourly per-network series."""
 
-This script processes raw consumption
-CSV files stored under data/raw/consumption/<network>/.
-
-Each network's data has a unique structure
-where each day's 24-hour period is split across two files:
-- Hours 0-6 of the current day are in the previous day's file
-- Hours 7-23 of the current day are in the current day's file
-
-CSV format:
-Datum,ID,Hodnota,Nazev
-1.1.2013 7:00,21637,461901,Zona_Gasnet
-1.1.2013 8:00,21637,426805,Zona_Gasnet
-...
-
-We extract 'Datum' (datetime) and 'Hodnota' (consumption value) column for each network.
-The processed data maintains complete 24-hour structures with NA value for missing hours
-and provides a dedicated consumption column per network.
-
-Processed data is saved as multiple CSV files in ../../data/processed/consumption/,
-grouped by year. The catch is that it will be executed from ../main.py so create entry
-points accordingly.
-"""
-
-import sys
 from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
@@ -43,29 +18,36 @@ SUSPICIOUS_FILES: Dict[str, List[Tuple[str, int]]] = defaultdict(list)
 
 
 def _normalize_ppnet_datetime(datum_series: pd.Series) -> pd.Series:
-    """Normalize PPNET timestamps by inferring AM/PM from row order."""
+    """Parse PPNET timestamps and make them non-decreasing by adding 12h steps. Those
+    timestamps lack AM/PM designations, so we must distinguish them based on order.
+
+    Args:
+        datum_series: Series with timestamps in "%Y-%m-%d %H:%M:%S" format.
+
+    Returns:
+        pd.Series: Corrected timestamps as pandas datetimes.
+    """
+    # Parse timestamps and fix missing AM/PM by making series non-decreasing
     parsed = pd.to_datetime(datum_series, format="%Y-%m-%d %H:%M:%S", errors="coerce")
-
-    corrected = []
-    previous = None
-    for value in parsed:
-        if pd.isna(value):
-            corrected.append(pd.NaT)
+    out, prev = [], None
+    for parsed_time in parsed:
+        if pd.isna(parsed_time):
+            out.append(pd.NaT)
             continue
-
-        candidate = value
-        if previous is not None:
-            while candidate < previous:
-                candidate += pd.Timedelta(hours=12)
-
-        corrected.append(candidate)
-        previous = candidate
-
-    return pd.Series(corrected)
+        # If time went backwards, add 12-hour steps until it's non-decreasing
+        while prev is not None and parsed_time < prev:
+            parsed_time += pd.Timedelta(hours=12)
+        out.append(parsed_time)
+        prev = parsed_time
+    return pd.Series(out)
 
 
 def discover_network_paths() -> Dict[str, Path]:
-    """Return mapping of available consumption networks to their data directories."""
+    """Return mapping of available consumption networks to their data directories.
+
+    Returns:
+        Dict[str, Path]: Mapping of network keys to their data directories.
+    """
     if not DATA_SOURCE_ROOT.exists():
         return {}
     return {
@@ -74,7 +56,9 @@ def discover_network_paths() -> Dict[str, Path]:
 
 
 def print_suspicious_files() -> None:
-    """Print all misaligned files and their line counts after parsing."""
+    """Print all misaligned files and their line counts after parsing. This is somewhat
+    legacy behavior from beginning but I can still see its usefulness.
+    """
     if not SUSPICIOUS_FILES:
         return
 
@@ -91,16 +75,22 @@ def print_suspicious_files() -> None:
 
 
 def parse_consumption_file(file_path: Path, network: str) -> pd.DataFrame:
-    """Parse a single consumption CSV file and return normalized data."""
+    """Parse a single consumption CSV file and return normalized data.
+
+    Args:
+        file_path: Path to the consumption CSV file.
+        network: Network key (e.g., "ppnet", "vcpnet", etc.).
+
+    Returns:
+        pd.DataFrame: DataFrame with columns
+        ["year", "month", "day", "hour", "consumption"].
+    """
+
     if network == "ppnet":
         df = pd.read_csv(file_path, sep=None, engine="python")
         df.columns = df.columns.str.strip().str.strip('"')
     else:
         df = pd.read_csv(file_path, sep=",")
-
-    if "Datum" not in df.columns or "Hodnota" not in df.columns:
-        print(f"WARNING: Missing columns in {file_path.name}. Skipping file.")
-        return pd.DataFrame(columns=["year", "month", "day", "hour", "consumption"])
 
     total_lines = len(df)
     if total_lines < 24 or total_lines > 26:
@@ -128,7 +118,16 @@ def parse_consumption_file(file_path: Path, network: str) -> pd.DataFrame:
 
 
 def create_day_structure(target_date: date, networks: Iterable[str]) -> pd.DataFrame:
-    """Create a complete 24-hour structure with columns for each network."""
+    """Create a complete 24-hour structure with columns for each network.
+
+    Args:
+        target_date: Date for which to create the structure.
+        networks: Iterable of network keys to create columns for.
+
+    Returns:
+        pd.DataFrame: DataFrame with 24 rows and columns for year, month, day, hour,
+            and consumption per network.
+    """
     networks = list(networks)
     hours = list(range(24))
     day_frame = pd.DataFrame(
@@ -149,7 +148,25 @@ def create_day_structure(target_date: date, networks: Iterable[str]) -> pd.DataF
 def get_hours_from_file(
     file_path: Path, target_date: date, hour_range: str, network: str
 ) -> pd.DataFrame:
-    """Extract specific hours from a network file for the target date."""
+    """
+    Extract specific hours from a network file for the target date.
+
+    This parses the entire file and then filters rows that match the target date
+    (year, month, day). After selecting the target date rows, it further filters
+    by hour_range:
+      - "early": select hours 0-6 (inclusive)
+      - "late": select hours 7-23 (inclusive)
+
+    Args:
+        file_path: Path to the consumption CSV file.
+        target_date: Date for which to extract hours.
+        hour_range: Range of hours to extract ("early" or "late").
+        network: Network key (e.g., "ppnet", "vcpnet", etc.).
+
+    Returns:
+        pd.DataFrame: DataFrame with columns ["hour", "consumption"]
+        for the specified hours. Empty DataFrame if file missing or no data.
+    """
     if not file_path.exists():
         return pd.DataFrame()
 
@@ -157,12 +174,18 @@ def get_hours_from_file(
     if consumption_data.empty:
         return pd.DataFrame()
 
+    # Build a mask that selects rows matching the target date (year, month, day).
+    # This ensures we only consider measurements that belong to the requested day.
     mask = (
         (consumption_data["year"] == target_date.year)
         & (consumption_data["month"] == target_date.month)
         & (consumption_data["day"] == target_date.day)
     )
 
+    # Further restrict by hour range:
+    # - "early" selects hours 0 through 6 (midnight through 6:00)
+    # - otherwise select hours 7 through 23 (7:00 through 23:00)
+    # it is there cause days intersect at 6:00 of the next/ previous day
     if hour_range == "early":
         mask &= consumption_data["hour"] <= 6
     else:
@@ -175,7 +198,17 @@ def get_hours_from_file(
 def collect_network_day_values(
     source_dir: Path, current_date: date, network: str
 ) -> pd.DataFrame:
-    """Collect hourly consumption data for a single network and day."""
+    """Collect hourly consumption data for a single network and day.
+
+    Args:
+        source_dir: Directory containing consumption CSV files.
+        current_date: Date for which to collect data.
+        network: Network key (e.g., "ppnet", "vcpnet", etc.).
+
+    Returns:
+        pd.DataFrame: DataFrame with columns ["hour", "consumption"]
+        for the specified network and date. Empty if no data found.
+    """
     prev_date = current_date - timedelta(days=1)
     prev_file = source_dir / f"{prev_date.strftime('%Y%m%d')}.csv"
     curr_file = source_dir / f"{current_date.strftime('%Y%m%d')}.csv"
@@ -198,7 +231,15 @@ def collect_network_day_values(
 def process_single_date(
     network_dirs: Dict[str, Path], current_date: date
 ) -> pd.DataFrame:
-    """Process consumption data for all networks on a single date."""
+    """Process consumption data for all networks on a single date.
+
+    Args:
+        network_dirs: Directories for each network.
+        current_date: date: Date to process.
+
+    Returns:
+        pd.DataFrame: DataFrame with consumption data for all networks for given date.
+    """
     day_frame = create_day_structure(current_date, network_dirs.keys())
 
     for network, directory in network_dirs.items():
@@ -216,7 +257,17 @@ def process_single_date(
 def generate_consumption_data_with_range(
     network_dirs: Dict[str, Path], start_date: date, end_date: date
 ) -> Optional[pd.DataFrame]:
-    """Process consumption files for all networks within the given date range."""
+    """Process consumption files for all networks within the given date range.
+
+    Args:
+        network_dirs: Directories for each network.
+        start_date: Start date of the range to process.
+        end_date: End date of the range to process.
+
+    Returns:
+        Optional[pd.DataFrame]: Combined consumption data for all networks within
+        the date range, or None if no data was processed.
+    """
     if not network_dirs:
         print(
             f"No consumption networks found in {DATA_SOURCE_ROOT}. Nothing to process."
@@ -262,18 +313,52 @@ def generate_consumption_data_with_range(
     return combined_df
 
 
+def save_consumption_data_to_csv(
+    df: pd.DataFrame, output_dir: Path, file_prefix="consumption"
+) -> None:
+    """Save consumption data to CSV files grouped by year."""
+    utils.ensure_directory(output_dir)
+
+    consumption_columns = sorted(
+        column for column in df.columns if column.startswith("consumption_")
+    )
+    if (
+        "consumption_total" in df.columns
+        and "consumption_total" not in consumption_columns
+    ):
+        consumption_columns.append("consumption_total")
+    years = sorted(df["year"].dropna().unique())
+    print(f"Saving data to {len(years)} files:")
+
+    for year in tqdm(years, desc="Saving files"):
+        year_mask = df["year"] == year
+        year_data = df.loc[
+            year_mask, ["year", "month", "day", "hour", *consumption_columns]
+        ]
+        filename = output_dir / f"{file_prefix}_{int(year)}.csv"
+        year_data.to_csv(filename, index=False)
+
+    print(f"All files saved to: {output_dir}")
+
+
 def process_consumption_data(
-    end_date_param: Optional[str] = None, networks: Optional[Iterable[str]] = None
+    end_date_param: Optional[utils.DateLike] = None,
+    networks: Optional[Iterable[str]] = None,
 ) -> Optional[pd.DataFrame]:
-    """Main processing function - entry point for main.py."""
+    """Entry point used by [pipeline/main.py](pipeline/main.py).
+
+    Args:
+        end_date_param: Inclusive end date as YYYY-MM-DD string, date, datetime,
+            or None.
+        networks: Optional list of network keys to process.
+
+    Returns:
+        Processed DataFrame or None if nothing was processed.
+    """
     SUSPICIOUS_FILES.clear()
 
     start_date = config.CONSUMPTION_PROCESS_START_DATE
-    try:
-        end_date = utils.resolve_end_date(end_date_param)
-    except ValueError as exc:
-        print(f"ERROR: {exc}")
-        sys.exit(1)
+    end_date = utils.resolve_end_date(end_date_param)
 
     available_dirs = discover_network_paths()
     if not available_dirs:
@@ -306,39 +391,3 @@ def process_consumption_data(
         print("No consumption data was processed.")
 
     return processed_data
-
-
-def save_consumption_data_to_csv(
-    df: pd.DataFrame, output_dir: Path, file_prefix="consumption"
-) -> None:
-    """Save consumption data to CSV files grouped by year."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    consumption_columns = sorted(
-        column for column in df.columns if column.startswith("consumption_")
-    )
-    if (
-        "consumption_total" in df.columns
-        and "consumption_total" not in consumption_columns
-    ):
-        consumption_columns.append("consumption_total")
-    years = sorted(df["year"].dropna().unique())
-    print(f"Saving data to {len(years)} files:")
-
-    for year in tqdm(years, desc="Saving files"):
-        year_mask = df["year"] == year
-        year_data = df.loc[
-            year_mask, ["year", "month", "day", "hour", *consumption_columns]
-        ]
-        filename = output_dir / f"{file_prefix}_{int(year)}.csv"
-        year_data.to_csv(filename, index=False)
-
-    print(f"All files saved to: {output_dir}")
-
-
-if __name__ == "__main__":
-    END_DATE = None
-    if len(sys.argv) >= 2:
-        END_DATE = sys.argv[1]
-
-    process_consumption_data(end_date_param=END_DATE)
