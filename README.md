@@ -33,7 +33,7 @@ conda activate master-thesis-sli0124
 ### ✅ Ověření instalace
 
 ```bash
-python check_gpu.py
+python tools/check_gpu.py
 ```
 
 > ⚠️ **Řešení problémů s DLL:**

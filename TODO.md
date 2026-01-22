@@ -17,8 +17,8 @@ This will be a list of things that need to be done in order to finish the projec
 
 ---
 
-- [ ] type checking, e.g. with add type hints to all functions and classes
-- [ ] better docstrings with params, return types, etc., preferably to all functions and classes
+- [X] type checking, e.g. with add type hints to all functions and classes
+- [X] better docstrings with params, return types, etc., preferably to all functions and classes
 - [ ] README file for `pipeline` directory, explain what each script does and how to use them, what are the inputs and outputs, conditions, etc.
 
 ---
@@ -30,12 +30,12 @@ This will be a list of things that need to be done in order to finish the projec
 ---
 
 - refactor
-  - [ ] downloaders
-  - [ ] processors
-  - [ ] merging
-  - [ ] utils
-  - [ ] config
-  - [ ] main script
+  - [x] downloaders
+  - [X] processors
+  - [X] merging
+  - [X] utils
+  - [X] config
+  - [x] main script
 - [ ] finally get into the modeling and AI part of the project
 
 ### Notes after consultation
