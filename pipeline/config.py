@@ -1,6 +1,6 @@
 """Central configuration for pipeline defaults and paths."""
 
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -20,9 +20,11 @@ PROCESSED_WEATHER_DIR = PROCESSED_DIR / "weather"
 PROCESSED_DATETIME_FEATURES_DIR = PROCESSED_DIR / "datetime_features"
 PROCESSED_MERGED_DIR = PROCESSED_DIR / "merged"
 
-# Date defaults
+# Date defaults - date(2013, 1, 1) is the first date with data in all datasets
 COMMON_START_DATE = date(2013, 1, 1)
-CONSUMPTION_DOWNLOAD_START_DATE = date(2012, 12, 31)
+CONSUMPTION_DOWNLOAD_START_DATE = COMMON_START_DATE - timedelta(days=1)
+
+# CONSUMPTION_DOWNLOAD_START_DATE = date(2012, 12, 31)
 CONSUMPTION_PROCESS_START_DATE = COMMON_START_DATE
 PRICE_START_DATE = COMMON_START_DATE
 WEATHER_START_DATE = COMMON_START_DATE
@@ -34,8 +36,8 @@ CONSUMPTION_MIN_DATE = CONSUMPTION_DOWNLOAD_START_DATE
 
 # Weather API settings
 WEATHER_LATITUDE = 50.1333
-WEATHER_LONGITUDE = 14.55
-WEATHER_TIMEZONE = "Europe/Berlin"
+WEATHER_LONGITUDE = 14.55  # Kbely airport
+WEATHER_TIMEZONE = "Europe/Berlin"  # nearest to the Prague
 WEATHER_VARIABLES = [
     "temperature_2m",
     "wind_gusts_10m",
