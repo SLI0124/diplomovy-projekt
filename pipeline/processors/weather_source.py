@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import config
 import pandas as pd
@@ -13,6 +13,30 @@ from tqdm import tqdm
 
 DATA_SOURCE_PATH = config.RAW_WEATHER_DIR
 DATA_SAVE_PATH = config.PROCESSED_WEATHER_DIR
+
+
+def _normalize_weather_datetime_local_naive(
+    values: Union[pd.Series, pd.Index],
+) -> pd.Series:
+    """Normalize timestamps to tz-naive datetimes in configured local timezone. This was
+     a new problem that appeared recently, possibly due to changes in the source data.
+
+    Args:
+        values: Series or Index with datetime-like values.
+
+    Returns:
+        pd.Series: Normalized timestamps as tz-naive pandas datetimes.
+    """
+    dt = pd.to_datetime(values, utc=True, errors="coerce")
+    dti = pd.DatetimeIndex(dt).tz_convert(config.WEATHER_TIMEZONE).tz_localize(None)
+    index = (
+        values.index
+        if isinstance(values, pd.Series)
+        else values
+        if isinstance(values, pd.Index)
+        else None
+    )
+    return pd.Series(dti, index=index, name=getattr(values, "name", None))
 
 
 def parse_weather_file(file_path: Path) -> Optional[pd.DataFrame]:
@@ -36,7 +60,7 @@ def parse_weather_file(file_path: Path) -> Optional[pd.DataFrame]:
         print(f"Weather: read error ({exc})")
         return None
 
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = _normalize_weather_datetime_local_naive(df["date"])
 
     dt_index = pd.DatetimeIndex(df["date"])
     df["year"] = dt_index.year.astype("Int64")
@@ -89,7 +113,7 @@ def process_weather_data_with_range(
     # Validate coverage before full processing (fast-fail with clear message).
     try:
         dates_only = pd.read_csv(weather_file, usecols=["date"])
-        dates_only["date"] = pd.to_datetime(dates_only["date"], errors="coerce")
+        dates_only["date"] = _normalize_weather_datetime_local_naive(dates_only["date"])
         min_dt = dates_only["date"].min()
         max_dt = dates_only["date"].max()
     except ValueError:
@@ -105,7 +129,9 @@ def process_weather_data_with_range(
 
     required_start = pd.to_datetime(start_date)
     # Need at least through the last hour of end_date.
-    required_last_hour = pd.to_datetime(end_date) + pd.Timedelta(hours=23)
+    required_last_hour = (
+        pd.to_datetime(end_date) + pd.Timedelta(days=1) - pd.Timedelta(hours=1)
+    )
     if min_dt > required_start or max_dt < required_last_hour:
         raise FileNotFoundError(
             "Weather: raw data does not cover requested range. "
