@@ -121,6 +121,11 @@ def download_weather_data_with_range(
 
     utils.ensure_directory(DATA_SAVE_PATH)
 
+    output_file = DATA_SAVE_PATH / f"weather_{start_date_val}_{end_date_val}.csv"
+    if output_file.exists():
+        print(f"Weather data already exists, skipping download: {output_file}")
+        return
+
     try:
         openmeteo = _setup_api_client()
         url = "https://archive-api.open-meteo.com/v1/archive"
@@ -132,7 +137,6 @@ def download_weather_data_with_range(
         hourly_dataframe = _process_api_response(responses[0])
 
         # Save to CSV file
-        output_file = DATA_SAVE_PATH / f"weather_{start_date_val}_{end_date_val}.csv"
         hourly_dataframe.to_csv(output_file, index=False)
 
         print(f"Weather data saved to: {output_file}")
