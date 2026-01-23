@@ -71,21 +71,21 @@ def process_data(
             for item in PROCESS_ORDER:
                 process_data(item, end_date, consumption_networks)
         case "dates":
-            print("Processing datetime features data...")
+            print("Process: dates")
             processors.dates.process_datetime_features(end_date_param=end_date)
         case "consumption":
-            print("Processing gas consumption data...")
+            print("Process: consumption")
             processors.consumption.process_consumption_data(
                 end_date_param=end_date, networks=consumption_networks
             )
         case "weather":
-            print("Processing weather data...")
+            print("Process: weather")
             processors.weather_source.process_weather_data(end_date_param=end_date)
         case "price":
-            print("Processing gas price data...")
+            print("Process: price")
             processors.price.process_price_data(end_date_param=end_date)
         case "merge":
-            print("Merging all processed data...")
+            print("Process: merge")
             processors.main_merger.merge_processed_data(
                 end_date_param=end_date, consumption_networks=consumption_networks
             )

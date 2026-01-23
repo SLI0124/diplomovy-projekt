@@ -1,9 +1,8 @@
 """Process raw network consumption CSVs into hourly per-network series."""
 
-from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, Optional
 
 import config
 import pandas as pd
@@ -12,9 +11,6 @@ from tqdm import tqdm
 
 DATA_SOURCE_ROOT = config.RAW_CONSUMPTION_DIR
 DATA_SAVE_PATH = config.PROCESSED_CONSUMPTION_DIR
-
-# Track suspicious file metadata per network
-SUSPICIOUS_FILES: Dict[str, List[Tuple[str, int]]] = defaultdict(list)
 
 
 def _normalize_ppnet_datetime(datum_series: pd.Series) -> pd.Series:
@@ -55,25 +51,6 @@ def discover_network_paths() -> Dict[str, Path]:
     }
 
 
-def print_suspicious_files() -> None:
-    """Print all misaligned files and their line counts after parsing. This is somewhat
-    legacy behavior from beginning but I can still see its usefulness.
-    """
-    if not SUSPICIOUS_FILES:
-        return
-
-    print("WARNING: Suspicious files detected!")
-    for network, entries in SUSPICIOUS_FILES.items():
-        if not entries:
-            continue
-        print(f"\tNetwork: {network}")
-        for filename, line_count in entries:
-            print(f"\t  File: {filename}")
-            print("\t  Expected: 24-26 lines (24 hours + header + padding)")
-            print(f"\t  Found: {line_count} lines")
-        print("-" * 60)
-
-
 def parse_consumption_file(file_path: Path, network: str) -> pd.DataFrame:
     """Parse a single consumption CSV file and return normalized data.
 
@@ -91,10 +68,6 @@ def parse_consumption_file(file_path: Path, network: str) -> pd.DataFrame:
         df.columns = df.columns.str.strip().str.strip('"')
     else:
         df = pd.read_csv(file_path, sep=",")
-
-    total_lines = len(df)
-    if total_lines < 24 or total_lines > 26:
-        SUSPICIOUS_FILES[network].append((file_path.name, total_lines))
 
     if network == "ppnet":
         datum_series = _normalize_ppnet_datetime(df["Datum"])
@@ -115,6 +88,75 @@ def parse_consumption_file(file_path: Path, network: str) -> pd.DataFrame:
         result[column] = result[column].astype("Int64")
 
     return result
+
+
+def _build_hourly_calendar_frame(start_date: date, end_date: date) -> pd.DataFrame:
+    """Create a full hourly calendar frame for [start_date, end_date] inclusive.
+
+    Args:
+        start_date: Inclusive start date.
+        end_date: Inclusive end date.
+
+    Returns:
+        pd.DataFrame: DataFrame with columns ["year", "month", "day", "hour"].
+    """
+    all_dates = pd.date_range(start_date, end_date, freq="D")
+    index = pd.MultiIndex.from_product([all_dates, range(24)], names=["date", "hour"])
+    frame = index.to_frame(index=False)
+    frame["year"] = frame["date"].dt.year.astype("Int64")  # type: ignore[reportAttributeAccessIssue]
+    frame["month"] = frame["date"].dt.month.astype("Int64")  # type: ignore[reportAttributeAccessIssue]
+    frame["day"] = frame["date"].dt.day.astype("Int64")  # type: ignore[reportAttributeAccessIssue]
+    frame["hour"] = frame["hour"].astype("Int64")
+    return frame[["year", "month", "day", "hour"]]
+
+
+def _collect_network_range_values(
+    source_dir: Path,
+    network: str,
+    start_date: date,
+    end_date: date,
+) -> pd.DataFrame:
+    """Collect hourly consumption for a network in a date range.
+
+    Important: For calendar day D, hours 0-6 are stored in file D-1 and hours 7-23
+    are stored in file D. By reading files from start_date-1 through end_date and
+    filtering by the parsed calendar date, we keep the original day-boundary logic.
+    """
+    file_start = start_date - timedelta(days=1)
+    file_end = end_date
+
+    frames = []
+    current = file_start
+    while current <= file_end:
+        file_path = source_dir / f"{current.strftime('%Y%m%d')}.csv"
+        if file_path.exists():
+            frames.append(parse_consumption_file(file_path, network))
+        current += timedelta(days=1)
+
+    if not frames:
+        return pd.DataFrame(
+            columns=["year", "month", "day", "hour", f"consumption_{network}"]
+        )
+
+    merged = pd.concat(frames, ignore_index=True)
+    merged = merged.dropna(subset=["year", "month", "day", "hour"]).copy()
+
+    # Filter down to requested calendar window.
+    date_series = pd.to_datetime(
+        {
+            "year": merged["year"].astype("Int64"),
+            "month": merged["month"].astype("Int64"),
+            "day": merged["day"].astype("Int64"),
+        },
+        errors="coerce",
+    )
+    mask = (date_series.dt.date >= start_date) & (date_series.dt.date <= end_date)
+    merged = merged.loc[mask, ["year", "month", "day", "hour", "consumption"]]
+    merged = merged.drop_duplicates(
+        subset=["year", "month", "day", "hour"], keep="last"
+    )
+    merged = merged.rename(columns={"consumption": f"consumption_{network}"})
+    return merged
 
 
 def create_day_structure(target_date: date, networks: Iterable[str]) -> pd.DataFrame:
@@ -269,33 +311,36 @@ def generate_consumption_data_with_range(
         the date range, or None if no data was processed.
     """
     if not network_dirs:
-        print(
-            f"No consumption networks found in {DATA_SOURCE_ROOT}. Nothing to process."
-        )
+        print(f"Consumption: no networks in {DATA_SOURCE_ROOT}")
         return None
 
     networks_list = ", ".join(sorted(network_dirs.keys()))
-    print(
-        f"Processing consumption data from {start_date} to {end_date} "
-        f"for networks: {networks_list}"
-    )
+    print(f"Consumption: {start_date} -> {end_date} ({networks_list})")
 
-    dates_to_process = []
-    current_date = start_date
-    while current_date <= end_date:
-        dates_to_process.append(current_date)
-        current_date += timedelta(days=1)
+    combined_df = _build_hourly_calendar_frame(start_date, end_date)
 
-    all_data = []
-    for process_date in tqdm(dates_to_process, desc="Processing files"):
-        day_data = process_single_date(network_dirs, process_date)
-        all_data.append(day_data)
+    for network, directory in tqdm(
+        list(network_dirs.items()), desc="Consumption: networks", leave=False
+    ):
+        network_df = _collect_network_range_values(
+            directory, network, start_date, end_date
+        )
+        if network_df.empty:
+            combined_df[f"consumption_{network}"] = pd.Series(
+                [pd.NA] * len(combined_df), dtype="Int64"
+            )
+            continue
 
-    if not all_data:
-        print("No data found")
+        combined_df = combined_df.merge(
+            network_df,
+            on=["year", "month", "day", "hour"],
+            how="left",
+        )
+
+    if combined_df.empty:
+        print("Consumption: no data")
         return None
 
-    combined_df = pd.concat(all_data, ignore_index=True)
     consumption_columns = [f"consumption_{network}" for network in network_dirs]
     combined_df["consumption_total"] = (
         combined_df[consumption_columns].sum(axis=1, min_count=1).astype("Int64")
@@ -305,11 +350,10 @@ def generate_consumption_data_with_range(
     available_hours = total_hours - missing_hours
 
     print(
-        f"Processed {total_hours:,} network-hours "
-        f"({available_hours:,} with data, {missing_hours:,} with NA)"
+        f"Consumption: processed {total_hours:,} network-hours "
+        f"({available_hours:,} ok, {missing_hours:,} NA)"
     )
 
-    print_suspicious_files()
     return combined_df
 
 
@@ -328,9 +372,8 @@ def save_consumption_data_to_csv(
     ):
         consumption_columns.append("consumption_total")
     years = sorted(df["year"].dropna().unique())
-    print(f"Saving data to {len(years)} files:")
 
-    for year in tqdm(years, desc="Saving files"):
+    for year in tqdm(years, desc="Consumption: saving", unit="file", leave=False):
         year_mask = df["year"] == year
         year_data = df.loc[
             year_mask, ["year", "month", "day", "hour", *consumption_columns]
@@ -338,7 +381,13 @@ def save_consumption_data_to_csv(
         filename = output_dir / f"{file_prefix}_{int(year)}.csv"
         year_data.to_csv(filename, index=False)
 
-    print(f"All files saved to: {output_dir}")
+    if years:
+        year_min = int(min(years))
+        year_max = int(max(years))
+        print(
+            f"Consumption: saved {len(years)} files ({year_min}-{year_max}) "
+            f"-> {output_dir}"
+        )
 
 
 def process_consumption_data(
@@ -355,14 +404,12 @@ def process_consumption_data(
     Returns:
         Processed DataFrame or None if nothing was processed.
     """
-    SUSPICIOUS_FILES.clear()
-
     start_date = config.CONSUMPTION_PROCESS_START_DATE
     end_date = utils.resolve_end_date(end_date_param)
 
     available_dirs = discover_network_paths()
     if not available_dirs:
-        print(f"No consumption data directories found in {DATA_SOURCE_ROOT}.")
+        print(f"Consumption: no data directories in {DATA_SOURCE_ROOT}")
         return None
 
     selected_dirs = available_dirs
@@ -370,15 +417,12 @@ def process_consumption_data(
         normalized = [network.lower() for network in networks]
         missing = [network for network in normalized if network not in available_dirs]
         if missing:
-            print(
-                "WARNING: Requested consumption networks not found: "
-                + ", ".join(sorted(set(missing)))
-            )
+            print("Consumption: missing networks: " + ", ".join(sorted(set(missing))))
         selected_dirs = {
             name: path for name, path in available_dirs.items() if name in normalized
         }
         if not selected_dirs:
-            print("No valid consumption networks selected. Nothing to process.")
+            print("Consumption: no valid networks selected")
             return None
 
     processed_data = generate_consumption_data_with_range(
@@ -388,6 +432,6 @@ def process_consumption_data(
     if processed_data is not None:
         save_consumption_data_to_csv(processed_data, DATA_SAVE_PATH)
     else:
-        print("No consumption data was processed.")
+        print("Consumption: nothing processed")
 
     return processed_data

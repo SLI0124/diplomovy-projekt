@@ -27,13 +27,13 @@ def parse_weather_file(file_path: Path) -> Optional[pd.DataFrame]:
     try:
         df = pd.read_csv(file_path)
     except FileNotFoundError as exc:
-        print(f"\tError: Weather file not found: {exc}")
+        print(f"Weather: file not found ({exc})")
         return None
     except pd.errors.EmptyDataError as exc:
-        print(f"\tError: Weather file is empty: {exc}")
+        print(f"Weather: empty file ({exc})")
         return None
     except (pd.errors.ParserError, UnicodeDecodeError, PermissionError) as exc:
-        print(f"\tError reading weather file: {exc}")
+        print(f"Weather: read error ({exc})")
         return None
 
     df["date"] = pd.to_datetime(df["date"])
@@ -69,18 +69,18 @@ def process_weather_data_with_range(
     weather_files = list(source_dir.glob("weather_*.csv"))
 
     if not weather_files:
-        print("\tError: No weather data files found")
+        print("Weather: no input files")
         return None
 
     if len(weather_files) > 1:
-        print(f"\tWarning: Multiple weather files found, using {weather_files[0]}")
+        print(f"Weather: multiple files, using {weather_files[0].name}")
 
     weather_file = weather_files[0]
-    print(f"\tFound weather file: {weather_file.name}")
+    print(f"Weather: {weather_file.name}")
 
     weather_data = parse_weather_file(weather_file)
     if weather_data is None or weather_data.empty:
-        print("\tError: No weather data found")
+        print("Weather: no data")
         return None
 
     dt_col = pd.to_datetime(weather_data[["year", "month", "day", "hour"]])
@@ -103,21 +103,23 @@ def save_processed_weather_data_to_csv(
         output_dir: Directory to save processed files to.
         file_prefix: Prefix for output filenames.
     """
-    print("Saving processed weather data...")
     utils.ensure_directory(output_dir)
 
     years = sorted(df["year"].unique())
-    print(
-        f"\tSplitting data into {len(years)} yearly files ({min(years)}-{max(years)})"
-    )
 
-    for year in tqdm(years, desc="Saving weather files", unit="file"):
+    for year in tqdm(years, desc="Weather: saving", unit="file", leave=False):
         year_data = df[df["year"] == year]
         # Keep all datetime components in the saved data
         filename = output_dir / f"{file_prefix}_{year}.csv"
         year_data.to_csv(filename, index=False)
 
-    print(f"\tAll weather files saved to: {output_dir}")
+    if years:
+        year_min = min(years)
+        year_max = max(years)
+        print(
+            f"Weather: saved {len(years)} files \
+            ({year_min}-{year_max}) -> {output_dir.resolve()}\n"
+        )
 
 
 def process_weather_data(

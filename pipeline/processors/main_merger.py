@@ -39,7 +39,7 @@ def _read_csv_if_exists(path: Path) -> Optional[pd.DataFrame]:
     try:
         return pd.read_csv(path)
     except (pd.errors.EmptyDataError, pd.errors.ParserError) as exc:
-        print(f"Error loading '{path}': {exc}")
+        print(f"Merge: load error ({path.name}: {exc})")
         return None
 
 
@@ -84,10 +84,7 @@ def _add_timestamp_and_dup_index(df: pd.DataFrame, source: str) -> pd.DataFrame:
 
     nat_count = out["timestamp"].isna().sum()
     if nat_count:
-        print(
-            f"Warning: source '{source}' has {nat_count:,} rows with invalid "
-            "timestamp parts"
-        )
+        print(f"Merge: {source} has {nat_count:,} invalid timestamps")
 
     # If a timestamp occurs multiple times (e.g., DST duplication), keep all rows.
     out["dup_idx"] = out.groupby("timestamp", dropna=False).cumcount()
@@ -328,7 +325,7 @@ def merge_data_for_range(
             years_to_process.append(year)
 
     if not years_to_process:
-        print(f"No data available for years {start_year}-{end_year}")
+        print(f"Merge: no data for years {start_year}-{end_year}")
         return None
 
     merged_data_by_year: dict[int, pd.DataFrame] = {}
@@ -336,7 +333,7 @@ def merge_data_for_range(
     start_dt = pd.to_datetime(start_date)
     end_dt = pd.to_datetime(end_date) + pd.Timedelta(hours=23)
 
-    for year in tqdm(years_to_process, desc="Merging years", unit="year"):
+    for year in tqdm(years_to_process, desc="Merge: years", unit="year", leave=False):
         merged_df, stats = load_year_data(
             year,
             datetime_dir,
@@ -357,13 +354,15 @@ def merge_data_for_range(
         merged_data_by_year[year] = merged_df
 
     if not merged_data_by_year:
-        print("No data was successfully merged")
+        print("Merge: nothing merged")
         return None
 
     merged_years = sorted(merged_data_by_year)
     total_records = sum(len(merged_data_by_year[y]) for y in merged_years)
-    print(f"Merged years: {merged_years}")
-    print(f"Total merged records: {total_records:,}")
+    print(
+        f"Merge: years={min(merged_years)}-{max(merged_years)} ({len(merged_years)}), "
+        f"rows={total_records:,}"
+    )
 
     missing_cols_years: list[tuple[int, list[str]]] = []
     for stats in stats_by_year:
@@ -372,7 +371,7 @@ def merge_data_for_range(
         if isinstance(year_val, int) and isinstance(cols, list) and cols:
             missing_cols_years.append((year_val, [str(c) for c in cols]))
     if missing_cols_years:
-        print("Missing expected consumption columns (by year):")
+        print("Merge: missing expected consumption columns:")
         for y, cols in missing_cols_years:
             print(f"\t{y}: {', '.join(cols)}")
 
@@ -396,7 +395,9 @@ def save_merged_data_to_csv(
     utils.ensure_directory(output_dir)
 
     sorted_years = sorted(merged_data_by_year.keys())
-    for year in tqdm(sorted_years, desc="Saving yearly files", unit="file"):
+    for year in tqdm(
+        sorted_years, desc="Merge: saving yearly", unit="file", leave=False
+    ):
         year_df = merged_data_by_year[year].copy()
         year_df = year_df.drop(columns=["timestamp", "dup_idx"], errors="ignore")
         year_df.to_csv(output_dir / f"{file_prefix}_{year}.csv", index=False)
@@ -408,7 +409,10 @@ def save_merged_data_to_csv(
     combined_df = combined_df.drop(columns=["timestamp", "dup_idx"], errors="ignore")
     combined_df.to_csv(output_dir / f"{file_prefix}_all_years.csv", index=False)
 
-    print(f"Saved: {len(sorted_years)} yearly files + merged_all_years.csv")
+    print(
+        f"Merge: saved {len(sorted_years)} yearly + merged_all_years.csv "
+        f"-> {output_dir}"
+    )
 
 
 def merge_processed_data(
@@ -445,5 +449,5 @@ def merge_processed_data(
         save_merged_data_to_csv(merged_data, MERGED_SAVE_DIR)
         return merged_data
 
-    print("No data was merged.")
+    print("Merge: no data")
     return None

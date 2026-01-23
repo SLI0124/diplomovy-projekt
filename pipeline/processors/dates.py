@@ -94,13 +94,13 @@ def generate_datetime_features_data(end_date: date) -> pd.DataFrame:
         pd.DataFrame: Datetime features for each hour.
     """
     date_range = create_date_range(DEFAULT_START_DATE, end_date)
-    print(f"Generating datetime features from {DEFAULT_START_DATE} to {end_date}.")
+    print(f"Dates: {DEFAULT_START_DATE} -> {end_date}")
 
     years_in_range = {dt.year for dt in date_range}
     holidays_by_year = {year: get_czech_holidays(year) for year in years_in_range}
 
     data = []
-    for dt in tqdm(date_range, desc="Processing datetime features"):
+    for dt in tqdm(date_range, desc="Dates: processing", leave=False):
         holidays = holidays_by_year[dt.year]
         processed_date = dt.date()
         is_holiday = processed_date in holidays
@@ -118,7 +118,7 @@ def generate_datetime_features_data(end_date: date) -> pd.DataFrame:
             }
         )
 
-    print(f"Generated {len(data):,} datetime feature records")
+    print(f"Dates: generated {len(data):,} rows")
     return pd.DataFrame(data)
 
 
@@ -150,14 +150,19 @@ def save_to_csv_files(
     ]
 
     years = sorted(df["year"].unique())
-    print(f"Saving data to {len(years)} files:")
 
-    for year in tqdm(years, desc="Saving files"):
+    for year in tqdm(years, desc="Dates: saving", unit="file", leave=False):
         year_data = df[df["year"] == year][columns_to_save]
         filename = output_dir / f"{file_prefix}_{year}.csv"
         year_data.to_csv(filename, index=False)
 
-    print(f"All files saved to: {output_dir.resolve()}\n")
+    if years:
+        year_min = min(years)
+        year_max = max(years)
+        print(
+            f"Dates: saved {len(years)} files \
+            ({year_min}-{year_max}) -> {output_dir.resolve()}\n"
+        )
 
 
 def process_datetime_features(

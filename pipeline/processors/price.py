@@ -84,7 +84,7 @@ def parse_price_file(file_path: Path) -> pd.DataFrame:
         ValueError,
         ImportError,
     ) as exc:
-        print(f"\tError parsing {file_path}: {exc}")
+        print(f"Price: parse error ({file_path.name}: {exc})")
         return pd.DataFrame()
 
 
@@ -103,22 +103,22 @@ def process_price_data_with_range(
     Returns:
         A combined DataFrame or None if nothing was processed.
     """
-    print(f"Processing price data from {start_date} to {end_date}...")
+    print(f"Price: {start_date} -> {end_date}")
 
     # Find all price XLS files
     price_files = list(source_dir.glob("VDT_plyn_*.xls"))
 
     if not price_files:
-        print("\tError: No price data files found")
+        print("Price: no input files")
         return None
 
-    print(f"\tFound {len(price_files)} price files")
+    print(f"Price: {len(price_files)} files")
 
     all_data = []
     start_year = start_date.year
     end_year = end_date.year
 
-    for file_path in tqdm(price_files, desc="Processing price files"):
+    for file_path in tqdm(price_files, desc="Price: processing", leave=False):
         # Extract year from filename: VDT_plyn_MM_YYYY_CZ.xls
         try:
             parts = file_path.stem.split("_")
@@ -135,7 +135,7 @@ def process_price_data_with_range(
                 all_data.append(file_data)
 
         except (IndexError, ValueError) as exc:
-            print(f"\tWarning: Could not parse filename {file_path.name}: {exc}")
+            print(f"Price: bad filename ({file_path.name}: {exc})")
             continue
 
     if all_data:
@@ -151,10 +151,10 @@ def process_price_data_with_range(
             drop=True
         )
 
-        print(f"\tProcessed {len(combined_df):,} price records")
+        print(f"Price: processed {len(combined_df):,} hourly rows")
         return combined_df
 
-    print("\tNo price data found")
+    print("Price: no data")
     return None
 
 
@@ -170,20 +170,22 @@ def save_processed_price_data_to_csv(
         output_dir: Destination directory.
         file_prefix: Output filename prefix.
     """
-    print("Saving processed price data...")
     utils.ensure_directory(output_dir)
 
     years = sorted(df["year"].unique())
-    print(
-        f"\tSplitting data into {len(years)} yearly files ({min(years)}-{max(years)})"
-    )
 
-    for year in tqdm(years, desc="Saving price files", unit="file"):
+    for year in tqdm(years, desc="Price: saving", unit="file", leave=False):
         year_data = df[df["year"] == year]
         filename = output_dir / f"{file_prefix}_{year}.csv"
         year_data.to_csv(filename, index=False)
 
-    print(f"\tAll price files saved to: {output_dir}")
+    if years:
+        year_min = min(years)
+        year_max = max(years)
+        print(
+            f"Price: saved {len(years)} files \
+            ({year_min}-{year_max}) -> {output_dir.resolve()}\n"
+        )
 
 
 def process_price_data(
