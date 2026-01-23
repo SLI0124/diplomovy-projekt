@@ -105,6 +105,25 @@ def process_price_data_with_range(
     """
     print(f"Price: {start_date} -> {end_date}")
 
+    if not source_dir.exists():
+        raise FileNotFoundError(
+            f"Price: raw directory not found: {source_dir}. "
+            "Run the downloader first (pipeline/main.py --download price)."
+        )
+
+    # Ensure monthly raw files exist for the requested range.
+    missing: list[Path] = []
+    for year, month in utils.iter_year_months(start_date, end_date):
+        month_str = f"{month:02d}"
+        expected = source_dir / f"VDT_plyn_{month_str}_{year}_CZ.xls"
+        if not expected.is_file():
+            missing.append(expected)
+    utils.raise_missing_inputs(
+        what="price processing",
+        missing_paths=missing,
+        required_range=f"{start_date}..{end_date}",
+    )
+
     # Find all price XLS files
     price_files = list(source_dir.glob("VDT_plyn_*.xls"))
 

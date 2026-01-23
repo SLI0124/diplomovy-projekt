@@ -65,32 +65,35 @@ def process_data(
         end_date: End date used by processors.
         consumption_networks: Optional list of consumption networks.
     """
-    match process_type:
-        case "all":
-            print("Processing all data types...")
-            for item in PROCESS_ORDER:
-                process_data(item, end_date, consumption_networks)
-        case "dates":
-            print("Process: dates")
-            processors.dates.process_datetime_features(end_date_param=end_date)
-        case "consumption":
-            print("Process: consumption")
-            processors.consumption.process_consumption_data(
-                end_date_param=end_date, networks=consumption_networks
-            )
-        case "weather":
-            print("Process: weather")
-            processors.weather_source.process_weather_data(end_date_param=end_date)
-        case "price":
-            print("Process: price")
-            processors.price.process_price_data(end_date_param=end_date)
-        case "merge":
-            print("Process: merge")
-            processors.main_merger.merge_processed_data(
-                end_date_param=end_date, consumption_networks=consumption_networks
-            )
-        case _:
-            print(f"Process type '{process_type}' is not implemented.")
+    try:
+        match process_type:
+            case "all":
+                print("Processing all data types...")
+                for item in PROCESS_ORDER:
+                    process_data(item, end_date, consumption_networks)
+            case "dates":
+                print("Process: dates")
+                processors.dates.process_datetime_features(end_date_param=end_date)
+            case "consumption":
+                print("Process: consumption")
+                processors.consumption.process_consumption_data(
+                    end_date_param=end_date, networks=consumption_networks
+                )
+            case "weather":
+                print("Process: weather")
+                processors.weather_source.process_weather_data(end_date_param=end_date)
+            case "price":
+                print("Process: price")
+                processors.price.process_price_data(end_date_param=end_date)
+            case "merge":
+                print("Process: merge")
+                processors.main_merger.merge_processed_data(
+                    end_date_param=end_date, consumption_networks=consumption_networks
+                )
+            case _:
+                print(f"Process type '{process_type}' is not implemented.")
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"ERROR: {exc}")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:

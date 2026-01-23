@@ -65,18 +65,53 @@ def process_weather_data_with_range(
         Processed DataFrame filtered to the requested date range, or None.
     """
 
+    if not source_dir.exists():
+        raise FileNotFoundError(
+            f"Weather: raw directory not found: {source_dir}. "
+            "Run the downloader first (pipeline/main.py --download weather)."
+        )
+
     # Find the weather CSV file (should be only one)
     weather_files = list(source_dir.glob("weather_*.csv"))
 
     if not weather_files:
-        print("Weather: no input files")
-        return None
+        raise FileNotFoundError(
+            f"Weather: no input files in {source_dir}. "
+            "Expected something like 'weather_YYYY-MM-DD_YYYY-MM-DD.csv'."
+        )
 
     if len(weather_files) > 1:
         print(f"Weather: multiple files, using {weather_files[0].name}")
 
     weather_file = weather_files[0]
     print(f"Weather: {weather_file.name}")
+
+    # Validate coverage before full processing (fast-fail with clear message).
+    try:
+        dates_only = pd.read_csv(weather_file, usecols=["date"])
+        dates_only["date"] = pd.to_datetime(dates_only["date"], errors="coerce")
+        min_dt = dates_only["date"].min()
+        max_dt = dates_only["date"].max()
+    except ValueError:
+        # usecols failed (missing 'date' column)
+        raise ValueError(
+            f"Weather: raw file {weather_file.name} is missing required column 'date'."
+        )
+
+    if pd.isna(min_dt) or pd.isna(max_dt):
+        raise ValueError(
+            f"Weather: raw file {weather_file.name} has no valid timestamps in 'date'."
+        )
+
+    required_start = pd.to_datetime(start_date)
+    # Need at least through the last hour of end_date.
+    required_last_hour = pd.to_datetime(end_date) + pd.Timedelta(hours=23)
+    if min_dt > required_start or max_dt < required_last_hour:
+        raise FileNotFoundError(
+            "Weather: raw data does not cover requested range. "
+            f"Have {min_dt}..{max_dt}, need {required_start}..{required_last_hour}. "
+            "Run the downloader for the missing period."
+        )
 
     weather_data = parse_weather_file(weather_file)
     if weather_data is None or weather_data.empty:

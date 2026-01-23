@@ -12,6 +12,59 @@ from tqdm import tqdm
 DATA_SOURCE_ROOT = config.RAW_CONSUMPTION_DIR
 DATA_SAVE_PATH = config.PROCESSED_CONSUMPTION_DIR
 
+MIN_FILE_DATE_BY_NETWORK = {
+    "ppnet": config.PPNET_MIN_DATE,
+}
+
+
+def _assert_raw_files_cover_range(
+    network_dirs: Dict[str, Path],
+    start_date: date,
+    end_date: date,
+) -> None:
+    """Ensure raw daily CSV files exist for the requested processing window.
+
+    Consumption processing needs daily files from (start_date - 1) through end_date
+    due to the 07:00..06:00 day overlap.
+    """
+    if not config.RAW_CONSUMPTION_DIR.exists():
+        raise FileNotFoundError(
+            f"Consumption: raw directory not found: {config.RAW_CONSUMPTION_DIR}. "
+            "Run the downloader first (pipeline/main.py --download consumption)."
+        )
+
+    file_start = start_date - timedelta(days=1)
+    file_end = end_date
+
+    for network, directory in network_dirs.items():
+        if not directory.exists():
+            raise FileNotFoundError(
+                (
+                    f"Consumption: raw directory for network '{network}' not found: "
+                    f"{directory}"
+                )
+            )
+
+        min_available = MIN_FILE_DATE_BY_NETWORK.get(
+            network, config.CONSUMPTION_MIN_DATE
+        )
+        required_start = max(file_start, min_available)
+        required_end = file_end
+        if required_start > required_end:
+            continue
+
+        missing: list[Path] = []
+        for d in utils.iter_dates(required_start, required_end):
+            expected = directory / f"{d.strftime('%Y%m%d')}.csv"
+            if not expected.is_file():
+                missing.append(expected)
+
+        utils.raise_missing_inputs(
+            what=f"consumption processing ({network})",
+            missing_paths=missing,
+            required_range=f"{required_start}..{required_end}",
+        )
+
 
 def _normalize_ppnet_datetime(datum_series: pd.Series) -> pd.Series:
     """Parse PPNET timestamps and make them non-decreasing by adding 12h steps. Those
@@ -424,6 +477,10 @@ def process_consumption_data(
         if not selected_dirs:
             print("Consumption: no valid networks selected")
             return None
+
+    _assert_raw_files_cover_range(
+        selected_dirs, start_date=start_date, end_date=end_date
+    )
 
     processed_data = generate_consumption_data_with_range(
         selected_dirs, start_date, end_date

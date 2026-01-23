@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Optional, Union
+from typing import Iterable, Optional, Union
 
 DateLike = Union[str, date, datetime]
 
@@ -65,3 +65,52 @@ def validate_date_str(value: str) -> str:
             f"Invalid date format '{value}'. Please use YYYY-MM-DD."
         ) from exc
     return value
+
+
+def iter_dates(start_date: date, end_date: date) -> Iterable[date]:
+    """Yield each calendar date in [start_date, end_date] inclusive."""
+    if start_date > end_date:
+        return
+    current = start_date
+    while current <= end_date:
+        yield current
+        current += timedelta(days=1)
+
+
+def iter_year_months(start_date: date, end_date: date) -> Iterable[tuple[int, int]]:
+    """Yield (year, month) pairs intersecting [start_date, end_date] inclusive."""
+    if start_date > end_date:
+        return
+    current = start_date.replace(day=1)
+    end_month = end_date.replace(day=1)
+    while current <= end_month:
+        yield current.year, current.month
+        if current.month == 12:
+            current = current.replace(year=current.year + 1, month=1)
+        else:
+            current = current.replace(month=current.month + 1)
+
+
+def _summarize_paths(paths: list[Path], limit: int = 12) -> str:
+    shown = paths[:limit]
+    more = len(paths) - len(shown)
+    lines = "\n".join(f"  - {p}" for p in shown)
+    if more > 0:
+        lines += f"\n  ... and {more} more"
+    return lines
+
+
+def raise_missing_inputs(
+    *,
+    what: str,
+    missing_paths: list[Path],
+    required_range: str | None = None,
+) -> None:
+    """Raise a FileNotFoundError with a helpful, compact message."""
+    if not missing_paths:
+        return
+    header = f"Missing required input files for {what}."
+    if required_range:
+        header += f" Required range: {required_range}."
+    details = _summarize_paths(missing_paths)
+    raise FileNotFoundError(f"{header}\nMissing ({len(missing_paths)}):\n{details}")
