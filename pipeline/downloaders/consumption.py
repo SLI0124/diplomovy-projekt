@@ -189,6 +189,12 @@ def download_consumption_data_with_range(
     for network in networks:
         network_min_date = MIN_DATE_BY_NETWORK.get(network, config.CONSUMPTION_MIN_DATE)
         network_start_date = max(start_date, network_min_date)
+        if network_start_date != start_date:
+            delta_days = (network_start_date - start_date).days
+            print(
+                f"Network '{network}' has data starting {network_min_date}. "
+                f"Adjusting start date by {delta_days} days to {network_start_date}."
+            )
         if network_start_date > end_date:
             print(
                 f"Skipping network '{network}' because start date {network_start_date} "
