@@ -477,6 +477,24 @@ def process_consumption_data(
         if not selected_dirs:
             print("Consumption: no valid networks selected")
             return None
+    else:
+        preferred = [
+            network
+            for network in config.DEFAULT_CONSUMPTION_NETWORKS
+            if network in available_dirs
+        ]
+        if preferred:
+            selected_dirs = {name: available_dirs[name] for name in preferred}
+        else:
+            selected_dirs = {
+                name: path for name, path in available_dirs.items() if name != "ppnet"
+            }
+            if not selected_dirs:
+                print(
+                    "Consumption: only 'ppnet' raw data found. "
+                    "PPNET is opt-in; explicitly select it via the CLI."
+                )
+                return None
 
     _assert_raw_files_cover_range(
         selected_dirs, start_date=start_date, end_date=end_date

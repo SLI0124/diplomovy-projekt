@@ -34,6 +34,17 @@ MERGE_START_DATE = COMMON_START_DATE
 PPNET_MIN_DATE = date(2016, 1, 1)
 CONSUMPTION_MIN_DATE = CONSUMPTION_DOWNLOAD_START_DATE
 
+# Default consumption networks.
+#
+# PPNET is intentionally excluded by default because its data source is
+# experimental / occasionally faulty. Opt-in is handled by the CLI.
+DEFAULT_CONSUMPTION_NETWORKS = (
+    "gasnet",
+    "vcpnet",
+    "jmpnet",
+    "smpnet",
+)
+
 # Weather API settings
 WEATHER_LATITUDE = 50.1333
 WEATHER_LONGITUDE = 14.55  # Kbely airport

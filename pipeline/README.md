@@ -44,7 +44,13 @@ python main.py --all
 - Download only consumption (for selected networks):
 
 ```bash
-python main.py --download consumption --consumption-networks gasnet ppnet
+python main.py --download consumption --consumption-networks gasnet vcpnet
+```
+
+- Download PPNet consumption (experimental / opt-in):
+
+```bash
+python main.py --download consumption --consumption-networks ppnet --include-ppnet
 ```
 
 - Process only the merge step up to a specific end date:
@@ -59,7 +65,8 @@ Flags summary:
 - `--process`: `dates` | `consumption` | `weather` | `price` | `merge` | `all`
 - `--all`: Shorthand to download and process everything
 - `--end-date`: End date in `YYYY-MM-DD` (defaults to last day of the previous month)
-- `--consumption-networks`: Space-separated network keys (defaults to all). Supported keys: `gasnet`, `vcpnet`, `jmpnet`, `smpnet`, `ppnet`.
+- `--consumption-networks`: Space-separated network keys (defaults to: `gasnet`, `vcpnet`, `jmpnet`, `smpnet`).
+- `--include-ppnet`: Explicit opt-in for `ppnet` consumption (experimental / occasionally faulty).
 
 ---
 
@@ -72,6 +79,54 @@ Flags summary:
 ---
 
 ## PPNet legacy data ⚠️
+
+PPNet support has had a lot of work put into it, but the upstream/source data can be
+unreliable, so it is **opt-in**. By default, the pipeline downloads and processes only
+`gasnet`, `vcpnet`, `jmpnet`, `smpnet`.
+
+To include PPNet in downloads/processing, use `--include-ppnet`.
+
+### `--include-ppnet` (where it applies)
+
+This flag only affects **consumption**.
+
+It is respected when you run:
+
+- `--all` (affects the consumption download + consumption processing steps)
+- `--download all` (affects only the consumption part)
+- `--download consumption`
+- `--process consumption`
+- `--process merge` (passes the consumption network list into the merge step for validation)
+
+It does **nothing** if you run only `--download weather`, `--download price`, `--process weather`, or `--process price`.
+
+### `--include-ppnet` (behavior rules)
+
+- If you do **not** use `--include-ppnet`, the defaults are: `gasnet`, `vcpnet`, `jmpnet`, `smpnet`.
+- If you use `--include-ppnet` **without** `--consumption-networks`, the pipeline will run consumption with:
+  `gasnet`, `vcpnet`, `jmpnet`, `smpnet`, `ppnet`.
+- If you specify `--consumption-networks ... ppnet ...` without `--include-ppnet`, the CLI will error.
+
+### Examples
+
+- Full pipeline including PPNet:
+
+```bash
+python main.py --all --include-ppnet
+```
+
+- Download consumption defaults + PPNet (no need to list networks):
+
+```bash
+python main.py --download consumption --include-ppnet
+```
+
+- PPNet only:
+
+```bash
+python main.py --download consumption --consumption-networks ppnet --include-ppnet
+python main.py --process consumption --consumption-networks ppnet --include-ppnet
+```
 
 - There is a helper script to generate PPNet-style daily CSVs from a legacy personal file:
 

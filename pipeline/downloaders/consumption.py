@@ -113,7 +113,7 @@ def _resolve_networks(networks: Optional[Iterable[str]]) -> list[str]:
         List of normalized network keys.
     """
     if networks is None:
-        return list(NETWORK_URLS)
+        return list(config.DEFAULT_CONSUMPTION_NETWORKS)
 
     resolved = []
     for network in networks:
@@ -139,7 +139,8 @@ def download_consumption_data(
     Args:
         end_date_param: Inclusive end date as YYYY-MM-DD string, date, datetime,
             or None (defaults to last day of previous month).
-        networks: Iterable of network identifiers to download (defaults to all).
+        networks: Iterable of network identifiers to download (defaults to
+            config.DEFAULT_CONSUMPTION_NETWORKS).
     """
     start_date = config.CONSUMPTION_DOWNLOAD_START_DATE
     download_consumption_data_with_range(start_date, end_date_param, networks=networks)
@@ -156,7 +157,8 @@ def download_consumption_data_with_range(
         start_date: Inclusive start date.
         end_date_param: Inclusive end date as YYYY-MM-DD string, date, datetime,
             or None.
-        networks: Iterable of network identifiers (defaults to all).
+        networks: Iterable of network identifiers (defaults to
+            config.DEFAULT_CONSUMPTION_NETWORKS).
     """
     end_date = utils.resolve_end_date(end_date_param)
     networks = _resolve_networks(networks)
