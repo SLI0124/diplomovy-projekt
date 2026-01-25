@@ -80,6 +80,7 @@ def _process_weather_hourly(
     out["month"] = dti.month.astype("Int64")
     out["day"] = dti.day.astype("Int64")
     out["hour"] = dti.hour.astype("Int64")
+    out["weather_code"] = out["weather_code"].astype("Int64")
     return out[["year", "month", "day", "hour", *payload]]
 
 
