@@ -81,7 +81,10 @@ def create_date_range(start_date: date, end_date: date) -> pd.DatetimeIndex:
     Returns:
         pd.DatetimeIndex: Hourly datetime index.
     """
-    return pd.date_range(start=start_date, end=end_date, freq="h")
+    # End date is inclusive; generate through the last hour of end_date.
+    start_dt = pd.Timestamp(start_date)
+    end_dt = pd.Timestamp(end_date) + pd.Timedelta(hours=23)
+    return pd.date_range(start=start_dt, end=end_dt, freq="h")
 
 
 def generate_datetime_features_data(end_date: date) -> pd.DataFrame:

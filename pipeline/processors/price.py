@@ -30,7 +30,8 @@ def parse_price_file(file_path: Path) -> pd.DataFrame:
         # there are two different Excel formats in use, try both engines
         try:
             df = pd.read_excel(file_path, skiprows=4, engine="xlrd")
-        except Exception:
+        except (ImportError, ValueError):
+            # Fallback to openpyxl if xlrd is not available or xlrd cannot be used
             df = pd.read_excel(file_path, skiprows=4, engine="openpyxl")
 
         df = df.iloc[1:].copy()
@@ -166,9 +167,11 @@ def process_price_data_with_range(
         ].copy()
 
         # Sort by date
-        combined_df = combined_df.sort_values(["year", "month", "day"]).reset_index(
-            drop=True
+        combined_df["timestamp"] = pd.to_datetime(
+            combined_df[["year", "month", "day", "hour"]], errors="coerce"
         )
+        combined_df = combined_df.sort_values(["timestamp"]).reset_index(drop=True)
+        combined_df = combined_df.drop(columns=["timestamp"], errors="ignore")
 
         print(f"Price: processed {len(combined_df):,} hourly rows")
         return combined_df
