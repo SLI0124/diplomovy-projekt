@@ -10,6 +10,7 @@ import config
 import pandas as pd
 import utils
 from tqdm import tqdm
+from xlrd.biffh import XLRDError
 
 DATA_SOURCE_PATH = config.RAW_PRICE_DIR
 DATA_SAVE_PATH = config.PROCESSED_PRICE_DIR
@@ -30,7 +31,7 @@ def parse_price_file(file_path: Path) -> pd.DataFrame:
         # there are two different Excel formats in use, try both engines
         try:
             df = pd.read_excel(file_path, skiprows=4, engine="xlrd")
-        except (ImportError, ValueError):
+        except (ImportError, ValueError, XLRDError):
             # Fallback to openpyxl if xlrd is not available or xlrd cannot be used
             df = pd.read_excel(file_path, skiprows=4, engine="openpyxl")
 
