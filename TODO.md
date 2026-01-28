@@ -4,10 +4,16 @@ This will be a list of things that need to be done in order to finish the projec
 
 ## Immediate
 
-- [ ] notebook for checking missing values (for each year and in total; columns, rows, etc. - we might have some leakage that we need to find ASAP)
+- [X] check if legacy PPNet data are present for `--all` run, if not, throw warning or error, for no args and with args, it is nice to be aware of missing data or to be reminded to run the extractor first or request the data
+- [X] ppnet cause a lot of missing values in final dataset, add flag for experimenting with and without ppnet data (e.g. `--no-ppnet`)
+- [X] notebook for checking missing values (for each year and in total; columns, rows, etc. - we might have some leakage that we need to find ASAP)
+  - did that internally, it is gonna be part of EDA notebook
+- [X] check *float* and *int* values in final dataset, if one can be one or the other (for that little disk space saving and speed up)
+  - I can't type **consumption_*** to be int, because of NaN values, so I think it's better to leave it as float, it rips me from inside
 - [ ] EDA notebook (data have changed since last time, need to explore it again)
-- [ ] check *float* and *int* values in final dataset, if one can be one or the other (for that little disk space saving and speed up)
-- [ ] refactor notebook for machine learning part (right now it's a kinda mess that worked for initial experiments and presentation)
+- [ ] quick shot of those state-of-the-art models via notebook and email it to supervisor that it works, ask him about closing the subject and next steps, model tuning, more preprocessing, more statistical hogwash, etc. (I still have two weeks before the deadline, so I can do quite a lot, only need to show proof of concept that those models can work with our data)
+- [ ] create `models` directory and move all model-related code there (**training**, **evaluation**, **preprocessing**, etc.), it will have`dl` and `ml` subdirs for deep learning and machine learning models respectively, maybe some **evaluation** dor or something in similar fashion
+- [ ] update **machine learning** notebook with better structure and code organization
 
 ## Next steps
 
@@ -19,7 +25,7 @@ This will be a list of things that need to be done in order to finish the projec
 
 - [X] type checking, e.g. with add type hints to all functions and classes
 - [X] better docstrings with params, return types, etc., preferably to all functions and classes
-- [ ] README file for `pipeline` directory, explain what each script does and how to use them, what are the inputs and outputs, conditions, etc.
+- [X] README file for `pipeline` directory, explain what each script does and how to use them, what are the inputs and outputs, conditions, etc.
 
 ---
 
@@ -36,7 +42,6 @@ This will be a list of things that need to be done in order to finish the projec
   - [X] utils
   - [X] config
   - [x] main script
-- [ ] finally get into the modeling and AI part of the project
 
 ### Notes after consultation
 
