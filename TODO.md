@@ -10,7 +10,7 @@ This will be a list of things that need to be done in order to finish the projec
   - did that internally, it is gonna be part of EDA notebook
 - [X] check *float* and *int* values in final dataset, if one can be one or the other (for that little disk space saving and speed up)
   - I can't type **consumption_*** to be int, because of NaN values, so I think it's better to leave it as float, it rips me from inside
-- [ ] EDA notebook (data have changed since last time, need to explore it again)
+- [X] EDA notebook (data have changed since last time, need to explore it again)
 - [ ] quick shot of those state-of-the-art models via notebook and email it to supervisor that it works, ask him about closing the subject and next steps, model tuning, more preprocessing, more statistical hogwash, etc. (I still have two weeks before the deadline, so I can do quite a lot, only need to show proof of concept that those models can work with our data)
 - [ ] create `models` directory and move all model-related code there (**training**, **evaluation**, **preprocessing**, etc.), it will have`dl` and `ml` subdirs for deep learning and machine learning models respectively, maybe some **evaluation** dor or something in similar fashion
 - [ ] update **machine learning** notebook with better structure and code organization
