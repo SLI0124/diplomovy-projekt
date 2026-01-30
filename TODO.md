@@ -29,12 +29,6 @@ This will be a list of things that need to be done in order to finish the projec
 
 ---
 
-- [x] for processors try checking if `raw` files are even existing, if not, throw error or warning
-  - DO NOT call downloader from processor and vice versa, implement single responsibility principle and don't mix those two things, do own implementation in each module
-- [x] speed up the processing the consumption data, right now I think it can be sped up somehow, it's kinda slow
-
----
-
 - refactor
   - [x] downloaders
   - [X] processors
