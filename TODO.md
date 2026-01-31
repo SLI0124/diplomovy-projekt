@@ -12,6 +12,11 @@ This will be a list of things that need to be done in order to finish the projec
   - I can't type **consumption_*** to be int, because of NaN values, so I think it's better to leave it as float, it rips me from inside
 - [X] EDA notebook (data have changed since last time, need to explore it again)
 - [ ] quick shot of those state-of-the-art models via notebook and email it to supervisor that it works, ask him about closing the subject and next steps, model tuning, more preprocessing, more statistical hogwash, etc. (I still have two weeks before the deadline, so I can do quite a lot, only need to show proof of concept that those models can work with our data)
+  - [ ] find three distinct models that are used for time series forecasting
+  - [ ] one shot them without any tuning, just default params
+  - [ ] if time allows, try to do some basic hyperparameter tuning
+  - [ ] write down what you wanna say in the email to supervisor, very thoroughly
+  - [ ] document the results and send them to supervisor
 - [ ] create `models` directory and move all model-related code there (**training**, **evaluation**, **preprocessing**, etc.), it will have`dl` and `ml` subdirs for deep learning and machine learning models respectively, maybe some **evaluation** dor or something in similar fashion
 - [ ] update **machine learning** notebook with better structure and code organization
 
@@ -47,3 +52,10 @@ This will be a list of things that need to be done in order to finish the projec
 - try to do multiple models for different time intervals
   - train till 2018 and test on 2019, etc. - incrementally widen the train set until the end of data where we have only few months to test on or something in similar fashion
 - then we will see the breakpoint where model starts to fail, e.g. right after the Ukraine war started
+
+## Notes for consultation
+
+- one-shot and parameter tuning?
+- a lot of derivates of those state-of-the-art models exist, do I try small, medium, large, base or some other less know variants?
+- preprocessing is quite a tough nut to crack, ask as much as you can about it
+  - I don't wanna do some stupid mistakes that will make whole project worthless so ask as much as you can and make as much notes and appointments as you can
