@@ -2,15 +2,28 @@
 
 GasNet provides data from 07:00 of the current day to 06:00 of the next day.
 To cover 2013-01-01, the downloader starts at 2012-12-31.
+
+This module performs robust remote CSV fetching:
+- Sends browser-like request headers to reduce the chance of server-side blocking
+  (some servers block non-browser User-Agents).
+- Retries transient HTTP/URL errors (e.g., 403, 429, 5xx) with exponential backoff.
+- Uses a per-request timeout and reads response bytes before parsing with pandas
+  using multiple encoding fallbacks.
 """
 
 import datetime
+import io
+import time
+import urllib.error
+import urllib.request
 from typing import Iterable, Optional
 
 import config
 import pandas as pd
-import utils
 from tqdm import tqdm
+
+import pipeline.utils as utils
+from pipeline.utils import DateLike
 
 DATA_CONSUMPTION_ROOT = config.RAW_CONSUMPTION_DIR
 
@@ -22,7 +35,24 @@ NETWORK_URLS = {
     "ppnet": "https://www.ppdistribuce.cz/online-toky/csv.php?date={date}",
 }
 
+# Fallback encodings to try when parsing CSV bytes.
 ENCODING_FALLBACKS = ("utf-8", "cp1250", "iso-8859-2")
+
+# HTTP fetch / retry configuration:
+READ_MAX_RETRIES = 5  # total attempts before giving up
+READ_BACKOFF_SECONDS = 2.0  # base backoff in seconds (exponential)
+READ_TIMEOUT_SECONDS = 30  # per-request timeout in seconds
+
+# Default request headers to appear like a normal browser and avoid being blocked
+# by servers that filter requests based on User-Agent or Accept headers.
+DEFAULT_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/122.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/csv,text/plain,application/octet-stream,*/*",
+} 
 
 MIN_DATE_BY_NETWORK = {
     "ppnet": config.PPNET_MIN_DATE,
@@ -30,7 +60,11 @@ MIN_DATE_BY_NETWORK = {
 
 
 def _read_csv_with_fallback(url: str) -> pd.DataFrame:
-    """Read a remote CSV using encoding fallbacks.
+    """Read a remote CSV using encoding fallbacks and robust HTTP fetching.
+
+    Sends browser-like headers, enforces a timeout, and will retry on transient
+    HTTP/URL errors (e.g., 403, 429, 5xx) with exponential backoff. The HTTP
+    response is read as bytes and parsed with pandas using multiple encodings.
 
     Args:
         url: Source URL.
@@ -39,17 +73,49 @@ def _read_csv_with_fallback(url: str) -> pd.DataFrame:
         pandas.DataFrame: Parsed CSV.
 
     Raises:
-        UnicodeDecodeError: If all fallback encodings fail.
+        UnicodeDecodeError: If all fallback encodings fail while decoding.
+        urllib.error.HTTPError/URLError: If the request ultimately fails after retries.
     """
-    last_error: UnicodeDecodeError | None = None
-    for encoding in ENCODING_FALLBACKS:
-        try:
-            return pd.read_csv(url, sep=";", encoding=encoding)
-        except UnicodeDecodeError as error:
-            last_error = error
+    last_error: Exception | None = None
+    request = urllib.request.Request(url, headers=DEFAULT_HEADERS)
+
+    for attempt in range(1, READ_MAX_RETRIES + 1):
+        for encoding in ENCODING_FALLBACKS:
+            try:
+                with urllib.request.urlopen(
+                    request, timeout=READ_TIMEOUT_SECONDS
+                ) as response:
+                    payload = response.read()
+                return pd.read_csv(
+                    io.BytesIO(payload),
+                    sep=";",
+                    encoding=encoding,
+                )
+            except UnicodeDecodeError as error:
+                last_error = error
+            except urllib.error.HTTPError as error:
+                # Treat these status codes as transient (rate limiting or server
+                # issues) and break out so we can retry after a backoff period.
+                last_error = error
+                if error.code in {403, 429, 500, 502, 503, 504}:
+                    break
+                # For other HTTP errors, re-raise immediately.
+                raise
+            except urllib.error.URLError as error:
+                last_error = error
+                break
+
+        if attempt < READ_MAX_RETRIES:
+            sleep_for = READ_BACKOFF_SECONDS * (2 ** (attempt - 1))
+            time.sleep(sleep_for)
+
     if last_error is not None:
         raise last_error
-    return pd.read_csv(url, sep=";")
+    # Final attempt: fetch once more and let any errors propagate so caller can
+    # observe the underlying reason for failure.
+    with urllib.request.urlopen(request, timeout=READ_TIMEOUT_SECONDS) as response:
+        payload = response.read()
+    return pd.read_csv(io.BytesIO(payload), sep=";")
 
 
 def _normalize_ppnet_datetime(datum_series: pd.Series) -> pd.Series:
@@ -131,7 +197,7 @@ def _resolve_networks(networks: Optional[Iterable[str]]) -> list[str]:
 
 
 def download_consumption_data(
-    end_date_param: Optional[utils.DateLike] = None,
+    end_date_param: Optional[DateLike] = None,
     networks: Optional[Iterable[str]] = None,
 ) -> None:
     """Download consumption data using configured defaults.
