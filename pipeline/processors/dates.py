@@ -11,8 +11,9 @@ from pathlib import Path
 
 import config
 import pandas as pd
-import utils
 from tqdm import tqdm
+
+import pipeline.utils as utils
 
 DATA_SAVE_PATH = config.PROCESSED_DATETIME_FEATURES_DIR
 DEFAULT_START_DATE = config.COMMON_START_DATE

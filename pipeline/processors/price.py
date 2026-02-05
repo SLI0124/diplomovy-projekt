@@ -8,9 +8,10 @@ from typing import Optional
 
 import config
 import pandas as pd
-import utils
 from tqdm import tqdm
 from xlrd.biffh import XLRDError
+
+import pipeline.utils as utils
 
 DATA_SOURCE_PATH = config.RAW_PRICE_DIR
 DATA_SAVE_PATH = config.PROCESSED_PRICE_DIR

@@ -9,8 +9,9 @@ from typing import Optional
 import config
 import openmeteo_requests
 import pandas as pd
-import utils
 from retry_requests import retry
+
+import pipeline.utils as utils
 
 DATA_SAVE_PATH = config.RAW_WEATHER_DIR
 

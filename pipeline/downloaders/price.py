@@ -7,8 +7,9 @@ from typing import Optional
 
 import config
 import requests
-import utils
 from tqdm import tqdm
+
+import pipeline.utils as utils
 
 DATA_SAVE_PATH = config.RAW_PRICE_DIR
 BASE_URL = "https://www.ote-cr.cz/pubweb/attachments/127"

@@ -16,7 +16,8 @@ import processors.dates
 import processors.main_merger
 import processors.price
 import processors.weather_source
-import utils
+
+import pipeline.utils as utils
 
 DOWNLOAD_ORDER = ("consumption", "weather", "price")
 PROCESS_ORDER = ("dates", "consumption", "weather", "price", "merge")

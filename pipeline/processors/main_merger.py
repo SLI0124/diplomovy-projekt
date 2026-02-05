@@ -13,8 +13,9 @@ from typing import Iterable, Optional
 
 import config
 import pandas as pd
-import utils
 from tqdm import tqdm
+
+import pipeline.utils as utils
 
 DATETIME_FEATURES_DIR = config.PROCESSED_DATETIME_FEATURES_DIR
 CONSUMPTION_DIR = config.PROCESSED_CONSUMPTION_DIR

@@ -6,8 +6,9 @@ from typing import Dict, Iterable, Optional
 
 import config
 import pandas as pd
-import utils
 from tqdm import tqdm
+
+import pipeline.utils as utils
 
 DATA_SOURCE_ROOT = config.RAW_CONSUMPTION_DIR
 DATA_SAVE_PATH = config.PROCESSED_CONSUMPTION_DIR
