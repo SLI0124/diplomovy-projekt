@@ -21,9 +21,13 @@ dependencies = [
     "uni2ts",
     "lag-llama @ git+https://github.com/time-series-foundation-models/lag-llama.git",
     "timesfm[torch]",
+    "ruff",
+    "ipykernel",
+    "black",
+    "black[jupyter]",
 ]
 
-# add same thing for different CUDA versions if needed
+# change desired torch version if needed
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu130" }]
 torchvision = [{ index = "pytorch-cu130" }]
@@ -33,14 +37,8 @@ name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
-[project.optional-dependencies]
-dev = [
-    "ruff",
-    "ipykernel",
-]
-
 [tool.setuptools]
-packages = ["data", "models", "pipeline", "notebooks"]
+packages = ["data", "models", "pipeline", "notebooks", "src"]
 
 [tool.ruff]
 line-length = 88
@@ -51,11 +49,19 @@ docstring-code-line-length = 88
 
 [tool.ruff.lint]
 select = [
-    "E",    # pycodestyle errors
-    "F",    # pyflakes
-    "I",    # isort
-    "W505", # doc-line-too-long
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # import sorting
+    "B",   # bugbear
+    "UP",  # pyupgrade
+    "SIM", # simplifications
 ]
+
+ignore = ["E501"] # line length handled by black
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
 
 [tool.ruff.lint.pycodestyle]
 max-doc-length = 88
