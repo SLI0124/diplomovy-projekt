@@ -1,8 +1,8 @@
 """Process raw network consumption CSVs into hourly per-network series."""
 
+from collections.abc import Iterable
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Dict, Iterable, Optional
 
 import config
 import pandas as pd
@@ -19,7 +19,7 @@ MIN_FILE_DATE_BY_NETWORK = {
 
 
 def _assert_raw_files_cover_range(
-    network_dirs: Dict[str, Path],
+    network_dirs: dict[str, Path],
     start_date: date,
     end_date: date,
 ) -> None:
@@ -40,10 +40,8 @@ def _assert_raw_files_cover_range(
     for network, directory in network_dirs.items():
         if not directory.exists():
             raise FileNotFoundError(
-                (
-                    f"Consumption: raw directory for network '{network}' not found: "
-                    f"{directory}"
-                )
+                f"Consumption: raw directory for network '{network}' not found: "
+                f"{directory}"
             )
 
         min_available = MIN_FILE_DATE_BY_NETWORK.get(
@@ -92,7 +90,7 @@ def _normalize_ppnet_datetime(datum_series: pd.Series) -> pd.Series:
     return pd.Series(out)
 
 
-def discover_network_paths() -> Dict[str, Path]:
+def discover_network_paths() -> dict[str, Path]:
     """Return mapping of available consumption networks to their data directories.
 
     Returns:
@@ -325,7 +323,7 @@ def collect_network_day_values(
 
 
 def process_single_date(
-    network_dirs: Dict[str, Path], current_date: date
+    network_dirs: dict[str, Path], current_date: date
 ) -> pd.DataFrame:
     """Process consumption data for all networks on a single date.
 
@@ -351,8 +349,8 @@ def process_single_date(
 
 
 def generate_consumption_data_with_range(
-    network_dirs: Dict[str, Path], start_date: date, end_date: date
-) -> Optional[pd.DataFrame]:
+    network_dirs: dict[str, Path], start_date: date, end_date: date
+) -> pd.DataFrame | None:
     """Process consumption files for all networks within the given date range.
 
     Args:
@@ -445,9 +443,9 @@ def save_consumption_data_to_csv(
 
 
 def process_consumption_data(
-    end_date_param: Optional[utils.DateLike] = None,
-    networks: Optional[Iterable[str]] = None,
-) -> Optional[pd.DataFrame]:
+    end_date_param: utils.DateLike | None = None,
+    networks: Iterable[str] | None = None,
+) -> pd.DataFrame | None:
     """Entry point used by [pipeline/main.py](pipeline/main.py).
 
     Args:

@@ -2,21 +2,22 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Iterable, Optional, Union
+from typing import Union
 
 DateLike = Union[str, date, datetime]
 
 
-def ensure_directory(path: Union[str, Path]) -> Path:
+def ensure_directory(path: str | Path) -> Path:
     """Ensure that the directory exists, creating it if necessary."""
     dir_path = Path(path)
     dir_path.mkdir(parents=True, exist_ok=True)
     return dir_path
 
 
-def get_last_day_of_previous_month(today: Optional[date] = None) -> date:
+def get_last_day_of_previous_month(today: date | None = None) -> date:
     """Calculate the last day of the previous month."""
     if today is None:
         today = date.today()
@@ -24,7 +25,7 @@ def get_last_day_of_previous_month(today: Optional[date] = None) -> date:
     return first_day_current_month - timedelta(days=1)
 
 
-def resolve_end_date(end_date_param: Optional[DateLike]) -> date:
+def resolve_end_date(end_date_param: DateLike | None) -> date:
     """Resolve an end date with validation and default fallback.
 
     Args:

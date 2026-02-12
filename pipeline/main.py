@@ -5,7 +5,7 @@ Runs downloaders and processors with a small CLI wrapper.
 
 import argparse
 import sys
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 import config
 import downloaders.consumption
@@ -24,9 +24,9 @@ PROCESS_ORDER = ("dates", "consumption", "weather", "price", "merge")
 
 
 def download_data(
-    download_type: Optional[str] = None,
-    end_date: Optional[str] = None,
-    consumption_networks: Optional[Sequence[str]] = None,
+    download_type: str | None = None,
+    end_date: str | None = None,
+    consumption_networks: Sequence[str] | None = None,
 ) -> None:
     """Download data.
 
@@ -56,9 +56,9 @@ def download_data(
 
 
 def process_data(
-    process_type: Optional[str] = None,
-    end_date: Optional[str] = None,
-    consumption_networks: Optional[Sequence[str]] = None,
+    process_type: str | None = None,
+    end_date: str | None = None,
+    consumption_networks: Sequence[str] | None = None,
 ) -> None:
     """Process data.
 
@@ -98,7 +98,7 @@ def process_data(
         print(f"ERROR: {exc}")
 
 
-def main(argv: Optional[Sequence[str]] = None) -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     """Main entry point for the pipeline CLI.
 
     Args:

@@ -4,7 +4,6 @@ The location and variables are defined in `pipeline/config.py`.
 """
 
 import datetime
-from typing import Optional
 
 import config
 import openmeteo_requests
@@ -76,7 +75,7 @@ def _process_api_response(response) -> pd.DataFrame:
     return pd.DataFrame(data=hourly_data)
 
 
-def download_weather_data(end_date_param: Optional[utils.DateLike] = None) -> None:
+def download_weather_data(end_date_param: utils.DateLike | None = None) -> None:
     """Download weather data using configured defaults.
 
     Args:
@@ -88,7 +87,7 @@ def download_weather_data(end_date_param: Optional[utils.DateLike] = None) -> No
 
 def download_weather_data_with_range(
     start_date_val: datetime.date,
-    end_date_param: Optional[utils.DateLike] = None,
+    end_date_param: utils.DateLike | None = None,
 ) -> None:
     """Download weather data for a specific date range.
 

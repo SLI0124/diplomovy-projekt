@@ -16,7 +16,7 @@ import io
 import time
 import urllib.error
 import urllib.request
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 import config
 import pandas as pd
@@ -52,7 +52,7 @@ DEFAULT_HEADERS = {
         "Chrome/122.0.0.0 Safari/537.36"
     ),
     "Accept": "text/csv,text/plain,application/octet-stream,*/*",
-} 
+}
 
 MIN_DATE_BY_NETWORK = {
     "ppnet": config.PPNET_MIN_DATE,
@@ -169,7 +169,7 @@ def _prepare_ppnet_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return df[["Datum", "Hodnota"]]
 
 
-def _resolve_networks(networks: Optional[Iterable[str]]) -> list[str]:
+def _resolve_networks(networks: Iterable[str] | None) -> list[str]:
     """Normalize requested networks and filter out unknown ones.
 
     Args:
@@ -197,8 +197,8 @@ def _resolve_networks(networks: Optional[Iterable[str]]) -> list[str]:
 
 
 def download_consumption_data(
-    end_date_param: Optional[DateLike] = None,
-    networks: Optional[Iterable[str]] = None,
+    end_date_param: DateLike | None = None,
+    networks: Iterable[str] | None = None,
 ) -> None:
     """Download consumption data using configured defaults.
 
@@ -214,8 +214,8 @@ def download_consumption_data(
 
 def download_consumption_data_with_range(
     start_date: datetime.date,
-    end_date_param: Optional[utils.DateLike] = None,
-    networks: Optional[Iterable[str]] = None,
+    end_date_param: utils.DateLike | None = None,
+    networks: Iterable[str] | None = None,
 ) -> None:
     """Download consumption data for a specific date range.
 
@@ -232,10 +232,8 @@ def download_consumption_data_with_range(
         return
 
     if start_date < config.CONSUMPTION_MIN_DATE:
-        print(
-            f"Start date cannot be before {config.CONSUMPTION_MIN_DATE} since it is \
-                the first available data from previous dataset."
-        )
+        print(f"Start date cannot be before {config.CONSUMPTION_MIN_DATE} since it is \
+                the first available data from previous dataset.")
         delta_days = (config.CONSUMPTION_MIN_DATE - start_date).days
         print(
             f"Adjusting start date by {delta_days} days "

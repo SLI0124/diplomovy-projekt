@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime
-from typing import Optional
 
 import config
 import requests
@@ -73,7 +72,7 @@ def _download_single_file(year: int, month: int) -> bool:
     return False
 
 
-def download_price_data(end_date_param: Optional[utils.DateLike] = None) -> int:
+def download_price_data(end_date_param: utils.DateLike | None = None) -> int:
     """Download price data using default start date.
 
     Args:
@@ -87,7 +86,7 @@ def download_price_data(end_date_param: Optional[utils.DateLike] = None) -> int:
 
 def download_price_data_with_range(
     start_date: datetime.date,
-    end_date_param: Optional[utils.DateLike] = None,
+    end_date_param: utils.DateLike | None = None,
 ) -> int:
     """Download price data for a specific date range.
 

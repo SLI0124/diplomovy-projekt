@@ -6,10 +6,10 @@ merges on a normalized timestamp and keep duplicates via an extra `dup_idx`.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date
 from functools import reduce
 from pathlib import Path
-from typing import Iterable, Optional
 
 import config
 import pandas as pd
@@ -26,7 +26,7 @@ MERGED_SAVE_DIR = config.PROCESSED_MERGED_DIR
 KEY_COLS = ("year", "month", "day", "hour")
 
 
-def _read_csv_if_exists(path: Path) -> Optional[pd.DataFrame]:
+def _read_csv_if_exists(path: Path) -> pd.DataFrame | None:
     """Read a CSV file if it exists.
 
     Args:
@@ -198,8 +198,8 @@ def load_year_data(
     consumption_dir: Path,
     weather_dir: Path,
     price_dir: Path,
-    consumption_networks: Optional[Iterable[str]] = None,
-) -> tuple[Optional[pd.DataFrame], dict[str, object]]:
+    consumption_networks: Iterable[str] | None = None,
+) -> tuple[pd.DataFrame | None, dict[str, object]]:
     """Load and FULL OUTER merge one year's inputs.
 
     Args:
@@ -213,7 +213,7 @@ def load_year_data(
     Returns:
         (merged_df, stats). If all inputs are missing, merged_df is None.
     """
-    raw_sources: dict[str, Optional[pd.DataFrame]] = {
+    raw_sources: dict[str, pd.DataFrame | None] = {
         "datetime_features": _read_csv_if_exists(
             _year_file(datetime_dir, "datetime_features", year)
         ),
@@ -296,8 +296,8 @@ def merge_data_for_range(
     consumption_dir: Path,
     weather_dir: Path,
     price_dir: Path,
-    consumption_networks: Optional[Iterable[str]] = None,
-) -> Optional[dict[int, pd.DataFrame]]:
+    consumption_networks: Iterable[str] | None = None,
+) -> dict[int, pd.DataFrame] | None:
     """Merge all years intersecting the given date range.
 
     Years are merged independently, then trimmed to the exact date window.
@@ -417,9 +417,9 @@ def save_merged_data_to_csv(
 
 
 def merge_processed_data(
-    end_date_param: Optional[utils.DateLike] = None,
-    consumption_networks: Optional[Iterable[str]] = None,
-) -> Optional[dict[int, pd.DataFrame]]:
+    end_date_param: utils.DateLike | None = None,
+    consumption_networks: Iterable[str] | None = None,
+) -> dict[int, pd.DataFrame] | None:
     """Merge all processed datasets and write merged CSV outputs.
 
     Args:

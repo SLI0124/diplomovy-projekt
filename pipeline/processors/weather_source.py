@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
-from typing import Optional, Union
 
 import config
 import pandas as pd
@@ -23,7 +22,7 @@ def _hourly_index(start_date: date, end_date: date) -> pd.DatetimeIndex:
     return pd.date_range(start=start_dt, end=end_dt, freq="h")
 
 
-def _to_local_naive(values: Union[pd.Series, pd.Index]) -> pd.Series:
+def _to_local_naive(values: pd.Series | pd.Index) -> pd.Series:
     """Convert UTC timestamps to local tz, then drop tz info (local-naive)."""
     dt = pd.to_datetime(values, utc=True, errors="coerce")
     dti = pd.DatetimeIndex(dt).tz_convert(config.WEATHER_TIMEZONE).tz_localize(None)
@@ -85,7 +84,7 @@ def _process_weather_hourly(
     return out[["year", "month", "day", "hour", *payload]]
 
 
-def parse_weather_file(file_path: Path) -> Optional[pd.DataFrame]:
+def parse_weather_file(file_path: Path) -> pd.DataFrame | None:
     """Load the raw weather CSV.
 
     Args:
@@ -120,7 +119,7 @@ def process_weather_data_with_range(
     source_dir: Path,
     start_date: date,
     end_date: date,
-) -> Optional[pd.DataFrame]:
+) -> pd.DataFrame | None:
     """Process weather data within a specific date range.
 
     Args:
@@ -220,15 +219,13 @@ def save_processed_weather_data_to_csv(
     if years:
         year_min = min(years)
         year_max = max(years)
-        print(
-            f"Weather: saved {len(years)} files \
-            ({year_min}-{year_max}) -> {output_dir.resolve()}\n"
-        )
+        print(f"Weather: saved {len(years)} files \
+            ({year_min}-{year_max}) -> {output_dir.resolve()}\n")
 
 
 def process_weather_data(
-    end_date_param: Optional[utils.DateLike] = None,
-) -> Optional[pd.DataFrame]:
+    end_date_param: utils.DateLike | None = None,
+) -> pd.DataFrame | None:
     """Entry point used by [pipeline/main.py](pipeline/main.py).
 
     Args:

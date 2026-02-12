@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
-from typing import Optional
 
 import config
 import pandas as pd
@@ -95,7 +94,7 @@ def process_price_data_with_range(
     source_dir: Path,
     start_date: date,
     end_date: date,
-) -> Optional[pd.DataFrame]:
+) -> pd.DataFrame | None:
     """Process price data files within the specified date range.
 
     Args:
@@ -206,15 +205,13 @@ def save_processed_price_data_to_csv(
     if years:
         year_min = min(years)
         year_max = max(years)
-        print(
-            f"Price: saved {len(years)} files \
-            ({year_min}-{year_max}) -> {output_dir.resolve()}\n"
-        )
+        print(f"Price: saved {len(years)} files \
+            ({year_min}-{year_max}) -> {output_dir.resolve()}\n")
 
 
 def process_price_data(
-    end_date_param: Optional[utils.DateLike] = None,
-) -> Optional[pd.DataFrame]:
+    end_date_param: utils.DateLike | None = None,
+) -> pd.DataFrame | None:
     """Entry point used by [pipeline/main.py](pipeline/main.py).
 
     Args:

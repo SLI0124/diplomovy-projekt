@@ -163,10 +163,8 @@ def save_to_csv_files(
     if years:
         year_min = min(years)
         year_max = max(years)
-        print(
-            f"Dates: saved {len(years)} files \
-            ({year_min}-{year_max}) -> {output_dir.resolve()}\n"
-        )
+        print(f"Dates: saved {len(years)} files \
+            ({year_min}-{year_max}) -> {output_dir.resolve()}\n")
 
 
 def process_datetime_features(
