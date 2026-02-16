@@ -11,11 +11,10 @@ from datetime import date
 from functools import reduce
 from pathlib import Path
 
-import config
 import pandas as pd
+import utils.config as config
+import utils.helper_functions as utils
 from tqdm import tqdm
-
-import pipeline.utils as utils
 
 DATETIME_FEATURES_DIR = config.PROCESSED_DATETIME_FEATURES_DIR
 CONSUMPTION_DIR = config.PROCESSED_CONSUMPTION_DIR

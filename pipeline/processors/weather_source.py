@@ -5,11 +5,10 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-import config
 import pandas as pd
+import utils.config as config
+import utils.helper_functions as utils
 from tqdm import tqdm
-
-import pipeline.utils as utils
 
 DATA_SOURCE_PATH = config.RAW_WEATHER_DIR
 DATA_SAVE_PATH = config.PROCESSED_WEATHER_DIR
@@ -162,7 +161,7 @@ def process_weather_data_with_range(
         # usecols failed (missing 'date' column)
         raise ValueError(
             f"Weather: raw file {weather_file.name} is missing required column 'date'."
-        )
+        ) from None
 
     if pd.isna(min_dt) or pd.isna(max_dt):
         raise ValueError(
@@ -219,8 +218,10 @@ def save_processed_weather_data_to_csv(
     if years:
         year_min = min(years)
         year_max = max(years)
-        print(f"Weather: saved {len(years)} files \
-            ({year_min}-{year_max}) -> {output_dir.resolve()}\n")
+        print(
+            f"Weather: saved {len(years)} files \
+            ({year_min}-{year_max}) -> {output_dir.resolve()}\n"
+        )
 
 
 def process_weather_data(

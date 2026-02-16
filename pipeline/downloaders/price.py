@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import datetime
 
-import config
 import requests
+import utils.config as config
+import utils.helper_functions as utils
 from tqdm import tqdm
-
-import pipeline.utils as utils
 
 DATA_SAVE_PATH = config.RAW_PRICE_DIR
 BASE_URL = "https://www.ote-cr.cz/pubweb/attachments/127"

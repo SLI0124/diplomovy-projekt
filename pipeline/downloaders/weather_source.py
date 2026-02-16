@@ -5,12 +5,11 @@ The location and variables are defined in `pipeline/config.py`.
 
 import datetime
 
-import config
 import openmeteo_requests
 import pandas as pd
+import utils.config as config
+import utils.helper_functions as utils
 from retry_requests import retry
-
-import pipeline.utils as utils
 
 DATA_SAVE_PATH = config.RAW_WEATHER_DIR
 

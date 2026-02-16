@@ -5,12 +5,11 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-import config
 import pandas as pd
+import utils.config as config
+import utils.helper_functions as utils
 from tqdm import tqdm
 from xlrd.biffh import XLRDError
-
-import pipeline.utils as utils
 
 DATA_SOURCE_PATH = config.RAW_PRICE_DIR
 DATA_SAVE_PATH = config.PROCESSED_PRICE_DIR
@@ -205,8 +204,10 @@ def save_processed_price_data_to_csv(
     if years:
         year_min = min(years)
         year_max = max(years)
-        print(f"Price: saved {len(years)} files \
-            ({year_min}-{year_max}) -> {output_dir.resolve()}\n")
+        print(
+            f"Price: saved {len(years)} files \
+            ({year_min}-{year_max}) -> {output_dir.resolve()}\n"
+        )
 
 
 def process_price_data(

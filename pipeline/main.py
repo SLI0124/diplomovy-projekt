@@ -7,7 +7,6 @@ import argparse
 import sys
 from collections.abc import Sequence
 
-import config
 import downloaders.consumption
 import downloaders.price
 import downloaders.weather_source
@@ -16,8 +15,8 @@ import processors.dates
 import processors.main_merger
 import processors.price
 import processors.weather_source
-
-import pipeline.utils as utils
+import utils.config as config
+import utils.helper_functions as utils
 
 DOWNLOAD_ORDER = ("consumption", "weather", "price")
 PROCESS_ORDER = ("dates", "consumption", "weather", "price", "merge")
@@ -189,15 +188,16 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     args = parser.parse_args(cli_args)
 
-    if args.consumption_networks and "ppnet" in [
-        n.lower() for n in args.consumption_networks
-    ]:
-        if not args.include_ppnet:
-            print(
-                "ERROR: 'ppnet' is experimental and must be explicitly enabled via "
-                "--include-ppnet."
-            )
-            return
+    if (
+        args.consumption_networks
+        and "ppnet" in [n.lower() for n in args.consumption_networks]
+        and not args.include_ppnet
+    ):
+        print(
+            "ERROR: 'ppnet' is experimental and must be explicitly enabled via "
+            "--include-ppnet."
+        )
+        return
 
     if args.include_ppnet and args.consumption_networks is None:
         print(

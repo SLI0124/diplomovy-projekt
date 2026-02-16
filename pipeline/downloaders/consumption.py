@@ -18,12 +18,11 @@ import urllib.error
 import urllib.request
 from collections.abc import Iterable
 
-import config
 import pandas as pd
+import utils.config as config
+import utils.helper_functions as utils
 from tqdm import tqdm
-
-import pipeline.utils as utils
-from pipeline.utils import DateLike
+from utils.helper_functions import DateLike
 
 DATA_CONSUMPTION_ROOT = config.RAW_CONSUMPTION_DIR
 
@@ -232,8 +231,10 @@ def download_consumption_data_with_range(
         return
 
     if start_date < config.CONSUMPTION_MIN_DATE:
-        print(f"Start date cannot be before {config.CONSUMPTION_MIN_DATE} since it is \
-                the first available data from previous dataset.")
+        print(
+            f"Start date cannot be before {config.CONSUMPTION_MIN_DATE} since it is \
+                the first available data from previous dataset."
+        )
         delta_days = (config.CONSUMPTION_MIN_DATE - start_date).days
         print(
             f"Adjusting start date by {delta_days} days "
