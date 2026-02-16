@@ -5,9 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Union
 
-DateLike = Union[str, date, datetime]
+DateLike = str | date | datetime
 
 
 def ensure_directory(path: str | Path) -> Path:
