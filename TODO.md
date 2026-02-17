@@ -4,31 +4,36 @@ This will be a list of things that need to be done in order to finish the projec
 
 ## Immediate
 
-- [ ] `preprocessing` - a lot of things to get into, the earlier you start, the better
-  - [ ] start with missing values and outliers
-  - [ ] other complicated stuff just write down as you go for later research
+- [x] `preprocessing` - a lot of things to get into, the earlier you start, the better
+  - [x] start with missing values and outliers
+  - [ ] other complicated stuff just write down as you go for later research, he said to do basic stuff and then get to the complicated stuff if I have time
 - [ ] do the `ml` module first because a lot of those approaches do not require any kind of preprocessing, just raw data or simple scaling, so it will be quick to implement and test, also it will be good baseline for deep learning models when I will have more info about preprocessing, etc. from consultation (I can use preprocessed data later, raw data are ok now)
-  - [ ] add more algorithms for **machine learning**, the more the merrier
+  - [ ] add more algorithms for **machine learning**, the more the merrier (or some basic ones to cover baselines)
 - [ ] runnable `dl` scripts for foundation models
   - [ ] learn params can be used for training and use them as training parameters
   - [ ] for starters, set all models to one set of default params across all models
   - [ ] checkpoints and saving models
+- [ ] plots, results, checkpoints, models, all you can think of to save during training and evaluation (look at some kind of tensorboard for pytorch)
+- [ ] read through new paper he sent me, overall do some reading, those papers and works from last year
 
 ## Next steps
 
-- [ ] plots, results, checkpoints, models, all you can think of to save during training and evaluation
 - [ ] start writing - simple introduction should be easy and then you can think of mental model of how the rest of the paper will look like and you can have some ideas for consultation as well
 - [ ] update project README with `uv` build tools and instructions
+- [ ] update pipeline README with updated 403 error, that was cause with unauthorized access, I've added browser user agent to the request header and it seems to work
 - [ ] chore: in `pipeline` module, move all arg endpoint at the end for consistency
 - [ ] move **pipeline** to the `src` folder for better project structure, it makes more sense to have it there, update root path in `config.py` and run it once to make sure it works (tools can stay where they are, they are not really part of anything, damn now I am overthinking if moving pipeline is an option at all)
 - when you may be really bored:
   - [ ] docs: some comments and docstrings are useless and obvious, remove the obvious ones or adjust them to be more informative, read through the code and add or remove comments as necessary
   - [ ] refactor: look at pipeline module
+  - [ ] docs: write everywhere that every runnable script should be run from corresponding module, never from project root
+  - [X] make pipeline modular, meaning everything besides main scripts should be importable and in module
+- [ ] notebooks overall redo, they should be more informative rather than just a playground, anything that run longer than 15 minutes should be moved to a script
 
 ## Notes after consultation
 
 - those three or four models are enough, no need to implement more
-- make it modular via scripts
+- make it modular via scripts, make checkpoints, save models, make it easy to run and test different approaches, this will be very helpful for writing the paper and recreating results later
 - run those scripts, make some plots, tables, etc. just get some results for paper
 - try to write about those in paper, this will get solid foundation for next steps
 - preprocessing is key, no missing values because in time series it is a big no-no
