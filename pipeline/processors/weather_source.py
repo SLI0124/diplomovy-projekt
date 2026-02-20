@@ -57,21 +57,16 @@ def _process_weather_hourly(
 
     # Collapse duplicated local timestamps (DST fall-back).
     agg: dict[str, str] = {col: "mean" for col in payload}
-    if "weather_code" in agg:
-        # Keep it discrete-ish; averaging duplicates can create fractions.
-        agg["weather_code"] = "first"
     hourly = df.groupby("timestamp", as_index=False).agg(agg).sort_values("timestamp")
     hourly = hourly.set_index("timestamp").reindex(_hourly_index(start_date, end_date))
 
-    numeric_cols = [c for c in payload if c != "weather_code"]
-    if numeric_cols:
-        hourly[numeric_cols] = hourly[numeric_cols].interpolate(
+    # interpolate all variables in the requested range
+    if payload:
+        hourly[payload] = hourly[payload].interpolate(
             method="time",
             limit=1,
             limit_area="inside",
         )
-    if "weather_code" in payload:
-        hourly["weather_code"] = hourly["weather_code"].ffill(limit=1).bfill(limit=1)
 
     out = hourly.reset_index().rename(columns={"index": "timestamp"})
     dti = pd.DatetimeIndex(out["timestamp"])
@@ -79,7 +74,6 @@ def _process_weather_hourly(
     out["month"] = dti.month.astype("Int64")
     out["day"] = dti.day.astype("Int64")
     out["hour"] = dti.hour.astype("Int64")
-    out["weather_code"] = out["weather_code"].astype("Int64")
     return out[["year", "month", "day", "hour", *payload]]
 
 
