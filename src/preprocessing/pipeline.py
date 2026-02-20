@@ -180,6 +180,7 @@ def run_preprocessing(config: PreprocessConfig) -> dict:
     df_work = df_work.sort_values("datetime").reset_index(drop=True)
     df_work["row_id"] = np.arange(len(df_work), dtype=int)
     df_work["is_war_period"] = (df_work["datetime"] >= war_start).astype(int)
+    print(f"[preprocessing] loaded {len(df_work):,} rows")
 
     consumption_cols = [c for c in df_work.columns if c.startswith("consumption_")]
     component_consumption_cols = [
@@ -194,6 +195,7 @@ def run_preprocessing(config: PreprocessConfig) -> dict:
     ]
 
     df_prepared = add_time_features(df_work.copy())
+    print("[preprocessing] time features created")
 
     imputation_candidates = [
         c
@@ -235,6 +237,11 @@ def run_preprocessing(config: PreprocessConfig) -> dict:
             + [r["column"] for r in correction_report_rows if r["corrected_to_nan"] > 0]
         )
     )
+    total_corrected = int(sum(r["corrected_to_nan"] for r in correction_report_rows))
+    print(f"[preprocessing] anomaly correction: {total_corrected:,} values set to NaN")
+    print(
+        f"[preprocessing] imputing {len(imputation_candidates)} columns with missing values"
+    )
 
     for col in imputation_candidates:
         imputed_series, rep = impute_single_column(
@@ -261,7 +268,7 @@ def run_preprocessing(config: PreprocessConfig) -> dict:
 
     config.output_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    export_cols = list(df.columns) + ["datetime", "is_war_period", "row_id"]
+    export_cols = list(df.columns)
     df_export = df_prepared[export_cols].copy()
 
     cleaned_path = config.output_csv
