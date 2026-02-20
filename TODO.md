@@ -6,6 +6,8 @@ This will be a list of things that need to be done in order to finish the projec
 
 - [x] `preprocessing` - a lot of things to get into, the earlier you start, the better
   - [x] start with missing values and outliers
+  - [X] reduce number of features in same manner as is in papers
+  - [ ] move that *interpolate* to the `preprocessing` module instead of processor
   - [ ] other complicated stuff just write down as you go for later research, he said to do basic stuff and then get to the complicated stuff if I have time
 - [ ] do the `ml` module first because a lot of those approaches do not require any kind of preprocessing, just raw data or simple scaling, so it will be quick to implement and test, also it will be good baseline for deep learning models when I will have more info about preprocessing, etc. from consultation (I can use preprocessed data later, raw data are ok now)
   - [ ] add more algorithms for **machine learning**, the more the merrier (or some basic ones to cover baselines)
