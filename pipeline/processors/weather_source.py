@@ -41,8 +41,8 @@ def _process_weather_hourly(
     - We convert UTC -> local time and then drop tz info so merges use
       year/month/day/hour.
     - DST fall-back creates a duplicated local hour; we collapse it.
-    - DST spring-forward creates a missing local hour; we fill only that single
-      missing hour (limit=1) because the underlying UTC series is continuous.
+        - DST spring-forward may create a missing local hour; missing values are
+            handled later in the preprocessing module.
     """
     payload = list(config.WEATHER_VARIABLES)
     if raw_df.empty:
@@ -59,14 +59,6 @@ def _process_weather_hourly(
     agg: dict[str, str] = {col: "mean" for col in payload}
     hourly = df.groupby("timestamp", as_index=False).agg(agg).sort_values("timestamp")
     hourly = hourly.set_index("timestamp").reindex(_hourly_index(start_date, end_date))
-
-    # interpolate all variables in the requested range
-    if payload:
-        hourly[payload] = hourly[payload].interpolate(
-            method="time",
-            limit=1,
-            limit_area="inside",
-        )
 
     out = hourly.reset_index().rename(columns={"index": "timestamp"})
     dti = pd.DatetimeIndex(out["timestamp"])

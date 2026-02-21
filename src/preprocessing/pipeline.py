@@ -180,7 +180,7 @@ def run_preprocessing(config: PreprocessConfig) -> dict:
     df_work = df_work.sort_values("datetime").reset_index(drop=True)
     df_work["row_id"] = np.arange(len(df_work), dtype=int)
     df_work["is_war_period"] = (df_work["datetime"] >= war_start).astype(int)
-    print(f"[preprocessing] loaded {len(df_work):,} rows")
+    print(f"Loaded {len(df_work):,} rows")
 
     consumption_cols = [c for c in df_work.columns if c.startswith("consumption_")]
     component_consumption_cols = [
@@ -195,7 +195,7 @@ def run_preprocessing(config: PreprocessConfig) -> dict:
     ]
 
     df_prepared = add_time_features(df_work.copy())
-    print("[preprocessing] time features created")
+    print("Time features created")
 
     imputation_candidates = [
         c
@@ -238,10 +238,12 @@ def run_preprocessing(config: PreprocessConfig) -> dict:
         )
     )
     total_corrected = int(sum(r["corrected_to_nan"] for r in correction_report_rows))
-    print(f"[preprocessing] anomaly correction: {total_corrected:,} values set to NaN")
-    print(
-        f"[preprocessing] imputing {len(imputation_candidates)} columns with missing values"
-    )
+    print(f"Anomaly correction: {total_corrected:,} values set to NaN")
+
+    export_cols = list(df.columns)
+    total_missing_before = int(df_prepared[export_cols].isna().sum().sum())
+    print(f"Total missing before imputation: {total_missing_before:,}")
+    print(f"Imputing {len(imputation_candidates)} columns with missing values")
 
     for col in imputation_candidates:
         imputed_series, rep = impute_single_column(
@@ -255,6 +257,9 @@ def run_preprocessing(config: PreprocessConfig) -> dict:
         min_count=1,
     )
 
+    total_missing_after = int(df_prepared[export_cols].isna().sum().sum())
+    print(f"Total missing after imputation: {total_missing_after:,}")
+
     imputation_report = (
         pd.DataFrame(imputation_report_rows)
         .sort_values(["n_missing_filled", "masked_mae"], ascending=[False, True])
@@ -267,8 +272,6 @@ def run_preprocessing(config: PreprocessConfig) -> dict:
     )
 
     config.output_csv.parent.mkdir(parents=True, exist_ok=True)
-
-    export_cols = list(df.columns)
     df_export = df_prepared[export_cols].copy()
 
     cleaned_path = config.output_csv
