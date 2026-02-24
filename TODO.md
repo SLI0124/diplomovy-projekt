@@ -1,23 +1,23 @@
 # TODO
 
-This will be a list of things that need to be done in order to finish the project. It's much easier to keep track of things this way.
+This will be a list of things that need to be done in order to finish the project. It's much easier to keep track of things this way. Get caffinated and let's get to work!
 
 ## Immediate
 
-- [x] `preprocessing` - a lot of things to get into, the earlier you start, the better
-  - [x] start with missing values and outliers
-  - [X] reduce number of features in same manner as is in papers
-  - [x] move that *interpolate* to the `preprocessing` module instead of processor
-  - [ ] check everything, every missing or outlier value, check if it is real or data error, cross-reference with real world events, etc. and do EDA on it
-- [ ] do the `ml` module first because a lot of those approaches do not require any kind of preprocessing, just raw data or simple scaling, so it will be quick to implement and test, also it will be good baseline for deep learning models when I will have more info about preprocessing, etc. from consultation (I can use preprocessed data later, raw data are ok now)
-  - [ ] add more algorithms for **machine learning**, the more the merrier (or some basic ones to cover baselines)
+- [ ] read through new paper he sent me, overall do some reading, those papers and works from last year, prepare as much as possibly can before you write any code or text
+- [ ] `preprocessing` - a lot of things to get into, the earlier you start, the better
+  - [ ] redo and check the logic, we wanna do it **once** and do it **right**, check everything, every missing or outlier value, check if it is real or data error, cross-reference with real world events, etc.
+  - [ ] update EDA notebook with cleaned data
 - [ ] runnable `dl` scripts for foundation models
-  - [ ] learn params can be used for training and use them as training parameters
-  - [ ] for starters, set all models to one set of default params across all models
-  - [ ] checkpoints and saving models
-- [ ] plots, results, checkpoints, models, all you can think of to save during training and evaluation (look at some kind of tensorboard for pytorch)
-- [ ] read through new paper he sent me, overall do some reading, those papers and works from last year
-- [ ] other complicated preprocessing stuff just write down as you go for later research, he said to do basic stuff and then get to the complicated stuff if I have time
+  - [ ] learn params can be used for training and use them as script parameters
+  - [ ] for starters, set all models to one set of default params across all models just to work
+    - [ ] then set parameters unified e.g. context window size to 24 hours for all models, etc. (should not extend model capability that is not designed for it), maybe some config file for that or defaults
+  - [ ] checkpoints and saving models, use `pytorch lightning` for easier training and saving if possible
+  - [ ] logging, very important, preferably use some kind of tensorboard for pytorch, log everything, training and validation loss, metrics, hyperparameters, EVERYTHING (*Weights and Biases, TensorBoard, MLflow, Neptune/Comet/ClearML, PyTorch Lightning's built-in logger, etc.*)
+- [ ] plots, results, checkpoints, models, all you can think of to save during training and evaluation
+- [X] other complicated preprocessing stuff just write down as you go for later research, he said to do basic stuff and then get to the complicated stuff if I have time
+- [ ] do the `ml` module, we need to compare them to the deep learning models to have comparable baseline results
+  - [ ] add more algorithms for **machine learning**, the more the merrier (or some basic ones to cover baselines)
 
 ## Next steps
 
@@ -33,7 +33,7 @@ This will be a list of things that need to be done in order to finish the projec
   - [X] make pipeline modular, meaning everything besides main scripts should be importable and in module
   - [ ] style: I may be schizophrenic with code style, I should pick one and stick to it, look at ruff and linting rules, ruff should be achieving >99.9% Black compatibility
   - [x] build: configure `uv` and pytorch install process, make it compatible with GPU, CUDA and CPU
-- [ ] notebooks overall redo, they should be more informative rather than just a playground, anything that run longer than 15 minutes should be moved to a script
+  - [ ] notebooks overall redo, they should be more informative rather than just a playground, anything that run longer than 15 minutes should be moved to a script, should not be too hard at this point
 
 ## Notes after consultation
 
