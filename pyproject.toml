@@ -5,7 +5,6 @@ description = "Master thesis project for time series forecasting"
 requires-python = ">=3.12"
 
 dependencies = [
-    "torch",
     "pandas",
     "tqdm",
     "requests",
@@ -27,10 +26,30 @@ dependencies = [
     "black[jupyter]",
 ]
 
-# change desired torch version if needed
+[project.optional-dependencies]
+cpu = ["torch"]
+cu126 = ["torch"]
+cu130 = ["torch"]
+
+[tool.uv]
+conflicts = [[{ extra = "cpu" }, { extra = "cu126" }, { extra = "cu130" }]]
+
 [tool.uv.sources]
-torch = [{ index = "pytorch-cu130" }]
-torchvision = [{ index = "pytorch-cu130" }]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu126", extra = "cu126" },
+    { index = "pytorch-cu130", extra = "cu130" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
 
 [[tool.uv.index]]
 name = "pytorch-cu130"

@@ -22,7 +22,7 @@ This will be a list of things that need to be done in order to finish the projec
 ## Next steps
 
 - [ ] start writing - simple introduction should be easy and then you can think of mental model of how the rest of the paper will look like and you can have some ideas for consultation as well
-- [ ] update project README with `uv` build tools and instructions
+- [X] update project README with `uv` build tools and instructions
 - [ ] update pipeline README with updated 403 error, that was cause with unauthorized access, I've added browser user agent to the request header and it seems to work
 - [ ] chore: in `pipeline` module, move all arg endpoint at the end for consistency
 - [ ] move **pipeline** to the `src` folder for better project structure, it makes more sense to have it there, update root path in `config.py` and run it once to make sure it works (tools can stay where they are, they are not really part of anything, damn now I am overthinking if moving pipeline is an option at all)
@@ -32,7 +32,7 @@ This will be a list of things that need to be done in order to finish the projec
   - [ ] docs: write everywhere that every runnable script should be run from corresponding module, never from project root
   - [X] make pipeline modular, meaning everything besides main scripts should be importable and in module
   - [ ] style: I may be schizophrenic with code style, I should pick one and stick to it, look at ruff and linting rules, ruff should be achieving >99.9% Black compatibility
-  - [ ] build: configure `uv` and pytorch install process, make it compatible with GPU, CUDA and CPU
+  - [x] build: configure `uv` and pytorch install process, make it compatible with GPU, CUDA and CPU
 - [ ] notebooks overall redo, they should be more informative rather than just a playground, anything that run longer than 15 minutes should be moved to a script
 
 ## Notes after consultation

@@ -10,36 +10,55 @@ Součástí tohoto repozitáře je také sběr dat, na kterých je vše postaven
 
 ### Předpoklady
 
-- **Python 3.10+**
-- **CUDA Runtime** (pro GPU podporu) - viz [oficiální instalační průvodce](https://developer.nvidia.com/cuda-downloads)
+- **Python 3.12+**
+- **[uv](https://docs.astral.sh/uv/getting-started/installation/)**
+- **CUDA Runtime/Driver** (pro GPU podporu) - viz [oficiální instalační průvodce NVIDIA](https://developer.nvidia.com/cuda-downloads)
 
-### 📦 Instalace pomocí pip
+### 📦 Instalace pomocí uv (volba backendu)
+
+Projekt je nastavený tak, aby se PyTorch backend vybíral přes `pyproject.toml` extras:
+
+- `cpu`
+- `cu126`
+- `cu130`
+
+#### CPU varianta
 
 ```bash
-# Instalace všech závislostí
-pip install -r requirements.txt
+uv sync --extra cpu
 ```
 
-> 💡 **Pro podporu určité verze CUDA:** Navštivte [oficiální stránky PyTorch](https://pytorch.org/get-started/locally/) a nahraďte torch instalaci správnou verzí.
-
-### 🐍 Instalace pomocí Anaconda/Conda
+#### CUDA 12.6 varianta
 
 ```bash
-# Vytvoření a aktivace prostředí
-conda env create -f environment.yml
-conda activate master-thesis-sli0124
+uv sync --extra cu126
 ```
+
+#### CUDA 13.0 varianta
+
+```bash
+uv sync --extra cu130
+```
+
+> 💡 Doporučení: používej vždy jen jednu variantu (`cpu` / `cu126` / `cu130`) podle cílového prostředí.
 
 ### ✅ Ověření instalace
 
 ```bash
-python tools/check_gpu.py
+uv run python tools/check_gpu.py
 ```
 
-> ⚠️ **Řešení problémů s DLL:**
->
-> Při instalaci se může objevit [chyba s DLL](https://discuss.pytorch.org/t/importerror-dll-load-failed-while-importing-c-das-angegebene-modul-wurde-nicht-gefunden-the-specified-module-can-not-be-found/217569), která je poměrně častá. Tento problém jsem vyřešil instalací konkrétní stabilní verze, nebo jakékoli předchozí verze PyTorch. Všechny dostupné verze najdete na [stránce s předchozími verzemi PyTorch](https://pytorch.org/get-started/previous-versions/). Pro CUDA 12.8 jsem použil následující příkaz a verzi PyTorch 2.8.0:
->
-> ```bash
-> pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu128
-> ```
+### 📚 Reference
+
+- uv + PyTorch integrace: [https://docs.astral.sh/uv/guides/integration/pytorch/](https://docs.astral.sh/uv/guides/integration/pytorch/)
+- PyTorch instalace (oficiální): [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)
+
+### ➕ Do budoucna: přidání dalšího backendu/indexu
+
+Pokud budeš chtít přidat další variantu (např. `cu128`), uprav:
+
+1. `[project.optional-dependencies]` (nové extra)
+2. `[tool.uv.sources]` (mapování `torch` na index + extra)
+3. `[[tool.uv.index]]` (nový PyTorch index)
+4. `[tool.uv].conflicts` (doplň nové extra do jednoho seznamu konfliktů)
+5. poté spusť `uv lock`
