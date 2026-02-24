@@ -8,7 +8,7 @@ This will be a list of things that need to be done in order to finish the projec
   - [x] start with missing values and outliers
   - [X] reduce number of features in same manner as is in papers
   - [x] move that *interpolate* to the `preprocessing` module instead of processor
-  - [ ] other complicated stuff just write down as you go for later research, he said to do basic stuff and then get to the complicated stuff if I have time
+  - [ ] check everything, every missing or outlier value, check if it is real or data error, cross-reference with real world events, etc. and do EDA on it
 - [ ] do the `ml` module first because a lot of those approaches do not require any kind of preprocessing, just raw data or simple scaling, so it will be quick to implement and test, also it will be good baseline for deep learning models when I will have more info about preprocessing, etc. from consultation (I can use preprocessed data later, raw data are ok now)
   - [ ] add more algorithms for **machine learning**, the more the merrier (or some basic ones to cover baselines)
 - [ ] runnable `dl` scripts for foundation models
@@ -17,6 +17,7 @@ This will be a list of things that need to be done in order to finish the projec
   - [ ] checkpoints and saving models
 - [ ] plots, results, checkpoints, models, all you can think of to save during training and evaluation (look at some kind of tensorboard for pytorch)
 - [ ] read through new paper he sent me, overall do some reading, those papers and works from last year
+- [ ] other complicated preprocessing stuff just write down as you go for later research, he said to do basic stuff and then get to the complicated stuff if I have time
 
 ## Next steps
 
@@ -30,6 +31,8 @@ This will be a list of things that need to be done in order to finish the projec
   - [ ] refactor: look at pipeline module
   - [ ] docs: write everywhere that every runnable script should be run from corresponding module, never from project root
   - [X] make pipeline modular, meaning everything besides main scripts should be importable and in module
+  - [ ] style: I may be schizophrenic with code style, I should pick one and stick to it, look at ruff and linting rules, ruff should be achieving >99.9% Black compatibility
+  - [ ] build: configure `uv` and pytorch install process, make it compatible with GPU, CUDA and CPU
 - [ ] notebooks overall redo, they should be more informative rather than just a playground, anything that run longer than 15 minutes should be moved to a script
 
 ## Notes after consultation
