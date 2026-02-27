@@ -24,9 +24,10 @@ def add_time_features(frame: pd.DataFrame) -> pd.DataFrame:
     dt_values = pd.to_datetime(out["datetime"], errors="coerce")
     dt_index = pd.DatetimeIndex(dt_values)
 
-    hour_arr = np.asarray(dt_index.hour, dtype=float)
-    dow_arr = np.asarray(dt_index.dayofweek, dtype=float)
-    month_arr = np.asarray(dt_index.month, dtype=float)
+    hour_arr = np.asarray(out["hour"], dtype=float)
+    dow_arr = np.asarray(out["day_of_week"], dtype=float)
+    month_arr = np.asarray(out["month"], dtype=float)
+    day_arr = np.asarray(out["day"], dtype=float)
     week_arr = np.asarray(dt_index.strftime("%V"), dtype=float)
 
     out["day_of_year"] = np.asarray(dt_index.strftime("%j"), dtype=float)
@@ -35,10 +36,12 @@ def add_time_features(frame: pd.DataFrame) -> pd.DataFrame:
 
     out["hour_sin"] = np.sin((2.0 * np.pi * hour_arr) / 24.0)
     out["hour_cos"] = np.cos((2.0 * np.pi * hour_arr) / 24.0)
-    out["dow_sin"] = np.sin((2.0 * np.pi * dow_arr) / 7.0)
-    out["dow_cos"] = np.cos((2.0 * np.pi * dow_arr) / 7.0)
-    out["month_sin"] = np.sin((2.0 * np.pi * month_arr) / 12.0)
-    out["month_cos"] = np.cos((2.0 * np.pi * month_arr) / 12.0)
+    out["day_of_week_sin"] = np.sin((2.0 * np.pi * dow_arr) / 7.0)
+    out["day_of_week_cos"] = np.cos((2.0 * np.pi * dow_arr) / 7.0)
+    out["month_sin"] = np.sin((2.0 * np.pi * (month_arr - 1.0)) / 12.0)
+    out["month_cos"] = np.cos((2.0 * np.pi * (month_arr - 1.0)) / 12.0)
+    out["day_sin"] = np.sin((2.0 * np.pi * (day_arr - 1.0)) / 31.0)
+    out["day_cos"] = np.cos((2.0 * np.pi * (day_arr - 1.0)) / 31.0)
     return out
 
 
@@ -240,7 +243,20 @@ def run_preprocessing(config: PreprocessConfig) -> dict:
     total_corrected = int(sum(r["corrected_to_nan"] for r in correction_report_rows))
     print(f"Anomaly correction: {total_corrected:,} values set to NaN")
 
-    export_cols = list(df.columns)
+    date_cols_to_encode = ["month", "day", "hour", "day_of_week"]
+    encoded_date_cols = [
+        "month_sin",
+        "month_cos",
+        "day_sin",
+        "day_cos",
+        "hour_sin",
+        "hour_cos",
+        "day_of_week_sin",
+        "day_of_week_cos",
+    ]
+    export_cols = [c for c in df.columns if c not in date_cols_to_encode] + [
+        c for c in encoded_date_cols if c in df_prepared.columns
+    ]
     total_missing_before = int(df_prepared[export_cols].isna().sum().sum())
     print(f"Total missing before imputation: {total_missing_before:,}")
     print(f"Imputing {len(imputation_candidates)} columns with missing values")
