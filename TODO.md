@@ -28,7 +28,7 @@ This will be a list of things that need to be done in order to finish the projec
 
 - [ ] start writing - simple introduction should be easy and then you can think of mental model of how the rest of the paper will look like and you can have some ideas for consultation as well
 - [X] update project README with `uv` build tools and instructions
-- [ ] update pipeline README with updated 403 error, that was cause with unauthorized access, I've added browser user agent to the request header and it seems to work
+- [X] update pipeline README with updated 403 error, that was cause with unauthorized access, I've added browser user agent to the request header and it seems to work
 - [X] chore: in `pipeline` module, move all arg endpoint at the end for consistency
 - [ ] move **pipeline** to the `src` folder for better project structure, it makes more sense to have it there, update root path in `config.py` and run it once to make sure it works (tools can stay where they are, they are not really part of anything, damn now I am overthinking if moving pipeline is an option at all)
 - when you may be really bored:

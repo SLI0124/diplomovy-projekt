@@ -138,4 +138,4 @@ python ppnet_data_extractor.py
 - The extractor's defaults cover **2013-01-01 → 2015-12-31** and it expects an input file (default `data/input_ppnet_consumption.csv`).
 - I do **not** distribute this original legacy file. If you need the 2013–2015 raw input, **you can contact me** and I can share it (subject to data/legal constraints). Otherwise you will either have empty PPNet input for that period or you will be limited to PPNet data from 2016 onwards (pipeline enforces a PPNet minimum date of 2016-01-01).
 
-> **Heads-up:** Consumption downloads have occasionally returned HTTP `403` on some dates. In my experience a simple retry (re-running the download for the same date/network or re-running `--all`) usually succeeds.
+> **HTTP reliability note:** Consumption downloads now send browser-like request headers (including `User-Agent`/`Accept`) and automatically retry transient failures (`403`, `429`, `5xx`) with exponential backoff. This significantly reduced unauthorized/blocked request issues, but occasional upstream failures may still happen.
