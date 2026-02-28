@@ -195,22 +195,6 @@ def _resolve_networks(networks: Iterable[str] | None) -> list[str]:
     return resolved
 
 
-def download_consumption_data(
-    end_date_param: DateLike | None = None,
-    networks: Iterable[str] | None = None,
-) -> None:
-    """Download consumption data using configured defaults.
-
-    Args:
-        end_date_param: Inclusive end date as YYYY-MM-DD string, date, datetime,
-            or None (defaults to last day of previous month).
-        networks: Iterable of network identifiers to download (defaults to
-            config.DEFAULT_CONSUMPTION_NETWORKS).
-    """
-    start_date = config.CONSUMPTION_DOWNLOAD_START_DATE
-    download_consumption_data_with_range(start_date, end_date_param, networks=networks)
-
-
 def download_consumption_data_with_range(
     start_date: datetime.date,
     end_date_param: utils.DateLike | None = None,
@@ -296,3 +280,19 @@ def download_consumption_data_with_range(
                 print(
                     f"Failed to download data for {current_date} from {file_url}: {exc}"
                 )
+
+
+def download_consumption_data(
+    end_date_param: DateLike | None = None,
+    networks: Iterable[str] | None = None,
+) -> None:
+    """Download consumption data using configured defaults.
+
+    Args:
+        end_date_param: Inclusive end date as YYYY-MM-DD string, date, datetime,
+            or None (defaults to last day of previous month).
+        networks: Iterable of network identifiers to download (defaults to
+            config.DEFAULT_CONSUMPTION_NETWORKS).
+    """
+    start_date = config.CONSUMPTION_DOWNLOAD_START_DATE
+    download_consumption_data_with_range(start_date, end_date_param, networks=networks)

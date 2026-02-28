@@ -74,16 +74,6 @@ def _process_api_response(response) -> pd.DataFrame:
     return pd.DataFrame(data=hourly_data)
 
 
-def download_weather_data(end_date_param: utils.DateLike | None = None) -> None:
-    """Download weather data using configured defaults.
-
-    Args:
-        end_date_param: End date as YYYY-MM-DD string, date, datetime, or None.
-            When None, defaults to the last day of the previous month.
-    """
-    download_weather_data_with_range(config.WEATHER_START_DATE, end_date_param)
-
-
 def download_weather_data_with_range(
     start_date_val: datetime.date,
     end_date_param: utils.DateLike | None = None,
@@ -143,3 +133,13 @@ def download_weather_data_with_range(
 
     except (ConnectionError, TimeoutError, ValueError, KeyError) as e:
         print(f"Failed to download weather data: {e}")
+
+
+def download_weather_data(end_date_param: utils.DateLike | None = None) -> None:
+    """Download weather data using configured defaults.
+
+    Args:
+        end_date_param: End date as YYYY-MM-DD string, date, datetime, or None.
+            When None, defaults to the last day of the previous month.
+    """
+    download_weather_data_with_range(config.WEATHER_START_DATE, end_date_param)

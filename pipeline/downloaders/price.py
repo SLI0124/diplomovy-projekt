@@ -71,18 +71,6 @@ def _download_single_file(year: int, month: int) -> bool:
     return False
 
 
-def download_price_data(end_date_param: utils.DateLike | None = None) -> int:
-    """Download price data using default start date.
-
-    Args:
-        end_date_param: End date as YYYY-MM-DD string, date, datetime, or None.
-
-    Returns:
-        Count of files downloaded.
-    """
-    return download_price_data_with_range(config.PRICE_START_DATE, end_date_param)
-
-
 def download_price_data_with_range(
     start_date: datetime.date,
     end_date_param: utils.DateLike | None = None,
@@ -129,3 +117,15 @@ def download_price_data_with_range(
             downloaded += 1
 
     return downloaded
+
+
+def download_price_data(end_date_param: utils.DateLike | None = None) -> int:
+    """Download price data using default start date.
+
+    Args:
+        end_date_param: End date as YYYY-MM-DD string, date, datetime, or None.
+
+    Returns:
+        Count of files downloaded.
+    """
+    return download_price_data_with_range(config.PRICE_START_DATE, end_date_param)
