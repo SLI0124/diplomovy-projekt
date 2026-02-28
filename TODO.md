@@ -7,6 +7,11 @@ This will be a list of things that need to be done in order to finish the projec
 - [ ] read through new paper he sent me, overall do some reading, those papers and works from last year, prepare as much as possibly can before you write any code or text
 - [ ] `preprocessing` - a lot of things to get into, the earlier you start, the better
   - [X] redo and check the logic, we wanna do it **once** and do it **right**, check everything, every missing or outlier value, check if it is real or data error, cross-reference with real world events, etc.
+  - [ ] new scripts for preprocessing
+    - [X] do filtering and filling as is described in [notebook](notebooks/0_preprocssing_eda.ipynb)
+    - [ ] remove date columns and replace it with single datetime column
+    - [ ] add sin and cos transformations for cyclical features like hour of day, day of week, month of year, etc.
+    - [ ] add lag target features, maybe some rolling mean or rolling std features, etc. (maybe later if I have time, include plots and results as appendix)
   - [ ] update EDA notebook with cleaned data
 - [ ] runnable `dl` scripts for foundation models
   - [ ] learn params can be used for training and use them as script parameters

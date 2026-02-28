@@ -1,1 +1,1 @@
-"""The preprocessing module for the gas consumption."""
+"""Preprocessing module for gas consumption dataset cleaning and imputation."""
