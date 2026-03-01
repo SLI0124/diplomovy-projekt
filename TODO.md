@@ -1,28 +1,41 @@
 # TODO
 
-This will be a list of things that need to be done in order to finish the project. It's much easier to keep track of things this way. Get caffinated and let's get to work!
+This will be a list of things that need to be done in order to finish the project. It's much easier to keep track of things this way. Get caffinated and let's get to work. You can **motherfucking do THIS!**
 
 ## Immediate
 
-- [ ] read through new paper he sent me, overall do some reading, those papers and works from last year, prepare as much as possibly can before you write any code or text
-- [ ] `preprocessing` - a lot of things to get into, the earlier you start, the better
+- [ ] `preprocessing` - a lot of things to get into so let's get into it *(to be fair have the most basic stuff done, get some results and ready them for consultation)*
   - [X] redo and check the logic, we wanna do it **once** and do it **right**, check everything, every missing or outlier value, check if it is real or data error, cross-reference with real world events, etc.
   - [ ] new scripts for preprocessing
     - [X] do filtering and filling as is described in [notebook](notebooks/0_preprocssing_eda.ipynb)
-    - [ ] remove date columns and replace it with single datetime column
-    - [ ] add sin and cos transformations for cyclical features like hour of day, day of week, month of year, etc.
-    - [ ] add lag target features, maybe some rolling mean or rolling std features, etc. (maybe later if I have time, include plots and results as appendix)
-  - [ ] update EDA notebook with cleaned data
-- [ ] runnable `dl` scripts for foundation models
+    - [ ] do research on **very basic** preprocessing methods for time series data to get started (*some ideas are below*)
+      - [ ] remove date columns and replace it with single datetime column
+      - [ ] add sin and cos transformations for cyclical features like hour of day, day of week, month of year, etc.
+      - [ ] add lag target features, maybe some rolling mean or rolling std features, etc.
+
+---
+
+- [ ] runnable `dl` scripts for foundation models *(same here as for preprocessing, just get them working, very basic, then you can add )*
   - [ ] learn params can be used for training and use them as script parameters
-  - [ ] for starters, set all models to one set of default params across all models just to work
-    - [ ] then set parameters unified e.g. context window size to 24 hours for all models, etc. (should not extend model capability that is not designed for it), maybe some config file for that or defaults
+    - [ ] basics tied to the any training process like learning rate, batch size, number of epochs, etc.
+    - [ ] foundation time series models specific params like context window size, etc.
+  - [ ] for starters, set all models to one set of default params across all models just to work, then set parameters unified e.g. context window size to 24 hours for all models, etc. (should not extend model capability that is not designed for it), maybe some config file for that or defaults
   - [ ] checkpoints and saving models, use `pytorch lightning` for easier training and saving if possible
-  - [ ] logging, very important, preferably use some kind of tensorboard for pytorch, log everything, training and validation loss, metrics, hyperparameters, EVERYTHING (*Weights and Biases, TensorBoard, MLflow, Neptune/Comet/ClearML, PyTorch Lightning's built-in logger, etc.*)
-- [ ] plots, results, checkpoints, models, all you can think of to save during training and evaluation
-- [X] other complicated preprocessing stuff just write down as you go for later research, he said to do basic stuff and then get to the complicated stuff if I have time
+  - [ ] logging, very important, preferably use some kind of tensorboard for pytorch, log everything you can think of, training and validation loss, metrics, hyperparameters, EVERYTHING (*Weights and Biases, TensorBoard, MLflow, Neptune/Comet/ClearML, PyTorch Lightning's built-in logger, etc.*)
+
+---
+
 - [ ] do the `ml` module, we need to compare them to the deep learning models to have comparable baseline results
   - [ ] add more algorithms for **machine learning**, the more the merrier (or some basic ones to cover baselines)
+
+---
+
+- [ ] plots, results, checkpoints, models, plot and vizualize all you can think of
+
+---
+
+- [X] other complicated preprocessing stuff just write down as you go for later research, he said to do basic stuff and then get to the complicated stuff if I have time
+- [ ] read through new paper he sent me, overall do some reading, those papers and works from last year, prepare as much as possibly can before you write any code or text
 
 ## Next steps
 
@@ -31,8 +44,9 @@ This will be a list of things that need to be done in order to finish the projec
 - [X] update pipeline README with updated 403 error, that was cause with unauthorized access, I've added browser user agent to the request header and it seems to work
 - [X] chore: in `pipeline` module, move all arg endpoint at the end for consistency
 - [ ] move **pipeline** to the `src` folder for better project structure, it makes more sense to have it there, update root path in `config.py` and run it once to make sure it works (tools can stay where they are, they are not really part of anything, damn now I am overthinking if moving pipeline is an option at all)
+- [ ] seasonal decomposition, trend and seasonality removal, fourier transforms, etc. are somewhat complicated but very common techniques for time series data preprocessing, if I have time later, I can look into it and add it to the pipeline, for now I will just write it down as a note for later research
 - when you may be really bored:
-  - [ ] docs: some comments and docstrings are useless and obvious, remove the obvious ones or adjust them to be more informative, read through the code and add or remove comments as necessary
+  - [ ] docs: some comments and docstrings in `pipeline` are useless and obvious, remove the obvious ones or adjust them to be more informative, read through the code and add or remove comments as necessary
   - [ ] refactor: look at pipeline module
   - [ ] docs: write everywhere that every runnable script should be run from corresponding module, never from project root
   - [X] make pipeline modular, meaning everything besides main scripts should be importable and in module
@@ -40,6 +54,8 @@ This will be a list of things that need to be done in order to finish the projec
   - [X] chore: remove `ppnet`, at this point it is more of a liability than an asset
   - [x] build: configure `uv` and pytorch install process, make it compatible with GPU, CUDA and CPU
   - [ ] notebooks overall redo, they should be more informative rather than just a playground, anything that run longer than 15 minutes should be moved to a script, should not be too hard at this point
+  - [ ] add `.vscode` folder, idk all I can put here but as I run this project on many machines atm it wouldn't hurt to have some common settings for vscode for formatting, linting, etc.
+  - [ ] Dockerfile for easier setup and training, GPU support is
 
 ## Notes after consultation
 
