@@ -37,6 +37,7 @@ This will be a list of things that need to be done in order to finish the projec
   - [ ] docs: write everywhere that every runnable script should be run from corresponding module, never from project root
   - [X] make pipeline modular, meaning everything besides main scripts should be importable and in module
   - [ ] style: I may be schizophrenic with code style, I should pick one and stick to it, look at ruff and linting rules, ruff should be achieving >99.9% Black compatibility
+  - [X] chore: remove `ppnet`, at this point it is more of a liability than an asset
   - [x] build: configure `uv` and pytorch install process, make it compatible with GPU, CUDA and CPU
   - [ ] notebooks overall redo, they should be more informative rather than just a playground, anything that run longer than 15 minutes should be moved to a script, should not be too hard at this point
 

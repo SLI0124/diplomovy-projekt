@@ -122,19 +122,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             "Optional list of consumption networks to download "
             "(default downloads stable networks: "
             f"{', '.join(config.DEFAULT_CONSUMPTION_NETWORKS)}). "
-            "PPNET is opt-in (use --include-ppnet). "
             f"Current options are: {', '.join(downloaders.consumption.NETWORK_URLS)}"
-        ),
-    )
-    parser.add_argument(
-        "--include-ppnet",
-        action="store_true",
-        help=(
-            "Opt-in to PPNET consumption (experimental / occasionally faulty). "
-            "Only affects consumption download + processing. "
-            "Required if you specify 'ppnet' in --consumption-networks. "
-            "If used without --consumption-networks, it adds 'ppnet' to the default "
-            "stable networks."
         ),
     )
     parser.add_argument(
@@ -166,13 +154,6 @@ def main(argv: Sequence[str] | None = None) -> None:
     if not cli_args:
         print("No arguments provided.")
         print("Default action is to run with '--all' (download + process everything).")
-        print(
-            "Note: PPNET consumption is experimental and opt-in. "
-            "If you want to include it, run with --include-ppnet and you may also "
-            "need to run the legacy extractor first:"
-        )
-        print("  cd tools")
-        print("  python ppnet_data_extractor.py")
 
         try:
             answer = input("Proceed with '--all' now? [y/N]: ").strip().lower()
@@ -187,34 +168,6 @@ def main(argv: Sequence[str] | None = None) -> None:
         cli_args = ["--all"]
 
     args = parser.parse_args(cli_args)
-
-    if (
-        args.consumption_networks
-        and "ppnet" in [n.lower() for n in args.consumption_networks]
-        and not args.include_ppnet
-    ):
-        print(
-            "ERROR: 'ppnet' is experimental and must be explicitly enabled via "
-            "--include-ppnet."
-        )
-        return
-
-    if args.include_ppnet and args.consumption_networks is None:
-        print(
-            "WARNING: PPNET enabled (experimental / occasionally faulty). "
-            "Download/processing may be incomplete; "
-            "legacy 2013-2015 requires the extractor."
-        )
-        args.consumption_networks = [
-            *config.DEFAULT_CONSUMPTION_NETWORKS,
-            "ppnet",
-        ]
-    elif args.include_ppnet:
-        print(
-            "WARNING: PPNET enabled (experimental / occasionally faulty). "
-            "Download/processing may be incomplete; "
-            "legacy 2013-2015 requires the extractor."
-        )
 
     validated_end_date = None
     if args.end_date is not None:

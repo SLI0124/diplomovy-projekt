@@ -13,7 +13,6 @@ DATA_SOURCE_ROOT = config.RAW_CONSUMPTION_DIR
 DATA_SAVE_PATH = config.PROCESSED_CONSUMPTION_DIR
 
 MIN_FILE_DATE_BY_NETWORK = {
-    "ppnet": config.PPNET_MIN_DATE,
 }
 
 
@@ -64,31 +63,6 @@ def _assert_raw_files_cover_range(
         )
 
 
-def _normalize_ppnet_datetime(datum_series: pd.Series) -> pd.Series:
-    """Parse PPNET timestamps and make them non-decreasing by adding 12h steps. Those
-    timestamps lack AM/PM designations, so we must distinguish them based on order.
-
-    Args:
-        datum_series: Series with timestamps in "%Y-%m-%d %H:%M:%S" format.
-
-    Returns:
-        pd.Series: Corrected timestamps as pandas datetimes.
-    """
-    # Parse timestamps and fix missing AM/PM by making series non-decreasing
-    parsed = pd.to_datetime(datum_series, format="%Y-%m-%d %H:%M:%S", errors="coerce")
-    out, prev = [], None
-    for parsed_time in parsed:
-        if pd.isna(parsed_time):
-            out.append(pd.NaT)
-            continue
-        # If time went backwards, add 12-hour steps until it's non-decreasing
-        while prev is not None and parsed_time < prev:
-            parsed_time += pd.Timedelta(hours=12)
-        out.append(parsed_time)
-        prev = parsed_time
-    return pd.Series(out)
-
-
 def discover_network_paths() -> dict[str, Path]:
     """Return mapping of available consumption networks to their data directories.
 
@@ -107,25 +81,14 @@ def parse_consumption_file(file_path: Path, network: str) -> pd.DataFrame:
 
     Args:
         file_path: Path to the consumption CSV file.
-        network: Network key (e.g., "ppnet", "vcpnet", etc.).
+        network: Network key (e.g., "vcpnet", etc.).
 
     Returns:
         pd.DataFrame: DataFrame with columns
         ["year", "month", "day", "hour", "consumption"].
     """
-
-    if network == "ppnet":
-        df = pd.read_csv(file_path, sep=None, engine="python")
-        df.columns = df.columns.str.strip().str.strip('"')
-    else:
-        df = pd.read_csv(file_path, sep=",")
-
-    if network == "ppnet":
-        datum_series = _normalize_ppnet_datetime(df["Datum"])
-    else:
-        datum_series = pd.to_datetime(
-            df["Datum"], format="%d.%m.%Y %H:%M", errors="coerce"
-        )
+    df = pd.read_csv(file_path, sep=",")
+    datum_series = pd.to_datetime(df["Datum"], format="%d.%m.%Y %H:%M", errors="coerce")
     df["Datum"] = datum_series
     datetime_index = pd.DatetimeIndex(datum_series)
     df["year"] = datetime_index.year
@@ -254,7 +217,7 @@ def get_hours_from_file(
         file_path: Path to the consumption CSV file.
         target_date: Date for which to extract hours.
         hour_range: Range of hours to extract ("early" or "late").
-        network: Network key (e.g., "ppnet", "vcpnet", etc.).
+        network: Network key (e.g., "vcpnet", etc.).
 
     Returns:
         pd.DataFrame: DataFrame with columns ["hour", "consumption"]
@@ -296,7 +259,7 @@ def collect_network_day_values(
     Args:
         source_dir: Directory containing consumption CSV files.
         current_date: Date for which to collect data.
-        network: Network key (e.g., "ppnet", "vcpnet", etc.).
+        network: Network key (e.g., "vcpnet", etc.).
 
     Returns:
         pd.DataFrame: DataFrame with columns ["hour", "consumption"]
@@ -484,15 +447,7 @@ def process_consumption_data(
         if preferred:
             selected_dirs = {name: available_dirs[name] for name in preferred}
         else:
-            selected_dirs = {
-                name: path for name, path in available_dirs.items() if name != "ppnet"
-            }
-            if not selected_dirs:
-                print(
-                    "Consumption: only 'ppnet' raw data found. "
-                    "PPNET is opt-in; explicitly select it via the CLI."
-                )
-                return None
+            selected_dirs = available_dirs
 
     _assert_raw_files_cover_range(
         selected_dirs, start_date=start_date, end_date=end_date

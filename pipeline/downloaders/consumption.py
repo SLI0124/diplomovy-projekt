@@ -31,7 +31,6 @@ NETWORK_URLS = {
     "vcpnet": "https://www.gasnet.cz/storage/online-toky/vcpnet/{date}.csv",
     "jmpnet": "https://www.gasnet.cz/storage/online-toky/jmpnet/{date}.csv",
     "smpnet": "https://www.gasnet.cz/storage/online-toky/smpnet/{date}.csv",
-    "ppnet": "https://www.ppdistribuce.cz/online-toky/csv.php?date={date}",
 }
 
 # Fallback encodings to try when parsing CSV bytes.
@@ -53,9 +52,7 @@ DEFAULT_HEADERS = {
     "Accept": "text/csv,text/plain,application/octet-stream,*/*",
 }
 
-MIN_DATE_BY_NETWORK = {
-    "ppnet": config.PPNET_MIN_DATE,
-}
+MIN_DATE_BY_NETWORK = {}
 
 
 def _read_csv_with_fallback(url: str) -> pd.DataFrame:
@@ -115,57 +112,6 @@ def _read_csv_with_fallback(url: str) -> pd.DataFrame:
     with urllib.request.urlopen(request, timeout=READ_TIMEOUT_SECONDS) as response:
         payload = response.read()
     return pd.read_csv(io.BytesIO(payload), sep=";")
-
-
-def _normalize_ppnet_datetime(datum_series: pd.Series) -> pd.Series:
-    """Normalize PPNET timestamps by inferring AM/PM from row order.
-
-    Args:
-        datum_series: Series with timestamps in "%Y-%m-%d %H:%M:%S" format.
-
-    Returns:
-        pandas.Series: Corrected timestamps as pandas datetimes.
-    """
-    parsed = pd.to_datetime(datum_series, format="%Y-%m-%d %H:%M:%S", errors="coerce")
-    corrected = []
-    previous = None
-
-    for value in parsed:
-        if pd.isna(value):
-            corrected.append(pd.NaT)
-            continue
-
-        candidate = value
-        if previous is not None:
-            while candidate < previous:
-                candidate += pd.Timedelta(hours=12)
-
-        corrected.append(candidate)
-        previous = candidate
-
-    return pd.Series(corrected)
-
-
-def _prepare_ppnet_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """Normalize a PPNET CSV DataFrame to match downstream processing.
-
-    Args:
-        df: Raw DataFrame loaded from PPNET.
-
-    Returns:
-        pandas.DataFrame: DataFrame with columns ["Datum", "Hodnota"].
-
-    Raises:
-        ValueError: If required columns are missing.
-    """
-    if "Datum" not in df.columns or "Hodnota" not in df.columns:
-        raise ValueError("PPNET CSV is missing required columns 'Datum'/'Hodnota'.")
-
-    normalized_dt = pd.to_datetime(_normalize_ppnet_datetime(df["Datum"]))
-    df = df.copy()
-    df["Datum"] = normalized_dt.dt.strftime("%d.%m.%Y %H:%M")
-    df["Hodnota"] = pd.to_numeric(df["Hodnota"], errors="coerce")
-    return df[["Datum", "Hodnota"]]
 
 
 def _resolve_networks(networks: Iterable[str] | None) -> list[str]:
@@ -264,17 +210,12 @@ def download_consumption_data_with_range(
         for i in tqdm(range(total_days), desc=f"{network.upper()} downloads"):
             current_date = network_start_date + datetime.timedelta(days=i)
             date_str = current_date.strftime("%Y%m%d")
-            url_date = (
-                current_date.strftime("%Y-%m-%d") if network == "ppnet" else date_str
-            )
-            file_url = url_template.format(date=url_date)
+            file_url = url_template.format(date=date_str)
             file_path = save_dir / f"{date_str}.csv"
             if file_path.is_file():
                 continue
             try:
                 df = _read_csv_with_fallback(file_url)
-                if network == "ppnet":
-                    df = _prepare_ppnet_dataframe(df)
                 df.to_csv(file_path, index=False)
             except (UnicodeDecodeError, ValueError, pd.errors.EmptyDataError) as exc:
                 print(
