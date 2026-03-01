@@ -124,6 +124,32 @@ This run keeps the original cleaned file in `--output` and generates all cumulat
 
 Note: cumulative ranges intentionally stop one year before the latest year in data, so the latest year remains available as a dedicated holdout/test year.
 
+### Usage examples
+
+- Cyclical features + drop cyclical source columns + all splits:
+
+```bash
+python .\main.py --add-cyclical --drop-cyclical-source-columns --export-all-splits
+```
+
+- Cyclical features + drop non-total consumption components + all splits:
+
+```bash
+python .\main.py --add-cyclical --drop-cyclical-source-columns --drop-columns consumption_gasnet,consumption_jmpnet,consumption_smpnet,consumption_vcpnet --export-all-splits
+```
+
+- Drop only non-total consumption components (no extra temporal features):
+
+```bash
+python .\main.py --drop-columns consumption_gasnet,consumption_jmpnet,consumption_smpnet,consumption_vcpnet --export-all-splits
+```
+
+- Cyclical + lag features (no rolling/expanding) + all splits:
+
+```bash
+python .\main.py --add-cyclical --drop-cyclical-source-columns --add-lag-features --export-all-splits
+```
+
 ## Report 📊
 
 The JSON report is compact and contains:
