@@ -4,14 +4,15 @@ This will be a list of things that need to be done in order to finish the projec
 
 ## Immediate
 
-- [ ] `preprocessing` - a lot of things to get into so let's get into it *(to be fair have the most basic stuff done, get some results and ready them for consultation)*
+- [x] `preprocessing` - a lot of things to get into so let's get into it *(to be fair have the most basic stuff done, get some results and ready them for consultation)*
   - [X] redo and check the logic, we wanna do it **once** and do it **right**, check everything, every missing or outlier value, check if it is real or data error, cross-reference with real world events, etc.
-  - [ ] new scripts for preprocessing
+  - [x] new scripts for preprocessing
     - [X] do filtering and filling as is described in [notebook](notebooks/0_preprocssing_eda.ipynb)
-    - [ ] do research on **very basic** preprocessing methods for time series data to get started (*some ideas are below*)
-      - [ ] remove date columns and replace it with single datetime column
-      - [ ] add sin and cos transformations for cyclical features like hour of day, day of week, month of year, etc.
-      - [ ] add lag target features, maybe some rolling mean or rolling std features, etc.
+    - [x] do research on **very basic** preprocessing methods for time series data to get started (*some ideas are below*)
+      - [x] add sin and cos transformations for cyclical features like hour of day, day of week, month of year, etc.
+      - [x] get rid of those date columns but before we do it, we need to split datasets by year range (2014, 2014-2015, 2014-2016, etc.) and then for one year to test it (eg. 2014, 2015, ..., 2025) into corresponding files
+      - [x] add lag target features, maybe some rolling mean or rolling std features, etc.
+      - [x] rolling and expanding window
 
 ---
 

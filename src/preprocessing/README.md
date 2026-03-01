@@ -56,6 +56,74 @@ Optional:
 python .\main.py --input <merged.csv> --output <cleaned.csv> --report <report.json>
 ```
 
+## New CLI features 🆕
+
+Default behavior is unchanged:
+
+- `--output` still saves the original cleaned dataset.
+- `--report` still saves the preprocessing JSON report.
+- New features are opt-in via flags.
+
+Additional dataset exports are saved to a dedicated subfolder under output directory:
+
+- default subfolder: `splits`
+- nested layout to avoid confusion/overwrites between file groups:
+  - `splits/<variant_stem>/`
+  - `splits/<variant_stem>/ranges_from_<anchor_year>_to_<max_year>/`
+  - `splits/<variant_stem>/single_years/`
+
+### Readable parameter-based variant naming
+
+- Variant stem is built directly from enabled parameters (no hash), for example:
+  - `cyc-hour-month-day-of-week-src-dropped__lag-consumption-total-1-24-168`
+- If no feature flags are used, variant stem is `base`.
+- Split file names are short:
+  - cumulative ranges: `range_<start>_<end>.csv`
+  - single years: `year_<year>.csv`
+
+### Export options
+
+- `--export-year-ranges` : save cumulative ranges `2014`, `2014-2015`, ..., `2014-(max_year-1)`
+- `--export-single-years` : save one file per year (`2014`, `2015`, ...)
+- `--export-all-splits` : shortcut for both options above
+- `--range-anchor-year` : default `2014`
+- `--single-year-start` : default `2014`
+- `--single-year-end` : default max available year in data
+- `--exports-subdir` : default `splits`
+
+### Feature engineering options
+
+- Drop columns:
+  - `--drop-columns year,holiday,before_holiday`
+- Cyclical datetime features:
+  - `--add-cyclical`
+  - `--cyclical-columns hour,month,day_of_week` (default)
+  - `--drop-cyclical-source-columns`
+- Lag features:
+  - `--add-lag-features`
+  - `--lag-columns consumption_total` (default)
+  - `--lag-counts 1,24,168` (default)
+- Rolling features:
+  - `--add-rolling-features`
+  - `--rolling-columns consumption_total` (default)
+  - `--rolling-windows 24,168` (default)
+  - `--rolling-aggregation mean|sum|both` (default `mean`)
+- Expanding features:
+  - `--add-expanding-features`
+  - `--expanding-columns consumption_total` (default)
+  - `--expanding-min-periods 24` (default)
+  - `--expanding-aggregation mean|sum|both` (default `mean`)
+
+### Full-range generation example (all requested files)
+
+```bash
+python .\main.py --export-all-splits --add-cyclical --drop-cyclical-source-columns --add-lag-features --add-rolling-features --rolling-aggregation both --add-expanding-features --expanding-aggregation both
+```
+
+This run keeps the original cleaned file in `--output` and generates all cumulative ranges plus single-year files under a readable parameter-based folder in `splits`.
+
+Note: cumulative ranges intentionally stop one year before the latest year in data, so the latest year remains available as a dedicated holdout/test year.
+
 ## Report 📊
 
 The JSON report is compact and contains:
