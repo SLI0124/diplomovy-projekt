@@ -109,7 +109,7 @@ def process_price_data_with_range(
     if not source_dir.exists():
         raise FileNotFoundError(
             f"Price: raw directory not found: {source_dir}. "
-            "Run the downloader first (pipeline/main.py --download price)."
+            "Run the downloader first (src/pipeline/main.py --download price)."
         )
 
     # Ensure monthly raw files exist for the requested range.
@@ -213,7 +213,7 @@ def save_processed_price_data_to_csv(
 def process_price_data(
     end_date_param: utils.DateLike | None = None,
 ) -> pd.DataFrame | None:
-    """Entry point used by [pipeline/main.py](pipeline/main.py).
+    """Entry point used by [src/pipeline/main.py](src/pipeline/main.py).
 
     Args:
         end_date_param: End date as YYYY-MM-DD string, date, datetime, or None.

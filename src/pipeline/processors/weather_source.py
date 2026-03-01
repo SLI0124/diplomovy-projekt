@@ -119,7 +119,7 @@ def process_weather_data_with_range(
     if not source_dir.exists():
         raise FileNotFoundError(
             f"Weather: raw directory not found: {source_dir}. "
-            "Run the downloader first (pipeline/main.py --download weather)."
+            "Run the downloader first (src/pipeline/main.py --download weather)."
         )
 
     # Find the weather CSV file (should be only one)
@@ -213,7 +213,7 @@ def save_processed_weather_data_to_csv(
 def process_weather_data(
     end_date_param: utils.DateLike | None = None,
 ) -> pd.DataFrame | None:
-    """Entry point used by [pipeline/main.py](pipeline/main.py).
+    """Entry point used by [src/pipeline/main.py](src/pipeline/main.py).
 
     Args:
         end_date_param: End date as YYYY-MM-DD string, date, datetime, or None.

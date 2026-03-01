@@ -1,6 +1,6 @@
 """Download historical hourly weather data from Open-Meteo.
 
-The location and variables are defined in `pipeline/config.py`.
+The location and variables are defined in `src/pipeline/utils/config.py`.
 """
 
 import datetime

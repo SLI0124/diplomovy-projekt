@@ -29,7 +29,7 @@ def _assert_raw_files_cover_range(
     if not config.RAW_CONSUMPTION_DIR.exists():
         raise FileNotFoundError(
             f"Consumption: raw directory not found: {config.RAW_CONSUMPTION_DIR}. "
-            "Run the downloader first (pipeline/main.py --download consumption)."
+            "Run the downloader first (src/pipeline/main.py --download consumption)."
         )
 
     file_start = start_date - timedelta(days=1)
@@ -408,7 +408,7 @@ def process_consumption_data(
     end_date_param: utils.DateLike | None = None,
     networks: Iterable[str] | None = None,
 ) -> pd.DataFrame | None:
-    """Entry point used by [pipeline/main.py](pipeline/main.py).
+    """Entry point used by [src/pipeline/main.py](src/pipeline/main.py).
 
     Args:
         end_date_param: Inclusive end date as YYYY-MM-DD string, date, datetime,

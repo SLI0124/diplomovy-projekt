@@ -16,14 +16,14 @@ Everything is coordinated by `main.py` which is the single supported entry point
 
 ## Where to run it 📁
 
-You should run the pipeline from the `pipeline` directory.
+You should run the pipeline from the `src/pipeline` directory.
 
 ```bash
-cd pipeline
+cd src/pipeline
 python main.py --help
 ```
 
-Do **not** run the pipeline from the repository root — paths and relative behavior assume you started inside `pipeline/`.
+Do **not** run the pipeline from the repository root — paths and relative behavior assume you started inside `src/pipeline/`.
 
 ---
 
