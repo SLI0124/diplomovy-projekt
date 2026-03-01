@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from dataset_exports import DatasetExportConfig, export_split_datasets
+from dataset_exports import (
+    DatasetExportConfig,
+    export_split_datasets,
+    save_variant_snapshot,
+)
 from temporal_features import TemporalFeatureConfig, apply_temporal_features
 from value_cleaning import preprocess_merged_csv
 
@@ -336,11 +340,14 @@ def main() -> None:
     export_details: dict[str, Any] = {
         "exports_root": str(exports_root.resolve()),
         "variant_stem": export_base_stem,
+        "variant_snapshot_saved": False,
         "year_ranges": [],
         "single_years": [],
     }
 
-    should_export_derived = export_year_ranges or export_single_years
+    should_export_derived = (
+        export_year_ranges or export_single_years or feature_flags_enabled
+    )
     if should_export_derived:
         export_config = DatasetExportConfig(
             output_root=exports_root,
@@ -352,8 +359,14 @@ def main() -> None:
             single_year_end=args.single_year_end,
         )
 
-        split_stats = export_split_datasets(working_df, export_config)
-        export_details.update(split_stats)
+        if feature_flags_enabled:
+            snapshot_path = save_variant_snapshot(working_df, export_config)
+            export_details["variant_snapshot_saved"] = True
+            export_details["variant_snapshot_path"] = str(snapshot_path)
+
+        if export_year_ranges or export_single_years:
+            split_stats = export_split_datasets(working_df, export_config)
+            export_details.update(split_stats)
 
     result.report["derived_exports"] = export_details
 
@@ -364,6 +377,8 @@ def main() -> None:
     print(f"Output: {args.output}")
     print(f"Report: {report_path}")
     print(f"Derived exports root: {export_details.get('exports_root')}")
+    if export_details.get("variant_snapshot_saved"):
+        print(f"Variant snapshot: {export_details.get('variant_snapshot_path')}")
     year_ranges_count = len(export_details.get("year_ranges", []))
     single_years_count = len(export_details.get("single_years", []))
     if year_ranges_count or single_years_count:

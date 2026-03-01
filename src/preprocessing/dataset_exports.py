@@ -49,6 +49,16 @@ def _available_years(df: pd.DataFrame, year_column: str) -> list[int]:
     return values
 
 
+def save_variant_snapshot(df: pd.DataFrame, config: DatasetExportConfig) -> Path:
+    """Save full dataframe snapshot under variant root with stable base filename."""
+
+    root_dir = _dataset_root(config)
+    root_dir.mkdir(parents=True, exist_ok=True)
+    snapshot_path = root_dir / "merged_all_years_preprocessed.csv"
+    df.to_csv(snapshot_path, index=False)
+    return snapshot_path
+
+
 def export_split_datasets(
     df: pd.DataFrame,
     config: DatasetExportConfig,
