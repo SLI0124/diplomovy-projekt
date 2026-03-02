@@ -16,11 +16,11 @@ class DatasetExportConfig:
     output_root: Path
     base_stem: str
     year_column: str = "year"
-    range_anchor_year: int = 2014
-    export_year_ranges: bool = False
-    export_single_years: bool = False
-    single_year_start: int = 2014
-    single_year_end: int | None = None
+    range_anchor_year: int = 2013
+
+
+def _log(message: str) -> None:
+    print(f"[exports] {message}")
 
 
 def _dataset_root(config: DatasetExportConfig) -> Path:
@@ -55,6 +55,7 @@ def save_variant_snapshot(df: pd.DataFrame, config: DatasetExportConfig) -> Path
     root_dir = _dataset_root(config)
     root_dir.mkdir(parents=True, exist_ok=True)
     snapshot_path = root_dir / "merged_all_years_preprocessed.csv"
+    _log(f"Saving variant snapshot: {snapshot_path}")
     df.to_csv(snapshot_path, index=False)
     return snapshot_path
 
@@ -83,56 +84,57 @@ def export_split_datasets(
     root_dir.mkdir(parents=True, exist_ok=True)
     details["dataset_root"] = str(root_dir)
 
-    if config.export_year_ranges:
-        anchor = max(config.range_anchor_year, year_min)
-        ranges_dir = _ranges_dir(config, anchor, year_max)
-        ranges_dir.mkdir(parents=True, exist_ok=True)
-        details["ranges_dir"] = str(ranges_dir)
-        train_end_year = year_max - 1
-        details["range_max_train_year"] = int(train_end_year)
-        for end_year in range(anchor, train_end_year + 1):
-            mask = (df[config.year_column] >= anchor) & (
-                df[config.year_column] <= end_year
-            )
-            sliced = df.loc[mask]
-            if sliced.empty:
-                continue
-            filename = f"range_{anchor}_{end_year}.csv"
-            path = ranges_dir / filename
-            sliced.to_csv(path, index=False)
-            details["year_ranges"].append(
-                {
-                    "start_year": anchor,
-                    "end_year": end_year,
-                    "rows": int(len(sliced)),
-                    "path": str(path),
-                }
-            )
+    anchor = max(config.range_anchor_year, year_min)
+    ranges_dir = _ranges_dir(config, anchor, year_max)
+    ranges_dir.mkdir(parents=True, exist_ok=True)
+    details["ranges_dir"] = str(ranges_dir)
 
-    if config.export_single_years:
-        start_year = max(config.single_year_start, year_min)
-        end_year = (
-            config.single_year_end if config.single_year_end is not None else year_max
+    train_end_year = year_max - 1
+    details["range_max_train_year"] = int(train_end_year)
+    _log(
+        f"Exporting cumulative ranges from {anchor} to {train_end_year} into {ranges_dir}"
+    )
+    for end_year in range(anchor, train_end_year + 1):
+        mask = (df[config.year_column] >= anchor) & (df[config.year_column] <= end_year)
+        sliced = df.loc[mask]
+        if sliced.empty:
+            continue
+        filename = f"range_{anchor}_{end_year}.csv"
+        path = ranges_dir / filename
+        sliced.to_csv(path, index=False)
+        details["year_ranges"].append(
+            {
+                "start_year": anchor,
+                "end_year": end_year,
+                "rows": int(len(sliced)),
+                "path": str(path),
+            }
         )
-        end_year = min(end_year, year_max)
-        single_years_dir = _single_years_dir(config)
-        single_years_dir.mkdir(parents=True, exist_ok=True)
-        details["single_years_dir"] = str(single_years_dir)
 
-        for year in range(start_year, end_year + 1):
-            mask = df[config.year_column] == year
-            sliced = df.loc[mask]
-            if sliced.empty:
-                continue
-            filename = f"year_{year}.csv"
-            path = single_years_dir / filename
-            sliced.to_csv(path, index=False)
-            details["single_years"].append(
-                {
-                    "year": year,
-                    "rows": int(len(sliced)),
-                    "path": str(path),
-                }
-            )
+    single_years_dir = _single_years_dir(config)
+    single_years_dir.mkdir(parents=True, exist_ok=True)
+    details["single_years_dir"] = str(single_years_dir)
+    _log(
+        f"Exporting single-year files from {year_min} to {year_max} into {single_years_dir}"
+    )
+    for year in range(year_min, year_max + 1):
+        mask = df[config.year_column] == year
+        sliced = df.loc[mask]
+        if sliced.empty:
+            continue
+        filename = f"year_{year}.csv"
+        path = single_years_dir / filename
+        sliced.to_csv(path, index=False)
+        details["single_years"].append(
+            {
+                "year": year,
+                "rows": int(len(sliced)),
+                "path": str(path),
+            }
+        )
+
+    _log(
+        f"Export complete: {len(details['year_ranges'])} ranges, {len(details['single_years'])} single-year files"
+    )
 
     return details

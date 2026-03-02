@@ -40,6 +40,10 @@ _CYCLICAL_PERIODS: dict[str, int] = {
 }
 
 
+def _log(message: str) -> None:
+    print(f"[features] {message}")
+
+
 def _existing_columns(df: pd.DataFrame, columns: tuple[str, ...]) -> list[str]:
     return [column for column in columns if column in df.columns]
 
@@ -123,18 +127,23 @@ def apply_temporal_features(
     """Apply enabled temporal feature transforms in a deterministic order."""
 
     df = dataframe.copy()
+    original_columns = set(df.columns)
 
     if config.add_cyclical:
+        _log("Adding cyclical features")
         cyclical_columns = _existing_columns(df, config.cyclical_columns)
         df = _add_cyclical_features(df, cyclical_columns)
         if config.drop_cyclical_source_columns and cyclical_columns:
+            _log("Dropping cyclical source columns: " + ", ".join(cyclical_columns))
             df = df.drop(columns=cyclical_columns)
 
     if config.add_lag_features:
+        _log("Adding lag features")
         lag_columns = _existing_columns(df, config.lag_columns)
         df = _add_lag_features(df, lag_columns, config.lag_counts)
 
     if config.add_rolling_features:
+        _log("Adding rolling features")
         rolling_columns = _existing_columns(df, config.rolling_columns)
         df = _add_rolling_features(
             df,
@@ -144,6 +153,7 @@ def apply_temporal_features(
         )
 
     if config.add_expanding_features:
+        _log("Adding expanding features")
         expanding_columns = _existing_columns(df, config.expanding_columns)
         df = _add_expanding_features(
             df,
@@ -155,6 +165,13 @@ def apply_temporal_features(
     if config.drop_columns:
         removable = [column for column in config.drop_columns if column in df.columns]
         if removable:
+            _log("Dropping columns: " + ", ".join(removable))
             df = df.drop(columns=removable)
+
+    added_columns = len(set(df.columns) - original_columns)
+    removed_columns = len(original_columns - set(df.columns))
+    _log(
+        f"Feature processing complete: +{added_columns} columns, -{removed_columns} columns"
+    )
 
     return df

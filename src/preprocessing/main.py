@@ -16,6 +16,10 @@ from temporal_features import TemporalFeatureConfig, apply_temporal_features
 from value_cleaning import preprocess_merged_csv
 
 
+def _log(step: str, message: str) -> None:
+    print(f"[{step}] {message}")
+
+
 def _parse_csv_columns(value: str) -> tuple[str, ...]:
     """Parse comma-separated column names into a normalized tuple."""
 
@@ -287,9 +291,7 @@ def main() -> None:
 
     args = parse_args()
     report_path = args.report or args.output.with_suffix(".report.json")
-    export_year_ranges = True
-    export_single_years = True
-
+    _log("main", "Running base preprocessing")
     result = preprocess_merged_csv(
         args.input,
         args.output,
@@ -299,9 +301,12 @@ def main() -> None:
     feature_flags_enabled = _feature_flags_enabled(args)
     export_base_stem = "base"
     if feature_flags_enabled:
+        _log("main", "Applying temporal feature engineering")
         temporal_config = _build_temporal_config(args)
         working_df = apply_temporal_features(working_df, temporal_config)
         export_base_stem = _build_feature_variant_stem(args)
+    else:
+        _log("main", "No temporal feature flags enabled; using base variant")
 
     exports_root = args.output.parent / args.exports_subdir
     export_details: dict[str, Any] = {
@@ -312,28 +317,21 @@ def main() -> None:
         "single_years": [],
     }
 
-    should_export_derived = (
-        export_year_ranges or export_single_years or feature_flags_enabled
+    export_config = DatasetExportConfig(
+        output_root=exports_root,
+        base_stem=export_base_stem,
+        range_anchor_year=2013,
     )
-    if should_export_derived:
-        export_config = DatasetExportConfig(
-            output_root=exports_root,
-            base_stem=export_base_stem,
-            range_anchor_year=2013,
-            export_year_ranges=export_year_ranges,
-            export_single_years=export_single_years,
-            single_year_start=2013,
-            single_year_end=None,
-        )
 
-        if feature_flags_enabled:
-            snapshot_path = save_variant_snapshot(working_df, export_config)
-            export_details["variant_snapshot_saved"] = True
-            export_details["variant_snapshot_path"] = str(snapshot_path)
+    if feature_flags_enabled:
+        _log("main", "Saving feature-variant snapshot")
+        snapshot_path = save_variant_snapshot(working_df, export_config)
+        export_details["variant_snapshot_saved"] = True
+        export_details["variant_snapshot_path"] = str(snapshot_path)
 
-        if export_year_ranges or export_single_years:
-            split_stats = export_split_datasets(working_df, export_config)
-            export_details.update(split_stats)
+    _log("main", "Exporting year ranges and single-year datasets")
+    split_stats = export_split_datasets(working_df, export_config)
+    export_details.update(split_stats)
 
     result.report["derived_exports"] = export_details
 
