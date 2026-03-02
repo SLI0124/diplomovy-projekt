@@ -16,7 +16,7 @@ This will be a list of things that need to be done in order to finish the projec
 
 ---
 
-- [ ] runnable `dl` scripts for foundation models *(same here as for preprocessing, just get them working, very basic, then you can add )*
+- [ ] runnable `dl` scripts for foundation models *(same here as for preprocessing, just get them working, very basic, then you can add)*
   - [ ] learn params can be used for training and use them as script parameters
     - [ ] basics tied to the any training process like learning rate, batch size, number of epochs, etc.
     - [ ] foundation time series models specific params like context window size, etc.
@@ -41,11 +41,12 @@ This will be a list of things that need to be done in order to finish the projec
 ## Next steps
 
 - [ ] start writing - simple introduction should be easy and then you can think of mental model of how the rest of the paper will look like and you can have some ideas for consultation as well
+- [ ] in all README files, format running scripts to the bash style, not PowerShell style
 - [X] update project README with `uv` build tools and instructions
 - [X] update pipeline README with updated 403 error, that was cause with unauthorized access, I've added browser user agent to the request header and it seems to work
 - [X] chore: in `pipeline` module, move all arg endpoint at the end for consistency
 - [x] move **pipeline** to the `src` folder for better project structure, it makes more sense to have it there, update root path in `config.py` and run it once to make sure it works (tools can stay where they are, they are not really part of anything, damn now I am overthinking if moving pipeline is an option at all)
-- [ ] seasonal decomposition, trend and seasonality removal, fourier transforms, etc. are somewhat complicated but very common techniques for time series data preprocessing, if I have time later, I can look into it and add it to the pipeline, for now I will just write it down as a note for later research
+- [ ] add to `tools` a **bash script** with all defaults, this script should download all data, preprocess it and train it and test it? to avoid confusion and show the path I followed, there could be many of them, one for visualization, one for training, many options...
 - when you may be really bored:
   - [ ] docs: some comments and docstrings in `pipeline` are useless and obvious, remove the obvious ones or adjust them to be more informative, read through the code and add or remove comments as necessary
   - [ ] refactor: look at pipeline module
@@ -54,9 +55,10 @@ This will be a list of things that need to be done in order to finish the projec
   - [ ] style: I may be schizophrenic with code style, I should pick one and stick to it, look at ruff and linting rules, ruff should be achieving >99.9% Black compatibility
   - [X] chore: remove `ppnet`, at this point it is more of a liability than an asset
   - [x] build: configure `uv` and pytorch install process, make it compatible with GPU, CUDA and CPU
-  - [ ] notebooks overall redo, they should be more informative rather than just a playground, anything that run longer than 15 minutes should be moved to a script, should not be too hard at this point
   - [ ] add `.vscode` folder, idk all I can put here but as I run this project on many machines atm it wouldn't hurt to have some common settings for vscode for formatting, linting, etc.
   - [ ] Dockerfile for easier setup and training, GPU support is
+- [ ] notebooks overall redo, they should be more informative rather than just a playground, anything that run longer than 15 minutes should be moved to a script, should not be too hard at this point
+- [ ] seasonal decomposition, trend and seasonality removal, fourier transforms, etc. are somewhat complicated but very common techniques for time series data preprocessing, if I have time later, I can look into it and add it to the pipeline, for now I will just write it down as a note for later research
 
 ## Notes after consultation
 
