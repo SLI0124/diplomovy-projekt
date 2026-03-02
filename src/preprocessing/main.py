@@ -303,6 +303,7 @@ def main() -> None:
     )
 
     working_df = _sort_by_time(result.dataframe)
+    split_reference_df = _sort_by_time(result.dataframe)
     feature_flags_enabled = _feature_flags_enabled(args)
     export_base_stem = "base"
     if feature_flags_enabled:
@@ -314,6 +315,17 @@ def main() -> None:
         _log("main", "No temporal feature flags enabled; using base variant")
 
     exports_root = args.output.parent / args.exports_subdir
+    export_year_column = "year"
+    drop_export_columns: list[str] = []
+    helper_year_column = "__split_year"
+    if (
+        export_year_column not in working_df.columns
+        and "year" in split_reference_df.columns
+    ):
+        working_df[helper_year_column] = split_reference_df["year"].to_numpy()
+        export_year_column = helper_year_column
+        drop_export_columns.append(helper_year_column)
+
     export_details: dict[str, Any] = {
         "exports_root": str(exports_root.resolve()),
         "variant_stem": export_base_stem,
@@ -325,7 +337,9 @@ def main() -> None:
     export_config = DatasetExportConfig(
         output_root=exports_root,
         base_stem=export_base_stem,
+        year_column=export_year_column,
         range_anchor_year=2013,
+        drop_export_columns=tuple(drop_export_columns),
     )
 
     if feature_flags_enabled:

@@ -17,6 +17,7 @@ class DatasetExportConfig:
     base_stem: str
     year_column: str = "year"
     range_anchor_year: int = 2013
+    drop_export_columns: tuple[str, ...] = ()
 
 
 def _log(message: str) -> None:
@@ -55,8 +56,12 @@ def save_variant_snapshot(df: pd.DataFrame, config: DatasetExportConfig) -> Path
     root_dir = _dataset_root(config)
     root_dir.mkdir(parents=True, exist_ok=True)
     snapshot_path = root_dir / "merged_all_years_preprocessed.csv"
+    drop_columns = [
+        column for column in config.drop_export_columns if column in df.columns
+    ]
+    output_df = df.drop(columns=drop_columns) if drop_columns else df
     _log(f"Saving variant snapshot: {snapshot_path}")
-    df.to_csv(snapshot_path, index=False)
+    output_df.to_csv(snapshot_path, index=False)
     return snapshot_path
 
 
@@ -99,6 +104,11 @@ def export_split_datasets(
         sliced = df.loc[mask]
         if sliced.empty:
             continue
+        drop_columns = [
+            column for column in config.drop_export_columns if column in sliced.columns
+        ]
+        if drop_columns:
+            sliced = sliced.drop(columns=drop_columns)
         filename = f"range_{anchor}_{end_year}.csv"
         path = ranges_dir / filename
         sliced.to_csv(path, index=False)
@@ -122,6 +132,11 @@ def export_split_datasets(
         sliced = df.loc[mask]
         if sliced.empty:
             continue
+        drop_columns = [
+            column for column in config.drop_export_columns if column in sliced.columns
+        ]
+        if drop_columns:
+            sliced = sliced.drop(columns=drop_columns)
         filename = f"year_{year}.csv"
         path = single_years_dir / filename
         sliced.to_csv(path, index=False)
