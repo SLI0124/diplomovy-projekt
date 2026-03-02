@@ -273,39 +273,6 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--export-year-ranges",
-        action="store_true",
-        help="Export cumulative range files (anchor..year).",
-    )
-    parser.add_argument(
-        "--range-anchor-year",
-        type=int,
-        default=2014,
-        help="Anchor year for cumulative ranges.",
-    )
-    parser.add_argument(
-        "--export-single-years",
-        action="store_true",
-        help="Export one file per year.",
-    )
-    parser.add_argument(
-        "--single-year-start",
-        type=int,
-        default=2014,
-        help="First year for single-year exports.",
-    )
-    parser.add_argument(
-        "--single-year-end",
-        type=int,
-        default=None,
-        help="Last year for single-year exports. Defaults to max available year.",
-    )
-    parser.add_argument(
-        "--export-all-splits",
-        action="store_true",
-        help="Shortcut to enable both --export-year-ranges and --export-single-years.",
-    )
-    parser.add_argument(
         "--exports-subdir",
         type=str,
         default="splits",
@@ -320,8 +287,8 @@ def main() -> None:
 
     args = parse_args()
     report_path = args.report or args.output.with_suffix(".report.json")
-    export_year_ranges = args.export_year_ranges or args.export_all_splits
-    export_single_years = args.export_single_years or args.export_all_splits
+    export_year_ranges = True
+    export_single_years = True
 
     result = preprocess_merged_csv(
         args.input,
@@ -352,11 +319,11 @@ def main() -> None:
         export_config = DatasetExportConfig(
             output_root=exports_root,
             base_stem=export_base_stem,
-            range_anchor_year=args.range_anchor_year,
+            range_anchor_year=2013,
             export_year_ranges=export_year_ranges,
             export_single_years=export_single_years,
-            single_year_start=args.single_year_start,
-            single_year_end=args.single_year_end,
+            single_year_start=2013,
+            single_year_end=None,
         )
 
         if feature_flags_enabled:
