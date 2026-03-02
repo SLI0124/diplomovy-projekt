@@ -185,6 +185,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional path to save JSON report. Defaults to output path with .report.json suffix.",
     )
+    parser.add_argument(
+        "--print-report",
+        action="store_true",
+        help="Print full JSON report to console (default: off).",
+    )
 
     parser.add_argument(
         "--drop-columns",
@@ -349,7 +354,8 @@ def main() -> None:
     if year_ranges_count or single_years_count:
         print(f"Year ranges exported: {year_ranges_count}")
         print(f"Single-year files exported: {single_years_count}")
-    print(json.dumps(result.report, indent=2))
+    if args.print_report:
+        print(json.dumps(result.report, indent=2))
 
 
 if __name__ == "__main__":

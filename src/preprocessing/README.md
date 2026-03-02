@@ -56,6 +56,12 @@ Optional:
 python .\main.py --input <merged.csv> --output <cleaned.csv> --report <report.json>
 ```
 
+Print full JSON report to console only when needed:
+
+```bash
+python .\main.py --print-report
+```
+
 ## New CLI features 🆕
 
 Default behavior is unchanged:
@@ -156,7 +162,8 @@ The JSON report is compact and contains:
 - `imputation`: per-column tree/fallback fill stats,
 - `checks`: remaining NaN count, rule violations, daily price consistency, recomputed total rows.
 
-Console output also prints step-by-step progress (`[1/5] ... [5/5]`).
+Console output prints step-by-step progress (`[1/5] ... [5/5]`) and summary paths/counts.
+Full JSON report is quiet by default and printed only with `--print-report`.
 
 ## References 📚
 
