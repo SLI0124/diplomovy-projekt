@@ -77,6 +77,7 @@ Additional dataset exports are saved to a dedicated subfolder under output direc
   - `splits/<variant_stem>/`
   - `splits/<variant_stem>/ranges_from_<anchor_year>_to_<max_year>/`
   - `splits/<variant_stem>/single_years/`
+  - `splits/<variant_stem>/run_params.json` (machine-readable run manifest)
 
 ### Readable parameter-based variant naming
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -63,6 +64,20 @@ def save_variant_snapshot(df: pd.DataFrame, config: DatasetExportConfig) -> Path
     _log(f"Saving variant snapshot: {snapshot_path}")
     output_df.to_csv(snapshot_path, index=False)
     return snapshot_path
+
+
+def save_run_parameters(
+    parameters: dict[str, Any],
+    config: DatasetExportConfig,
+) -> Path:
+    """Save run parameter manifest for downstream modules to parse."""
+
+    root_dir = _dataset_root(config)
+    root_dir.mkdir(parents=True, exist_ok=True)
+    params_path = root_dir / "run_params.json"
+    _log(f"Saving run parameters: {params_path}")
+    params_path.write_text(json.dumps(parameters, indent=2), encoding="utf-8")
+    return params_path
 
 
 def export_split_datasets(
