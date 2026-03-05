@@ -151,6 +151,12 @@ def parse_args() -> RuntimeConfig:
     parser = build_parser()
     args = parser.parse_args()
 
+    if args.mode == "one-shot" and args.action == "train":
+        parser.error(
+            "Invalid combination: '--mode one-shot' does not support 'train'. "
+            "Use 'test' (single fold) or 'eval' (all folds)."
+        )
+
     return RuntimeConfig(
         mode=args.mode,
         action=args.action,

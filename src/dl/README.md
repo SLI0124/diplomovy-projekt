@@ -30,11 +30,14 @@ Default `--models` runs all four.
 - `train`: for `--test-year N`, runs all folds from 2014..N
   - fold pattern: train `2013..(k-1)`, test `k`
   - each fold starts from scratch
+  - valid only with `--mode finetuned`
 - `test`: evaluates only the fold for `--test-year`
   - finetuned mode loads checkpoint for `train_2013-(N-1)__test-N`
 - `eval`: evaluates all folds from 2014..N
-  - one-shot mode: preload model and evaluate folds
+  - one-shot mode: evaluate pretrained model on all folds (no training)
   - finetuned mode: load fold checkpoints and evaluate
+
+`one-shot` is inference-only. `train --mode one-shot` is rejected by CLI.
 
 ## Dataset loading
 
@@ -57,9 +60,8 @@ If dataset file is missing, script fails with a clear command hint to create it 
 - Metrics logged per segment: `SMAPE`, `MAPE`, `MAE`, `MSE`, `R²`
 - Dataset provenance logged to MLflow artifacts/tags:
   - `dataset_profile.json`
-  - `dataset_columns.csv`
-  - `runtime_config.json`
-  - `preprocessing_run_params.json` (when available)
+  - `run_context.json`
+  - tags: dataset path/hash + model/fold/run-kind
 - Results:
   - `../../data/results/deep_learning/<run_id>/results.csv`
   - `../../data/results/deep_learning/<run_id>/summary.csv`

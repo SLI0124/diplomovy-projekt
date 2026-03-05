@@ -333,13 +333,6 @@ def _safe_log_dataset_context(bundle: DatasetBundle, config: RuntimeConfig) -> N
     )
 
     mlflow.log_dict(profile, "dataset_profile.json")
-    mlflow.log_text(
-        _build_dataset_columns_preview(bundle),
-        "dataset_columns.csv",
-    )
-
-    if bundle.run_params is not None:
-        mlflow.log_dict(bundle.run_params, "preprocessing_run_params.json")
 
 
 def _safe_log_run_context(
@@ -488,7 +481,6 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                     dataset_tag=dataset_tag,
                     checkpoint_dir=checkpoint_dir,
                 )
-                mlflow.log_dict(to_serializable_dict(config), "runtime_config.json")
 
                 try:
                     if config.mode == "one-shot":
