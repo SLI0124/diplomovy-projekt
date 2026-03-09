@@ -38,6 +38,7 @@ class RuntimeConfig:
 
     mlflow_uri: str
     mlflow_experiment: str
+    eval_after_train: bool
 
 
 def _project_root_from_here() -> Path:
@@ -74,7 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
         "action",
         choices=["train", "test", "eval"],
         help=(
-            "train: fit fold checkpoints up to --test-year; "
+            "train: fit fold checkpoints up to --test-year (evaluation optional via --eval-after-train); "
             "test: evaluate a single year; "
             "eval: evaluate all folds up to --test-year"
         ),
@@ -100,7 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--prediction-length", type=int, default=24)
     parser.add_argument("--window-stride", type=int, default=24)
-    parser.add_argument("--context-length", type=int, default=2048)
+    parser.add_argument("--context-length", type=int, default=512)
     parser.add_argument(
         "--max-origins-per-year",
         type=int,
@@ -143,6 +144,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default="deep-learning-foundation-expanding-window",
     )
+    parser.add_argument(
+        "--eval-after-train",
+        action="store_true",
+        help=(
+            "Only for action=train. If set, run evaluation right after each fold is trained. "
+            "By default train only saves checkpoints."
+        ),
+    )
 
     return parser
 
@@ -155,6 +164,10 @@ def parse_args() -> RuntimeConfig:
         parser.error(
             "Invalid combination: '--mode one-shot' does not support 'train'. "
             "Use 'test' (single fold) or 'eval' (all folds)."
+        )
+    if args.eval_after_train and args.action != "train":
+        parser.error(
+            "Invalid combination: '--eval-after-train' is only valid with action 'train'."
         )
 
     return RuntimeConfig(
@@ -183,6 +196,7 @@ def parse_args() -> RuntimeConfig:
         results_root=args.results_root.resolve(),
         mlflow_uri=args.mlflow_uri,
         mlflow_experiment=args.mlflow_experiment,
+        eval_after_train=args.eval_after_train,
     )
 
 

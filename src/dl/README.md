@@ -23,21 +23,28 @@ Default `--models` runs all four.
 ## Modes
 
 - `--mode one-shot`: evaluate pretrained model weights only
-- `--mode finetuned`: train fold-specific model and save checkpoint, or load saved checkpoint for testing
+- `--mode finetuned`: train fold-specific model and save checkpoint, or load saved checkpoint for testing/evaluation
+
+Default `--context-length` is `512`.
 
 ## Actions
 
 - `train`: for `--test-year N`, runs all folds from 2014..N
   - fold pattern: train `2013..(k-1)`, test `k`
   - each fold starts from scratch
+  - default behavior is train-only (saves checkpoints, no metrics)
+  - add `--eval-after-train` to evaluate each fold right after training
   - valid only with `--mode finetuned`
 - `test`: evaluates only the fold for `--test-year`
   - finetuned mode loads checkpoint for `train_2013-(N-1)__test-N`
 - `eval`: evaluates all folds from 2014..N
   - one-shot mode: evaluate pretrained model on all folds (no training)
   - finetuned mode: load fold checkpoints and evaluate
+  - no training is performed in `test` or `eval`
 
 `one-shot` is inference-only. `train --mode one-shot` is rejected by CLI.
+
+For finetuned `test`/`eval`, checkpoint loading is strict: the script does not auto-load the latest model. If a checkpoint is missing, it fails with an error that includes the expected path and a command to create it.
 
 ## Dataset loading
 
@@ -70,6 +77,23 @@ If dataset file is missing, script fails with a clear command hint to create it 
 
 ## Commands
 
+### Full run set (all models, all folds/ranges, context length 512)
+
+Use `--test-year 2025` to cover all currently available folds (2014..2025) in this dataset.
+
+```bash
+cd src/dl
+
+# 1) Fine-tune checkpoints for all models on all folds (train-only)
+python main.py train --mode finetuned --test-year 2025
+
+# 2) Evaluate fine-tuned checkpoints for all models on all folds
+python main.py eval --mode finetuned --test-year 2025
+
+# 3) One-shot evaluation for all models on all folds
+python main.py eval --mode one-shot --test-year 2025
+```
+
 ### 1) Train all folds up to 2020 (fine-tuned)
 
 ```bash
@@ -77,28 +101,42 @@ cd src/dl
 python main.py train --mode finetuned --test-year 2020
 ```
 
-### 2) Test one-shot pretrained on 2021 only
+### 2) Train all folds and evaluate immediately after each fold
+
+```bash
+cd src/dl
+python main.py train --mode finetuned --test-year 2020 --eval-after-train
+```
+
+### 3) Test one-shot pretrained on 2021 only
 
 ```bash
 cd src/dl
 python main.py test --mode one-shot --test-year 2021
 ```
 
-### 3) Test fine-tuned checkpoint on 2021 only
+### 4) Test fine-tuned checkpoint on 2021 only
 
 ```bash
 cd src/dl
 python main.py test --mode finetuned --test-year 2021
 ```
 
-### 4) Use preprocessing split variant
+### 5) Evaluate all folds (expanding window) with existing fine-tuned checkpoints
+
+```bash
+cd src/dl
+python main.py eval --mode finetuned --test-year 2021
+```
+
+### 6) Use preprocessing split variant
 
 ```bash
 cd src/dl
 python main.py train --mode finetuned --test-year 2020 --variant-stem drop-year__cyc-hour-month-day-of-week-src-dropped
 ```
 
-### 5) Quick smoke run
+### 7) Quick smoke run (train-only)
 
 ```bash
 cd src/dl

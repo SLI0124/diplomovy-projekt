@@ -291,6 +291,7 @@ def _safe_log_run_params(
         {
             "action": config.action,
             "mode": config.mode,
+            "eval_after_train": config.eval_after_train,
             "test_year": fold.test_year,
             "train_end_year": fold.train_end_year,
             "target_col": config.target_col,
@@ -353,6 +354,7 @@ def _safe_log_run_context(
         "is_train": config.action == "train",
         "is_test": config.action == "test",
         "is_eval": config.action == "eval",
+        "eval_after_train": config.eval_after_train,
     }
 
     mlflow.set_tags(
@@ -413,6 +415,24 @@ def _log_rows_to_mlflow(rows: list[FoldMetrics]) -> None:
         mlflow.log_metric(prefix + "n_points", row.n_points)
 
 
+def _build_missing_checkpoint_error(
+    *,
+    config: RuntimeConfig,
+    model_slug: str,
+    fold: FoldSpec,
+    ckpt_dir: Path,
+) -> str:
+    return (
+        "Fine-tuned checkpoint folder not found.\n"
+        f"Expected path: {ckpt_dir}\n"
+        "This runner does not auto-load the latest checkpoint in finetuned mode.\n"
+        "Create this checkpoint first, for example:\n"
+        f"  cd src/dl\n"
+        f"  python main.py train --mode finetuned --test-year {fold.test_year} --models {model_slug}\n"
+        "Optional: add --eval-after-train if you also want immediate evaluation metrics."
+    )
+
+
 def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
     _ensure_mlflow(config)
 
@@ -437,13 +457,16 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
 
     folds = _folds_for_action(config)
     results: list[FoldMetrics] = []
+    successful_runs = 0
 
     dataset_tag = _dataset_tag(bundle)
 
+    total_folds = len(folds)
     for model_name in config.models:
-        for fold in folds:
+        for fold_index, fold in enumerate(folds, start=1):
             _log(
                 f"Model={model_name} mode={config.mode} action={config.action} "
+                f"fold={fold_index}/{total_folds} "
                 f"train=2013-{fold.train_end_year} test={fold.test_year}"
             )
 
@@ -483,6 +506,10 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                 )
 
                 try:
+                    should_evaluate = (
+                        config.action != "train" or config.eval_after_train
+                    )
+
                     if config.mode == "one-shot":
                         adapter.load_pretrained()
 
@@ -536,19 +563,32 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                         else:
                             if not ckpt_dir.exists():
                                 raise FileNotFoundError(
-                                    f"Fine-tuned checkpoint folder not found for test year {fold.test_year}: {ckpt_dir}"
+                                    _build_missing_checkpoint_error(
+                                        config=config,
+                                        model_slug=adapter.slug,
+                                        fold=fold,
+                                        ckpt_dir=ckpt_dir,
+                                    )
                                 )
                             adapter.load_finetuned(ckpt_dir)
                             mlflow.log_param("checkpoint_dir", str(ckpt_dir))
 
-                    fold_rows = _evaluate_fold(
-                        adapter=adapter,
-                        full_df=bundle.dataframe,
-                        config=config,
-                        fold=fold,
-                    )
-                    _log_rows_to_mlflow(fold_rows)
-                    results.extend(fold_rows)
+                    if should_evaluate:
+                        fold_rows = _evaluate_fold(
+                            adapter=adapter,
+                            full_df=bundle.dataframe,
+                            config=config,
+                            fold=fold,
+                        )
+                        _log_rows_to_mlflow(fold_rows)
+                        results.extend(fold_rows)
+                    else:
+                        _log(
+                            f"Skipping evaluation after training for fold test={fold.test_year} "
+                            "(use --eval-after-train to enable)."
+                        )
+
+                    successful_runs += 1
                     mlflow.log_param("status", "ok")
 
                 except Exception as exc:
@@ -559,10 +599,46 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                     mlflow.log_param("error_type", type(exc).__name__)
                     mlflow.log_param("error_message", str(exc)[:500])
 
-    if not results:
+    if successful_runs == 0:
         raise RuntimeError(
             "All model-fold executions failed. Check logs and MLflow runs."
         )
+
+    if not results:
+        _log("Train-only run completed. No evaluation metrics were produced.")
+        results_df = pd.DataFrame(
+            columns=[
+                "model",
+                "mode",
+                "train_years",
+                "test_year",
+                "segment",
+                "n_windows",
+                "n_points",
+                "smape",
+                "mape",
+                "mae",
+                "mse",
+                "r2",
+            ]
+        )
+        results_df.to_csv(run_root / "results.csv", index=False)
+        summary_df = pd.DataFrame(
+            columns=[
+                "model",
+                "mode",
+                "smape",
+                "mape",
+                "mae",
+                "mse",
+                "r2",
+                "n_windows",
+                "n_points",
+            ]
+        )
+        summary_df.to_csv(run_root / "summary.csv", index=False)
+        _log(f"Run artifacts saved to: {run_root}")
+        return results_df
 
     results_df = pd.DataFrame([asdict(row) for row in results])
     results_df = results_df.sort_values(
