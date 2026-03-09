@@ -2,15 +2,9 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-
-try:
-    from .config import parse_args
-    from .dataset import load_dataset
-    from .runner import run
-except ImportError:
-    from config import parse_args
-    from dataset import load_dataset
-    from runner import run
+from config import parse_args
+from dataset import load_dataset
+from runner import run
 
 
 def _log(message: str) -> None:

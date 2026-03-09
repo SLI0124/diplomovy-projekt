@@ -33,8 +33,8 @@ Default `--context-length` is `512`.
   - fold pattern: train `2013..(k-1)`, test `k`
   - each fold starts from scratch
   - default behavior is train-only (saves checkpoints, no metrics)
-  - add `--eval-after-train` to evaluate each fold right after training
-  - valid only with `--mode finetuned`
+    - add `--eval-after-train` to evaluate each fold right after training
+      - valid only with `--mode finetuned`
 - `test`: evaluates only the fold for `--test-year`
   - finetuned mode loads checkpoint for `train_2013-(N-1)__test-N`
 - `eval`: evaluates all folds from 2014..N
@@ -45,6 +45,8 @@ Default `--context-length` is `512`.
 `one-shot` is inference-only. `train --mode one-shot` is rejected by CLI.
 
 For finetuned `test`/`eval`, checkpoint loading is strict: the script does not auto-load the latest model. If a checkpoint is missing, it fails with an error that includes the expected path and a command to create it.
+
+When available, `checkpoint_manifest.json` is validated before loading a finetuned checkpoint (model slug, fold test year, dataset tag, and key compatibility params).
 
 ## Dataset loading
 
@@ -67,6 +69,7 @@ If dataset file is missing, script fails with a clear command hint to create it 
 - Metrics logged per segment: `SMAPE`, `MAPE`, `MAE`, `MSE`, `R²`
 - Dataset provenance logged to MLflow artifacts/tags:
   - `dataset_profile.json`
+  - `dataset_columns_preview.csv`
   - `run_context.json`
   - tags: dataset path/hash + model/fold/run-kind
 - Results:
@@ -74,6 +77,7 @@ If dataset file is missing, script fails with a clear command hint to create it 
   - `../../data/results/deep_learning/<run_id>/summary.csv`
 - Fine-tuned checkpoints:
   - `../../data/models/deep_learning/<model>/finetuned/<dataset_tag>/train_2013-<end>__test-<year>__<hash>/`
+  - includes `checkpoint_manifest.json` for compatibility checks (new runs)
 
 ## Commands
 

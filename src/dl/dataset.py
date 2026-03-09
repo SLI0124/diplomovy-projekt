@@ -6,11 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
-try:
-    from .config import RuntimeConfig
-except ImportError:
-    from config import RuntimeConfig
+from config import RuntimeConfig
 
 
 @dataclass(frozen=True)
@@ -66,6 +62,39 @@ def _load_run_params(path: Path | None) -> dict[str, object] | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _warn(message: str) -> None:
+    print(f"[dataset] warning: {message}")
+
+
+def _validate_run_params(
+    run_params: dict[str, object] | None,
+    run_params_path: Path | None,
+) -> None:
+    if run_params is None:
+        return
+
+    schema = run_params.get("schema")
+    if schema != "preprocessing.run_params.v1":
+        _warn(
+            "Unexpected preprocessing params schema"
+            f" ({schema!r}) at {run_params_path}. Continuing with best effort."
+        )
+
+    if "variant_stem" not in run_params:
+        _warn(
+            f"Missing 'variant_stem' in {run_params_path}. "
+            "Dataset tagging will fallback to file stem."
+        )
+
+    features = run_params.get("features")
+    splits = run_params.get("splits")
+
+    if not isinstance(features, dict):
+        _warn(f"Missing or invalid 'features' section in {run_params_path}.")
+    if not isinstance(splits, dict):
+        _warn(f"Missing or invalid 'splits' section in {run_params_path}.")
+
+
 def _build_missing_dataset_message(path: Path) -> str:
     script = Path(__file__).resolve().parents[1] / "preprocessing" / "main.py"
     return (
@@ -116,6 +145,7 @@ def load_dataset(config: RuntimeConfig) -> DatasetBundle:
 
     run_params_path = _resolve_run_params_path(config, dataset_path)
     run_params = _load_run_params(run_params_path)
+    _validate_run_params(run_params=run_params, run_params_path=run_params_path)
 
     return DatasetBundle(
         dataframe=out,
