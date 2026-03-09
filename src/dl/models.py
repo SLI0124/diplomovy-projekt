@@ -589,6 +589,9 @@ class LagLlamaAdapter(BaseFoundationModelAdapter):
         ckpt_obj = torch.load(ckpt_path, map_location="cpu", weights_only=False)
         model_kwargs = ckpt_obj["hyper_parameters"]["model_kwargs"]
         lags_seq = [int(v) for v in model_kwargs["lags_seq"]]
+        state_dict = ckpt_obj.get("state_dict")
+        if state_dict is None:
+            raise KeyError("Lag-Llama checkpoint missing state_dict")
 
         estimator = LagLlamaEstimator(
             prediction_length=self.model_ctx.prediction_length,
@@ -600,7 +603,7 @@ class LagLlamaAdapter(BaseFoundationModelAdapter):
             scaling=str(model_kwargs.get("scaling", "robust")),
             time_feat=bool(model_kwargs.get("time_feat", True)),
             dropout=float(model_kwargs.get("dropout", 0.0)),
-            ckpt_path=str(ckpt_path),
+            ckpt_path=None,
             device=self.device,
             batch_size=1,
             num_parallel_samples=self.model_ctx.lag_llama_num_parallel_samples,
@@ -610,6 +613,7 @@ class LagLlamaAdapter(BaseFoundationModelAdapter):
 
         transformation = estimator.create_transformation()
         module = estimator.create_lightning_module(use_kv_cache=True)
+        module.load_state_dict(state_dict, strict=False)
         module.to(self.device)
         module.eval()
 
