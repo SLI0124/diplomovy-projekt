@@ -193,9 +193,14 @@ class Chronos2Adapter(BaseFoundationModelAdapter):
     def forecast(
         self, context: np.ndarray, context_start: pd.Timestamp
     ) -> ForecastResult:
-        x = np.asarray(context, dtype=np.float32)[-self.model_ctx.context_length :]
-
         if self._model is not None:
+            effective_context_length = int(
+                min(
+                    self.model_ctx.context_length,
+                    self._model.chronos_config.context_length,
+                )
+            )
+            x = np.asarray(context, dtype=np.float32)[-effective_context_length:]
             ctx = torch.from_numpy(x)[None, :].to(self.device)
             output_patch_size = int(self._model.chronos_config.output_patch_size)
             num_output_patches = int(
@@ -211,6 +216,7 @@ class Chronos2Adapter(BaseFoundationModelAdapter):
         if self._pipe is None:
             raise RuntimeError("Chronos2 model is not loaded.")
 
+        x = np.asarray(context, dtype=np.float32)[-self.model_ctx.context_length :]
         x3 = x[None, None, :]
         with torch.no_grad():
             out = self._pipe.predict(
@@ -535,7 +541,7 @@ class LagLlamaAdapter(BaseFoundationModelAdapter):
             one_dim_target=True,
         )
         fcst = next(iter(self._predictor.predict(dataset)))
-        y_pred = np.asarray(fcst.samples, dtype=np.float32).mean(axis=0) # type: ignore
+        y_pred = np.asarray(fcst.samples, dtype=np.float32).mean(axis=0)  # type: ignore
         return ForecastResult(y_pred=y_pred)
 
     def save_finetuned(self, artifact_dir: Path) -> None:
@@ -769,7 +775,7 @@ class MoiraiAdapter(BaseFoundationModelAdapter):
             one_dim_target=True,
         )
         fcst = next(iter(self._predictor.predict(dataset)))
-        y_pred = np.asarray(fcst.samples, dtype=np.float32).mean(axis=0) # type: ignore
+        y_pred = np.asarray(fcst.samples, dtype=np.float32).mean(axis=0)  # type: ignore
         return ForecastResult(y_pred=y_pred)
 
     def save_finetuned(self, artifact_dir: Path) -> None:
@@ -863,12 +869,12 @@ class TimesFM25Adapter(BaseFoundationModelAdapter):
 
         for param in module.parameters():
             param.requires_grad = False
-        for param in module.output_projection_point.parameters(): # type: ignore
+        for param in module.output_projection_point.parameters():  # type: ignore
             param.requires_grad = True
 
-        patch_size = int(module.p) # type: ignore
-        output_patch = int(module.o) # type: ignore
-        mean_index = int(module.aridx) # type: ignore
+        patch_size = int(module.p)  # type: ignore
+        output_patch = int(module.o)  # type: ignore
+        mean_index = int(module.aridx)  # type: ignore
 
         context_length = self.model_ctx.context_length
 

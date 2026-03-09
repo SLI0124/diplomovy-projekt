@@ -16,6 +16,10 @@ def main() -> None:
 
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(config.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     _log(f"action={config.action} mode={config.mode} test_year={config.test_year}")
     _log(f"models={config.models}")

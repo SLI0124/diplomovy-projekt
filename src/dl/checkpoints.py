@@ -94,8 +94,11 @@ def validate_checkpoint_manifest(
 ) -> None:
     manifest_path = checkpoint_dir / "checkpoint_manifest.json"
     if not manifest_path.exists():
-        # Backward-compatible with historical checkpoints that only had metadata.json.
-        return
+        raise FileNotFoundError(
+            "Missing checkpoint_manifest.json for finetuned checkpoint. "
+            "Refusing to load in strict mode. "
+            f"checkpoint_dir={checkpoint_dir}"
+        )
 
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
 

@@ -46,7 +46,7 @@ Default `--context-length` is `512`.
 
 For finetuned `test`/`eval`, checkpoint loading is strict: the script does not auto-load the latest model. If a checkpoint is missing, it fails with an error that includes the expected path and a command to create it.
 
-When available, `checkpoint_manifest.json` is validated before loading a finetuned checkpoint (model slug, fold test year, dataset tag, and key compatibility params).
+`checkpoint_manifest.json` is required and validated before loading a finetuned checkpoint (model slug, fold test year, dataset tag, and key compatibility params).
 
 ## Dataset loading
 
