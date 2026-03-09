@@ -632,7 +632,7 @@ class MoiraiAdapter(BaseFoundationModelAdapter):
             target_dim=1,
             feat_dynamic_real_dim=0,
             past_feat_dynamic_real_dim=0,
-            context_length=min(self.model_ctx.context_length, 168),
+            context_length=self.model_ctx.context_length,
             module=self._module,
             num_samples=self.model_ctx.num_samples,
         )
@@ -870,10 +870,7 @@ class TimesFM25Adapter(BaseFoundationModelAdapter):
         output_patch = int(module.o) # type: ignore
         mean_index = int(module.aridx) # type: ignore
 
-        context_length = min(self.model_ctx.context_length, 512)
-        context_length = max(
-            patch_size * 2, (context_length // patch_size) * patch_size
-        )
+        context_length = self.model_ctx.context_length
 
         ds = RandomWindowDataset(
             series=train_series,
@@ -902,6 +899,11 @@ class TimesFM25Adapter(BaseFoundationModelAdapter):
 
                 ctx = (ctx_raw - mu) / sigma
                 fut = (fut_raw - mu) / sigma
+
+                remainder = int(ctx.shape[1]) % patch_size
+                if remainder != 0:
+                    pad = patch_size - remainder
+                    ctx = torch.nn.functional.pad(ctx, (pad, 0), value=0.0)
 
                 masks = torch.zeros_like(ctx, dtype=torch.bool, device=self.device)
                 patched_ctx = ctx.reshape(ctx.shape[0], -1, patch_size)
