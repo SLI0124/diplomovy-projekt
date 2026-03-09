@@ -165,6 +165,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
     folds = folds_for_action(config)
     results: list[FoldMetrics] = []
     successful_runs = 0
+    failed_runs: list[dict[str, object]] = []
 
     current_dataset_tag = dataset_tag(bundle)
 
@@ -328,10 +329,33 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                     mlflow.log_param("status", "failed")
                     mlflow.log_param("error_type", type(exc).__name__)
                     mlflow.log_param("error_message", str(exc)[:500])
+                    failed_runs.append(
+                        {
+                            "model": adapter.slug,
+                            "test_year": fold.test_year,
+                            "error_type": type(exc).__name__,
+                            "error_message": str(exc),
+                        }
+                    )
 
     if successful_runs == 0:
         raise RuntimeError(
             "All model-fold executions failed. Check logs and MLflow runs."
+        )
+
+    if failed_runs:
+        details = "\n".join(
+            (
+                f"- model={entry['model']} test_year={entry['test_year']} "
+                f"{entry['error_type']}: {entry['error_message']}"
+            )
+            for entry in failed_runs
+        )
+        raise RuntimeError(
+            "Run finished with partial failures. "
+            f"successful={successful_runs} failed={len(failed_runs)}. "
+            "Refusing to produce partial aggregate outputs.\n"
+            f"{details}"
         )
 
     if not results:
