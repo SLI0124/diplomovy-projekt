@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -13,7 +14,7 @@ from checkpoints import (
     build_checkpoint_dir,
     build_missing_checkpoint_error,
     dataset_tag,
-    validate_checkpoint_manifest,
+    resolve_checkpoint_status,
     write_checkpoint_manifest,
 )
 from config import RuntimeConfig, save_runtime_config, to_serializable_dict
@@ -166,6 +167,9 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
     results: list[FoldMetrics] = []
     successful_runs = 0
     failed_runs: list[dict[str, object]] = []
+    checkpoint_outcomes: dict[str, dict[str, int]] = defaultdict(
+        lambda: {"trained": 0, "reused": 0, "failed": 0}
+    )
 
     current_dataset_tag = dataset_tag(bundle)
 
@@ -198,6 +202,31 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                     current_dataset_tag=current_dataset_tag,
                 )
 
+            should_evaluate = config.action != "train" or config.eval_after_train
+            checkpoint_status: str | None = None
+            checkpoint_reason: str | None = None
+            if config.mode == "finetuned" and checkpoint_dir is not None:
+                checkpoint_status, checkpoint_reason = resolve_checkpoint_status(
+                    checkpoint_dir=checkpoint_dir,
+                    config=config,
+                    fold=fold,
+                    model_slug=adapter.slug,
+                    current_dataset_tag=current_dataset_tag,
+                )
+
+                if (
+                    config.action == "train"
+                    and checkpoint_status == "compatible_exists"
+                    and not should_evaluate
+                ):
+                    _log(
+                        f"Skipping finetune for {adapter.slug} test={fold.test_year}; "
+                        "compatible checkpoint already exists."
+                    )
+                    checkpoint_outcomes[adapter.slug]["reused"] += 1
+                    successful_runs += 1
+                    continue
+
             with mlflow.start_run(run_name=run_name):
                 safe_log_run_params(
                     config=config,
@@ -224,10 +253,6 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                 )
 
                 try:
-                    should_evaluate = (
-                        config.action != "train" or config.eval_after_train
-                    )
-
                     if config.mode == "one-shot":
                         adapter.load_pretrained()
 
@@ -238,55 +263,85 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                                 "Internal error: checkpoint_dir was not prepared for finetuned mode."
                             )
 
-                        if config.action == "train":
-                            if not adapter.supports_finetune:
-                                raise NotImplementedError(
-                                    f"Model '{adapter.slug}' does not support finetuning in this script yet."
+                        if checkpoint_status is None:
+                            checkpoint_status, checkpoint_reason = (
+                                resolve_checkpoint_status(
+                                    checkpoint_dir=ckpt_dir,
+                                    config=config,
+                                    fold=fold,
+                                    model_slug=adapter.slug,
+                                    current_dataset_tag=current_dataset_tag,
                                 )
-
-                            train_series = make_train_target(
-                                full_df=bundle.dataframe,
-                                target_col=config.target_col,
-                                train_end_year=fold.train_end_year,
                             )
-                            mlflow.log_params(
-                                {
-                                    "train_series_points": int(train_series.shape[0]),
+
+                        if config.action == "train":
+                            if checkpoint_status == "compatible_exists":
+                                _log(
+                                    f"Skipping finetune for {adapter.slug} test={fold.test_year}; "
+                                    "compatible checkpoint already exists."
+                                )
+                                checkpoint_outcomes[adapter.slug]["reused"] += 1
+                                mlflow.log_param("checkpoint_reused", True)
+                                mlflow.log_param("checkpoint_dir", str(ckpt_dir))
+                                if should_evaluate:
+                                    adapter.load_finetuned(ckpt_dir)
+                            elif checkpoint_status == "incompatible_manifest":
+                                raise ValueError(
+                                    "Existing checkpoint is incompatible with current runtime config. "
+                                    f"checkpoint_dir={ckpt_dir}\n{checkpoint_reason}"
+                                )
+                            else:
+                                if not adapter.supports_finetune:
+                                    raise NotImplementedError(
+                                        f"Model '{adapter.slug}' does not support finetuning in this script yet."
+                                    )
+
+                                train_series = make_train_target(
+                                    full_df=bundle.dataframe,
+                                    target_col=config.target_col,
+                                    train_end_year=fold.train_end_year,
+                                )
+                                mlflow.log_params(
+                                    {
+                                        "train_series_points": int(
+                                            train_series.shape[0]
+                                        ),
+                                    }
+                                )
+                                adapter.finetune(
+                                    train_series=train_series,
+                                    train_epochs=config.train_epochs,
+                                    train_batch_size=config.train_batch_size,
+                                    train_steps_per_epoch=config.train_steps_per_epoch,
+                                    train_lr=config.train_lr,
+                                    train_weight_decay=config.train_weight_decay,
+                                    artifact_dir=ckpt_dir,
+                                )
+                                adapter.save_finetuned(ckpt_dir)
+                                mlflow.log_param("checkpoint_dir", str(ckpt_dir))
+
+                                metadata = {
+                                    "model": adapter.slug,
+                                    "mode": "finetuned",
+                                    "train_years": fold.train_years_label,
+                                    "test_year": fold.test_year,
+                                    "dataset_tag": current_dataset_tag,
+                                    "runtime_config": to_serializable_dict(config),
                                 }
-                            )
-                            adapter.finetune(
-                                train_series=train_series,
-                                train_epochs=config.train_epochs,
-                                train_batch_size=config.train_batch_size,
-                                train_steps_per_epoch=config.train_steps_per_epoch,
-                                train_lr=config.train_lr,
-                                train_weight_decay=config.train_weight_decay,
-                                artifact_dir=ckpt_dir,
-                            )
-                            adapter.save_finetuned(ckpt_dir)
-                            mlflow.log_param("checkpoint_dir", str(ckpt_dir))
-
-                            metadata = {
-                                "model": adapter.slug,
-                                "mode": "finetuned",
-                                "train_years": fold.train_years_label,
-                                "test_year": fold.test_year,
-                                "dataset_tag": current_dataset_tag,
-                                "runtime_config": to_serializable_dict(config),
-                            }
-                            (ckpt_dir / "metadata.json").write_text(
-                                json.dumps(metadata, indent=2), encoding="utf-8"
-                            )
-                            write_checkpoint_manifest(
-                                checkpoint_dir=ckpt_dir,
-                                config=config,
-                                fold=fold,
-                                model_slug=adapter.slug,
-                                current_dataset_tag=current_dataset_tag,
-                            )
+                                (ckpt_dir / "metadata.json").write_text(
+                                    json.dumps(metadata, indent=2), encoding="utf-8"
+                                )
+                                write_checkpoint_manifest(
+                                    checkpoint_dir=ckpt_dir,
+                                    config=config,
+                                    fold=fold,
+                                    model_slug=adapter.slug,
+                                    current_dataset_tag=current_dataset_tag,
+                                )
+                                checkpoint_outcomes[adapter.slug]["trained"] += 1
 
                         else:
-                            if not ckpt_dir.exists():
+                            if checkpoint_status == "missing":
                                 raise FileNotFoundError(
                                     build_missing_checkpoint_error(
                                         model_slug=adapter.slug,
@@ -294,14 +349,13 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                                         ckpt_dir=ckpt_dir,
                                     )
                                 )
-                            validate_checkpoint_manifest(
-                                checkpoint_dir=ckpt_dir,
-                                config=config,
-                                fold=fold,
-                                model_slug=adapter.slug,
-                                current_dataset_tag=current_dataset_tag,
-                            )
+                            if checkpoint_status == "incompatible_manifest":
+                                raise ValueError(
+                                    "Checkpoint exists but is incompatible with the current runtime config. "
+                                    f"checkpoint_dir={ckpt_dir}\n{checkpoint_reason}"
+                                )
                             adapter.load_finetuned(ckpt_dir)
+                            checkpoint_outcomes[adapter.slug]["reused"] += 1
                             mlflow.log_param("checkpoint_dir", str(ckpt_dir))
 
                     if should_evaluate:
@@ -337,6 +391,15 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                             "error_message": str(exc),
                         }
                     )
+                    checkpoint_outcomes[adapter.slug]["failed"] += 1
+
+    if config.mode == "finetuned":
+        _log("Checkpoint summary by model:")
+        for model_slug in sorted(checkpoint_outcomes):
+            counts = checkpoint_outcomes[model_slug]
+            _log(
+                f"  {model_slug}: trained={counts['trained']} reused={counts['reused']} failed={counts['failed']}"
+            )
 
     if successful_runs == 0:
         raise RuntimeError(

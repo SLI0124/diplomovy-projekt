@@ -570,16 +570,9 @@ class LagLlamaAdapter(BaseFoundationModelAdapter):
 
         ckpt_path = artifact_dir / "model.ckpt"
         if not ckpt_path.exists():
-            fallback = artifact_dir / "last.ckpt"
-            if fallback.exists():
-                ckpt_path = fallback
-            else:
-                candidates = sorted(artifact_dir.glob("*.ckpt"))
-                if not candidates:
-                    raise FileNotFoundError(
-                        f"No Lag-Llama checkpoint found in: {artifact_dir}"
-                    )
-                ckpt_path = candidates[-1]
+            raise FileNotFoundError(
+                f"Missing Lag-Llama checkpoint file: {ckpt_path}"
+            )
 
         _patch_lag_llama_lags_handling()
         _patch_lagged_sequence_values_for_lag_llama()
@@ -986,17 +979,3 @@ def build_model_adapter(
     raise ValueError(
         f"Unsupported model '{model_name}'. Supported: chronos2, lag-llama, moirai, timesfm2.5"
     )
-
-
-def model_supports_finetune(model_name: str) -> bool:
-    adapter = build_model_adapter(
-        model_name=model_name,
-        model_ctx=ModelContext(
-            prediction_length=24,
-            context_length=2048,
-            num_samples=20,
-            lag_llama_num_parallel_samples=20,
-        ),
-        device=torch.device("cpu"),
-    )
-    return adapter.supports_finetune

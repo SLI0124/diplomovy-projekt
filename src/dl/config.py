@@ -61,7 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
     default_models_root = root / "data" / "models" / "deep_learning"
     default_results_root = root / "data" / "results" / "deep_learning"
     default_preprocessed_root = root / "data" / "preprocessed"
-    default_mlflow_db = (default_results_root / "mlflow.db").resolve()
+    default_mlflow_db = (root / "data" / "results" / "mlflow.db").resolve()
     default_mlflow_uri = f"sqlite:///{default_mlflow_db.as_posix()}"
 
     parser = argparse.ArgumentParser(

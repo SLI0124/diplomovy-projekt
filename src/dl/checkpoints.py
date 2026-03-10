@@ -3,12 +3,14 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import Literal
 
 from config import RuntimeConfig
 from dataset import DatasetBundle
 from folds import FoldSpec
 
 CHECKPOINT_MANIFEST_VERSION = "dl_checkpoint_manifest.v1"
+CheckpointStatus = Literal["compatible_exists", "missing", "incompatible_manifest"]
 
 
 def dataset_tag(bundle: DatasetBundle) -> str:
@@ -127,6 +129,30 @@ def validate_checkpoint_manifest(
             ((payload.get("compatibility") or {}).get("target_col")),
             config.target_col,
         ),
+        "compatibility.window_stride": (
+            ((payload.get("compatibility") or {}).get("window_stride")),
+            config.window_stride,
+        ),
+        "compatibility.train_epochs": (
+            ((payload.get("compatibility") or {}).get("train_epochs")),
+            config.train_epochs,
+        ),
+        "compatibility.train_batch_size": (
+            ((payload.get("compatibility") or {}).get("train_batch_size")),
+            config.train_batch_size,
+        ),
+        "compatibility.train_lr": (
+            ((payload.get("compatibility") or {}).get("train_lr")),
+            config.train_lr,
+        ),
+        "compatibility.train_weight_decay": (
+            ((payload.get("compatibility") or {}).get("train_weight_decay")),
+            config.train_weight_decay,
+        ),
+        "compatibility.train_steps_per_epoch": (
+            ((payload.get("compatibility") or {}).get("train_steps_per_epoch")),
+            config.train_steps_per_epoch,
+        ),
     }
 
     mismatches: list[str] = []
@@ -141,6 +167,31 @@ def validate_checkpoint_manifest(
             f"{rendered}\n"
             f"manifest={manifest_path}"
         )
+
+
+def resolve_checkpoint_status(
+    *,
+    checkpoint_dir: Path,
+    config: RuntimeConfig,
+    fold: FoldSpec,
+    model_slug: str,
+    current_dataset_tag: str,
+) -> tuple[CheckpointStatus, str | None]:
+    if not checkpoint_dir.exists():
+        return "missing", None
+
+    try:
+        validate_checkpoint_manifest(
+            checkpoint_dir=checkpoint_dir,
+            config=config,
+            fold=fold,
+            model_slug=model_slug,
+            current_dataset_tag=current_dataset_tag,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        return "incompatible_manifest", str(exc)
+
+    return "compatible_exists", None
 
 
 def build_missing_checkpoint_error(

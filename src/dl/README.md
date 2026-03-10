@@ -31,7 +31,8 @@ Default `--context-length` is `512`.
 
 - `train`: for `--test-year N`, runs all folds from 2014..N
   - fold pattern: train `2013..(k-1)`, test `k`
-  - each fold starts from scratch
+  - each fold trains only when a compatible checkpoint is missing
+  - if a compatible checkpoint already exists, training is skipped and checkpoint is reused
   - default behavior is train-only (saves checkpoints, no metrics)
     - add `--eval-after-train` to evaluate each fold right after training
       - valid only with `--mode finetuned`
@@ -65,7 +66,7 @@ If dataset file is missing, script fails with a clear command hint to create it 
 ## Logging and artifacts
 
 - MLflow backend default:
-  - `sqlite:///../../data/results/deep_learning/mlflow.db`
+  - `sqlite:///../../data/results/mlflow.db`
 - Metrics logged per segment: `SMAPE`, `MAPE`, `MAE`, `MSE`, `R²`
 - Dataset provenance logged to MLflow artifacts/tags:
   - `dataset_profile.json`
@@ -77,7 +78,7 @@ If dataset file is missing, script fails with a clear command hint to create it 
   - `../../data/results/deep_learning/<run_id>/summary.csv`
 - Fine-tuned checkpoints:
   - `../../data/models/deep_learning/<model>/finetuned/<dataset_tag>/train_2013-<end>__test-<year>__<hash>/`
-  - includes `checkpoint_manifest.json` for compatibility checks (new runs)
+  - includes `checkpoint_manifest.json` for strict compatibility checks
 
 ## Commands
 
