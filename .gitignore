@@ -7,4 +7,4 @@ data/*
 .ruff_cache/
 **/checkpoints/
 *.egg-info/
-src/dl/mlruns/
+**/mlruns/
