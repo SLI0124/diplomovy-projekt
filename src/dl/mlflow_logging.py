@@ -8,7 +8,6 @@ import pandas as pd
 import torch
 from config import (
     RuntimeConfig,
-    mlflow_experiment,
     mlflow_uri,
     models_root,
     results_root,
@@ -18,9 +17,9 @@ from dataset import DatasetBundle
 from folds import FoldSpec
 
 
-def ensure_mlflow(config: RuntimeConfig) -> None:
+def ensure_mlflow(experiment_name: str) -> None:
     mlflow.set_tracking_uri(mlflow_uri())
-    mlflow.set_experiment(mlflow_experiment())
+    mlflow.set_experiment(experiment_name)
 
 
 def sha256_file(path: Path) -> str:
@@ -129,6 +128,7 @@ def safe_log_run_context(
     fold: FoldSpec,
     adapter,
     requested_model_name: str,
+    model_family: str,
     device: torch.device,
     run_root: Path,
     dataset_tag: str,
@@ -148,6 +148,7 @@ def safe_log_run_context(
             "run.kind": f"{config.action}:{config.mode}",
             "run.model.requested": requested_model_name,
             "run.model.resolved": adapter.slug,
+            "run.model.family": model_family,
             "run.dataset.tag": dataset_tag,
             "run.fold": f"train_2013-{fold.train_end_year}__test-{fold.test_year}",
         }
@@ -159,6 +160,7 @@ def safe_log_run_context(
             f"train-2013-{fold.train_end_year}__test-{fold.test_year}"
         ),
         "requested_model": requested_model_name,
+        "model_family": model_family,
         "resolved_model": {
             "slug": adapter.slug,
             "model_id": adapter.model_id,

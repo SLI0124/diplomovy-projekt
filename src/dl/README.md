@@ -68,6 +68,9 @@ If dataset file is missing, script fails with a clear command hint to create it 
 - Save/artifact locations are fixed in this module and are not configurable via CLI flags.
 - MLflow backend default:
   - `sqlite:///../../data/results/mlflow.db`
+- MLflow experiments (auto-selected per model family):
+  - `deep-learning-foundation-expanding-window`
+  - `deep-learning-custom-expanding-window`
 - Metrics logged per segment: `SMAPE`, `MAPE`, `MAE`, `MSE`, `R²`
 - Dataset provenance logged to MLflow artifacts/tags:
   - `dataset_profile.json`
@@ -80,6 +83,18 @@ If dataset file is missing, script fails with a clear command hint to create it 
 - Fine-tuned checkpoints:
   - `../../data/models/deep_learning/<model>/finetuned/<dataset_tag>/train_2013-<end>__test-<year>__<hash>/`
   - includes `checkpoint_manifest.json` for strict compatibility checks
+
+## Model organization
+
+- Foundation adapters:
+  - `adapters/foundation/chronos2.py`
+  - `adapters/foundation/lag_llama.py`
+  - `adapters/foundation/moirai.py`
+  - `adapters/foundation/timesfm.py`
+- Custom adapters:
+  - `adapters/custom/` (register your own models in `adapters/__init__.py`)
+- Backward compatibility shim:
+  - `models.py` re-exports adapter API from the new structure
 
 ## Commands
 

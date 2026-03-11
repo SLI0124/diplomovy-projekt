@@ -5,6 +5,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from adapters import supported_model_ids
+
 
 @dataclass(frozen=True)
 class RuntimeConfig:
@@ -59,15 +61,37 @@ def mlflow_experiment() -> str:
     return "deep-learning-foundation-expanding-window"
 
 
+def mlflow_custom_experiment() -> str:
+    return "deep-learning-custom-expanding-window"
+
+
+def mlflow_experiment_for_family(model_family: str) -> str:
+    family = model_family.strip().lower()
+    if family == "foundation":
+        return mlflow_experiment()
+    if family == "custom":
+        return mlflow_custom_experiment()
+    raise ValueError(f"Unsupported model family '{model_family}'.")
+
+
 def _parse_models(value: str) -> tuple[str, ...]:
     parsed = tuple(part.strip().lower() for part in value.split(",") if part.strip())
     if not parsed:
         raise argparse.ArgumentTypeError("At least one model must be provided.")
+    supported = set(supported_model_ids())
+    unknown = sorted({name for name in parsed if name not in supported})
+    if unknown:
+        supported_str = ", ".join(sorted(supported))
+        unknown_str = ", ".join(unknown)
+        raise argparse.ArgumentTypeError(
+            f"Unsupported model(s): {unknown_str}. Supported: {supported_str}"
+        )
     return parsed
 
 
 def build_parser() -> argparse.ArgumentParser:
     default_dataset = preprocessed_root() / "merged_all_years_preprocessed.csv"
+    supported_models = ", ".join(supported_model_ids())
 
     parser = argparse.ArgumentParser(
         description=(
@@ -95,7 +119,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--models",
         type=_parse_models,
         default=("chronos2", "lag-llama", "moirai", "timesfm2.5"),
-        help="Comma-separated model ids: chronos2, lag-llama, moirai, timesfm2.5",
+        help=f"Comma-separated model ids: {supported_models}",
     )
     parser.add_argument(
         "--test-year",
@@ -196,6 +220,8 @@ def to_serializable_dict(config: RuntimeConfig) -> dict[str, object]:
         "results_root": str(results_root()),
         "mlflow_uri": mlflow_uri(),
         "mlflow_experiment": mlflow_experiment(),
+        "mlflow_experiment_foundation": mlflow_experiment(),
+        "mlflow_experiment_custom": mlflow_custom_experiment(),
     }
     return out
 

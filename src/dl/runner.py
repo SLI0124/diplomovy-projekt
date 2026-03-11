@@ -10,6 +10,7 @@ import mlflow
 import numpy as np
 import pandas as pd
 import torch
+from adapters import ModelContext, build_model_adapter, resolve_model_family
 from checkpoints import (
     build_checkpoint_dir,
     build_missing_checkpoint_error,
@@ -19,6 +20,7 @@ from checkpoints import (
 )
 from config import (
     RuntimeConfig,
+    mlflow_experiment_for_family,
     results_root,
     save_runtime_config,
     to_serializable_dict,
@@ -33,7 +35,6 @@ from mlflow_logging import (
     safe_log_run_context,
     safe_log_run_params,
 )
-from models import ModelContext, build_model_adapter
 
 
 def _log(message: str) -> None:
@@ -147,8 +148,6 @@ def _log_rows_to_mlflow(rows: list[FoldMetrics]) -> None:
 
 
 def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
-    ensure_mlflow(config)
-
     run_root = results_root() / _run_id()
     run_root.mkdir(parents=True, exist_ok=True)
 
@@ -192,6 +191,9 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                 model_ctx=model_ctx,
                 device=device,
             )
+            model_family = resolve_model_family(model_name)
+            experiment_name = mlflow_experiment_for_family(model_family)
+            ensure_mlflow(experiment_name)
 
             run_name = (
                 f"{adapter.slug}__{config.mode}__{config.action}__"
@@ -246,6 +248,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                     fold=fold,
                     adapter=adapter,
                     requested_model_name=model_name,
+                    model_family=model_family,
                     device=device,
                     run_root=run_root,
                     dataset_tag=current_dataset_tag,
