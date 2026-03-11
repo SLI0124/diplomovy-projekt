@@ -12,7 +12,12 @@ from adapters.base import BaseFoundationModelAdapter, ForecastResult, ModelConte
 
 class _Model1LSTM(nn.Module):
     def __init__(
-        self, hidden_size: int, num_layers: int, prediction_length: int
+        self,
+        hidden_size: int,
+        num_layers: int,
+        dense_size: int,
+        dropout: float,
+        prediction_length: int,
     ) -> None:
         super().__init__()
         self.lstm = nn.LSTM(
@@ -20,14 +25,22 @@ class _Model1LSTM(nn.Module):
             hidden_size=hidden_size,
             num_layers=num_layers,
             batch_first=True,
+            dropout=dropout if num_layers > 1 else 0.0,
         )
-        self.head = nn.Linear(hidden_size, prediction_length)
+        self.norm = nn.BatchNorm1d(hidden_size)
+        self.head = nn.Sequential(
+            nn.Linear(hidden_size, dense_size),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(dense_size, prediction_length),
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x shape: [batch, time]
         seq = x.unsqueeze(-1)
         out, _ = self.lstm(seq)
         last = out[:, -1, :]
+        last = self.norm(last)
         return self.head(last)
 
 
@@ -39,9 +52,12 @@ class Model1Adapter(BaseFoundationModelAdapter):
 
     def __init__(self, model_ctx: ModelContext, device: torch.device) -> None:
         super().__init__(model_ctx, device)
-        self._hidden_size: int = 32
-        self._num_layers: int = 1
-        self._model: _Model1LSTM | None = None
+        self._arch_version: int = 2
+        self._hidden_size: int = 64
+        self._num_layers: int = 2
+        self._dense_size: int = 64
+        self._dropout: float = 0.15
+        self._model: nn.Module | None = None
         self._mean: float = 0.0
         self._std: float = 1.0
         self._loaded: bool = False
@@ -50,6 +66,8 @@ class Model1Adapter(BaseFoundationModelAdapter):
         model = _Model1LSTM(
             hidden_size=self._hidden_size,
             num_layers=self._num_layers,
+            dense_size=self._dense_size,
+            dropout=self._dropout,
             prediction_length=int(self.model_ctx.prediction_length),
         )
         model.to(self.device)
@@ -134,6 +152,7 @@ class Model1Adapter(BaseFoundationModelAdapter):
 
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self._model.parameters(), max_norm=1.0)
                 optimizer.step()
 
         self._model.eval()
@@ -183,6 +202,8 @@ class Model1Adapter(BaseFoundationModelAdapter):
                 "slug": self.slug,
                 "hidden_size": self._hidden_size,
                 "num_layers": self._num_layers,
+                "dense_size": self._dense_size,
+                "dropout": self._dropout,
                 "prediction_length": int(self.model_ctx.prediction_length),
                 "mean": self._mean,
                 "std": self._std,
@@ -198,6 +219,8 @@ class Model1Adapter(BaseFoundationModelAdapter):
                     "slug": self.slug,
                     "hidden_size": self._hidden_size,
                     "num_layers": self._num_layers,
+                    "dense_size": self._dense_size,
+                    "dropout": self._dropout,
                     "prediction_length": int(self.model_ctx.prediction_length),
                     "mean": self._mean,
                     "std": self._std,
@@ -214,16 +237,18 @@ class Model1Adapter(BaseFoundationModelAdapter):
             raise FileNotFoundError(f"Missing Model_1 artifact: {model_path}")
 
         payload = torch.load(model_path, map_location="cpu")
-        self._hidden_size = int(payload.get("hidden_size", 32))
-        self._num_layers = int(payload.get("num_layers", 1))
+        self._hidden_size = int(payload.get("hidden_size", 64))
+        self._num_layers = int(payload.get("num_layers", 2))
+        self._dense_size = int(payload.get("dense_size", 64))
+        self._dropout = float(payload.get("dropout", 0.15))
         self._mean = float(payload.get("mean", 0.0))
         std = float(payload.get("std", 1.0))
         self._std = std if std > 1e-6 else 1.0
 
-        self._model = self._build_model()
         state_dict = payload.get("state_dict")
         if state_dict is None:
             raise KeyError("Model_1 checkpoint missing state_dict")
+        self._model = self._build_model()
         self._model.load_state_dict(state_dict)
         self._model.eval()
 
