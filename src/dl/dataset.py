@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from config import RuntimeConfig
+from config import RuntimeConfig, preprocessed_root
 
 
 @dataclass(frozen=True)
@@ -22,14 +22,14 @@ def _resolve_dataset_path(config: RuntimeConfig) -> Path:
         return config.dataset_path
 
     from_variant = (
-        config.preprocessed_root
+        preprocessed_root()
         / "splits"
         / config.variant_stem
         / "merged_all_years_preprocessed.csv"
     )
 
     default_root_dataset = (
-        config.preprocessed_root / "merged_all_years_preprocessed.csv"
+        preprocessed_root() / "merged_all_years_preprocessed.csv"
     ).resolve()
 
     if config.dataset_path == default_root_dataset:
@@ -45,7 +45,7 @@ def _resolve_run_params_path(config: RuntimeConfig, dataset_path: Path) -> Path 
 
     if config.variant_stem is not None:
         candidate = (
-            config.preprocessed_root
+            preprocessed_root()
             / "splits"
             / config.variant_stem
             / "run_params.json"

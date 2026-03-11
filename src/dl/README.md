@@ -65,6 +65,7 @@ If dataset file is missing, script fails with a clear command hint to create it 
 
 ## Logging and artifacts
 
+- Save/artifact locations are fixed in this module and are not configurable via CLI flags.
 - MLflow backend default:
   - `sqlite:///../../data/results/mlflow.db`
 - Metrics logged per segment: `SMAPE`, `MAPE`, `MAE`, `MSE`, `R²`

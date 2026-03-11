@@ -6,14 +6,21 @@ from pathlib import Path
 import mlflow
 import pandas as pd
 import torch
-from config import RuntimeConfig, to_serializable_dict
+from config import (
+    RuntimeConfig,
+    mlflow_experiment,
+    mlflow_uri,
+    models_root,
+    results_root,
+    to_serializable_dict,
+)
 from dataset import DatasetBundle
 from folds import FoldSpec
 
 
 def ensure_mlflow(config: RuntimeConfig) -> None:
-    mlflow.set_tracking_uri(config.mlflow_uri)
-    mlflow.set_experiment(config.mlflow_experiment)
+    mlflow.set_tracking_uri(mlflow_uri())
+    mlflow.set_experiment(mlflow_experiment())
 
 
 def sha256_file(path: Path) -> str:
@@ -173,8 +180,8 @@ def safe_log_run_context(
         },
         "paths": {
             "run_root": str(run_root),
-            "models_root": str(config.models_root),
-            "results_root": str(config.results_root),
+            "models_root": str(models_root()),
+            "results_root": str(results_root()),
             "checkpoint_dir": str(checkpoint_dir) if checkpoint_dir else None,
         },
         "device": str(device),

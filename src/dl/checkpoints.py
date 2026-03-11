@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from config import RuntimeConfig
+from config import RuntimeConfig, models_root
 from dataset import DatasetBundle
 from folds import FoldSpec
 
@@ -41,7 +41,7 @@ def build_checkpoint_dir(
     ).hexdigest()[:10]
 
     return (
-        config.models_root
+        models_root()
         / model_slug
         / "finetuned"
         / current_dataset_tag

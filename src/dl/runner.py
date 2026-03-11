@@ -17,7 +17,12 @@ from checkpoints import (
     resolve_checkpoint_status,
     write_checkpoint_manifest,
 )
-from config import RuntimeConfig, save_runtime_config, to_serializable_dict
+from config import (
+    RuntimeConfig,
+    results_root,
+    save_runtime_config,
+    to_serializable_dict,
+)
 from dataset import DatasetBundle, iter_test_origins, make_test_df, make_train_target
 from folds import FoldSpec, folds_for_action
 from metrics import FoldMetrics, compute_metrics
@@ -144,7 +149,7 @@ def _log_rows_to_mlflow(rows: list[FoldMetrics]) -> None:
 def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
     ensure_mlflow(config)
 
-    run_root = config.results_root / _run_id()
+    run_root = results_root() / _run_id()
     run_root.mkdir(parents=True, exist_ok=True)
 
     save_runtime_config(config, run_root / "runtime_config.json")

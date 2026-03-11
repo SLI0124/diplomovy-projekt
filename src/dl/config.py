@@ -31,18 +31,32 @@ class RuntimeConfig:
 
     dataset_path: Path
     variant_stem: str | None
-    preprocessed_root: Path
-
-    models_root: Path
-    results_root: Path
-
-    mlflow_uri: str
-    mlflow_experiment: str
     eval_after_train: bool
 
 
 def _project_root_from_here() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def preprocessed_root() -> Path:
+    return _project_root_from_here() / "data" / "preprocessed"
+
+
+def models_root() -> Path:
+    return _project_root_from_here() / "data" / "models" / "deep_learning"
+
+
+def results_root() -> Path:
+    return _project_root_from_here() / "data" / "results" / "deep_learning"
+
+
+def mlflow_uri() -> str:
+    mlflow_db = (_project_root_from_here() / "data" / "results" / "mlflow.db").resolve()
+    return f"sqlite:///{mlflow_db.as_posix()}"
+
+
+def mlflow_experiment() -> str:
+    return "deep-learning-foundation-expanding-window"
 
 
 def _parse_models(value: str) -> tuple[str, ...]:
@@ -53,16 +67,7 @@ def _parse_models(value: str) -> tuple[str, ...]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    root = _project_root_from_here()
-
-    default_dataset = (
-        root / "data" / "preprocessed" / "merged_all_years_preprocessed.csv"
-    )
-    default_models_root = root / "data" / "models" / "deep_learning"
-    default_results_root = root / "data" / "results" / "deep_learning"
-    default_preprocessed_root = root / "data" / "preprocessed"
-    default_mlflow_db = (root / "data" / "results" / "mlflow.db").resolve()
-    default_mlflow_uri = f"sqlite:///{default_mlflow_db.as_posix()}"
+    default_dataset = preprocessed_root() / "merged_all_years_preprocessed.csv"
 
     parser = argparse.ArgumentParser(
         description=(
@@ -132,19 +137,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--preprocessed-root", type=Path, default=default_preprocessed_root
-    )
-
-    parser.add_argument("--models-root", type=Path, default=default_models_root)
-    parser.add_argument("--results-root", type=Path, default=default_results_root)
-
-    parser.add_argument("--mlflow-uri", type=str, default=default_mlflow_uri)
-    parser.add_argument(
-        "--mlflow-experiment",
-        type=str,
-        default="deep-learning-foundation-expanding-window",
-    )
-    parser.add_argument(
         "--eval-after-train",
         action="store_true",
         help=(
@@ -191,11 +183,6 @@ def parse_args() -> RuntimeConfig:
         num_samples=args.num_samples,
         dataset_path=args.dataset_path.resolve(),
         variant_stem=args.variant_stem,
-        preprocessed_root=args.preprocessed_root.resolve(),
-        models_root=args.models_root.resolve(),
-        results_root=args.results_root.resolve(),
-        mlflow_uri=args.mlflow_uri,
-        mlflow_experiment=args.mlflow_experiment,
         eval_after_train=args.eval_after_train,
     )
 
@@ -204,9 +191,11 @@ def to_serializable_dict(config: RuntimeConfig) -> dict[str, object]:
     out = {
         **config.__dict__,
         "dataset_path": str(config.dataset_path),
-        "preprocessed_root": str(config.preprocessed_root),
-        "models_root": str(config.models_root),
-        "results_root": str(config.results_root),
+        "preprocessed_root": str(preprocessed_root()),
+        "models_root": str(models_root()),
+        "results_root": str(results_root()),
+        "mlflow_uri": mlflow_uri(),
+        "mlflow_experiment": mlflow_experiment(),
     }
     return out
 
