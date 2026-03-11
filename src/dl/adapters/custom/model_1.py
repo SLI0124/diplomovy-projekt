@@ -6,7 +6,29 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn as nn
 from adapters.base import BaseFoundationModelAdapter, ForecastResult, ModelContext
+
+
+class _Model1LSTM(nn.Module):
+    def __init__(
+        self, hidden_size: int, num_layers: int, prediction_length: int
+    ) -> None:
+        super().__init__()
+        self.lstm = nn.LSTM(
+            input_size=1,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+        )
+        self.head = nn.Linear(hidden_size, prediction_length)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x shape: [batch, time]
+        seq = x.unsqueeze(-1)
+        out, _ = self.lstm(seq)
+        last = out[:, -1, :]
+        return self.head(last)
 
 
 class Model1Adapter(BaseFoundationModelAdapter):
@@ -17,14 +39,27 @@ class Model1Adapter(BaseFoundationModelAdapter):
 
     def __init__(self, model_ctx: ModelContext, device: torch.device) -> None:
         super().__init__(model_ctx, device)
-        self._last_value: float = 0.0
-        self._slope_per_step: float = 0.0
+        self._hidden_size: int = 32
+        self._num_layers: int = 1
+        self._model: _Model1LSTM | None = None
+        self._mean: float = 0.0
+        self._std: float = 1.0
         self._loaded: bool = False
 
+    def _build_model(self) -> _Model1LSTM:
+        model = _Model1LSTM(
+            hidden_size=self._hidden_size,
+            num_layers=self._num_layers,
+            prediction_length=int(self.model_ctx.prediction_length),
+        )
+        model.to(self.device)
+        return model
+
     def load_pretrained(self) -> None:
-        # Baseline one-shot behavior: persistence forecast (last value repeated).
-        self._last_value = 0.0
-        self._slope_per_step = 0.0
+        self._model = self._build_model()
+        self._model.eval()
+        self._mean = 0.0
+        self._std = 1.0
         self._loaded = True
 
     def finetune(
@@ -43,61 +78,65 @@ class Model1Adapter(BaseFoundationModelAdapter):
         if series.size == 0:
             raise ValueError("Model1Adapter requires non-empty train_series.")
 
-        self._last_value = float(series[-1])
+        self._mean = float(series.mean())
+        std = float(series.std())
+        self._std = std if std > 1e-6 else 1.0
+        series_norm = (series - self._mean) / self._std
 
         prediction_length = int(max(1, self.model_ctx.prediction_length))
-        start_min = 1
-        start_max = int(series.size - prediction_length)
+        context_length = int(
+            min(
+                max(1, self.model_ctx.context_length),
+                max(1, series_norm.size - prediction_length),
+            )
+        )
+
+        start_min = context_length
+        start_max = int(series_norm.size - prediction_length)
         if start_max < start_min:
-            self._slope_per_step = 0.0
+            self._model = self._build_model()
+            self._model.eval()
             self._loaded = True
             return
-
-        # Warm-start slope from recent deltas before optimizer updates.
-        lookback = int(min(series.size - 1, 24 * 7))
-        recent = series[-(lookback + 1) :]
-        initial_slope = float(np.diff(recent).mean()) if recent.size >= 2 else 0.0
 
         batch_size = int(max(1, train_batch_size))
         steps_per_epoch = int(max(1, train_steps_per_epoch))
         epochs = int(max(1, train_epochs))
 
-        slope = torch.nn.Parameter(
-            torch.tensor(initial_slope, dtype=torch.float32, device=self.device)
-        )
+        self._model = self._build_model()
+        self._model.train()
+
         optimizer = torch.optim.AdamW(
-            [slope],
+            self._model.parameters(),
             lr=float(train_lr),
             weight_decay=float(train_weight_decay),
         )
-        step_offsets = torch.arange(
-            1,
-            prediction_length + 1,
-            device=self.device,
-            dtype=torch.float32,
-        ).view(1, -1)
+        loss_fn = nn.MSELoss()
         rng = np.random.default_rng()
 
         for _ in range(epochs):
             for _ in range(steps_per_epoch):
                 starts = rng.integers(start_min, start_max + 1, size=batch_size)
-                bases = torch.from_numpy(series[starts - 1]).to(self.device).float()
-                bases = bases.view(-1, 1)
-                targets_np = np.stack(
-                    [series[s : s + prediction_length] for s in starts],
+                contexts_np = np.stack(
+                    [series_norm[s - context_length : s] for s in starts],
                     axis=0,
                 )
+                targets_np = np.stack(
+                    [series_norm[s : s + prediction_length] for s in starts],
+                    axis=0,
+                )
+
+                contexts = torch.from_numpy(contexts_np).to(self.device).float()
                 targets = torch.from_numpy(targets_np).to(self.device).float()
 
-                preds = bases + slope * step_offsets
-                loss = torch.mean((preds - targets) ** 2)
+                preds = self._model(contexts)
+                loss = loss_fn(preds, targets)
 
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
                 optimizer.step()
 
-        self._slope_per_step = float(slope.detach().cpu().item())
-
+        self._model.eval()
         self._loaded = True
 
     def forecast(
@@ -108,36 +147,84 @@ class Model1Adapter(BaseFoundationModelAdapter):
                 "Model_1 is not loaded. Call load_pretrained/load_finetuned."
             )
 
-        x = np.asarray(context, dtype=np.float32)
-        base = float(x[-1]) if x.size > 0 else self._last_value
+        if self._model is None:
+            raise RuntimeError("Model_1 internal model is not initialized.")
 
-        horizon = int(self.model_ctx.prediction_length)
-        steps = np.arange(1, horizon + 1, dtype=np.float32)
-        y_pred = np.asarray(base + self._slope_per_step * steps, dtype=np.float32)
+        x = np.asarray(context, dtype=np.float32)
+        context_length = int(max(1, self.model_ctx.context_length))
+
+        if x.size == 0:
+            x = np.zeros((context_length,), dtype=np.float32)
+        elif x.size < context_length:
+            pad = np.full((context_length - x.size,), float(x[-1]), dtype=np.float32)
+            x = np.concatenate([pad, x], axis=0)
+        else:
+            x = x[-context_length:]
+
+        x_norm = (x - self._mean) / self._std
+        x_t = torch.from_numpy(x_norm).to(self.device).float().view(1, -1)
+
+        with torch.no_grad():
+            y_norm = self._model(x_t)[0].detach().cpu().numpy()
+
+        y_pred = np.asarray(y_norm * self._std + self._mean, dtype=np.float32)
         return ForecastResult(y_pred=y_pred)
 
     def save_finetuned(self, artifact_dir: Path) -> None:
         if not self._loaded:
             raise RuntimeError("Model_1 is not available to save.")
+        if self._model is None:
+            raise RuntimeError("Model_1 internal model is not initialized.")
 
         artifact_dir.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "model_id": self.model_id,
-            "slug": self.slug,
-            "last_value": self._last_value,
-            "slope_per_step": self._slope_per_step,
-        }
+        torch.save(
+            {
+                "model_id": self.model_id,
+                "slug": self.slug,
+                "hidden_size": self._hidden_size,
+                "num_layers": self._num_layers,
+                "prediction_length": int(self.model_ctx.prediction_length),
+                "mean": self._mean,
+                "std": self._std,
+                "state_dict": self._model.state_dict(),
+            },
+            artifact_dir / "model.pt",
+        )
+
         (artifact_dir / "model.json").write_text(
-            json.dumps(payload, indent=2),
+            json.dumps(
+                {
+                    "model_id": self.model_id,
+                    "slug": self.slug,
+                    "hidden_size": self._hidden_size,
+                    "num_layers": self._num_layers,
+                    "prediction_length": int(self.model_ctx.prediction_length),
+                    "mean": self._mean,
+                    "std": self._std,
+                    "weights_file": "model.pt",
+                },
+                indent=2,
+            ),
             encoding="utf-8",
         )
 
     def load_finetuned(self, artifact_dir: Path) -> None:
-        model_path = artifact_dir / "model.json"
+        model_path = artifact_dir / "model.pt"
         if not model_path.exists():
             raise FileNotFoundError(f"Missing Model_1 artifact: {model_path}")
 
-        payload = json.loads(model_path.read_text(encoding="utf-8"))
-        self._last_value = float(payload.get("last_value", 0.0))
-        self._slope_per_step = float(payload.get("slope_per_step", 0.0))
+        payload = torch.load(model_path, map_location="cpu")
+        self._hidden_size = int(payload.get("hidden_size", 32))
+        self._num_layers = int(payload.get("num_layers", 1))
+        self._mean = float(payload.get("mean", 0.0))
+        std = float(payload.get("std", 1.0))
+        self._std = std if std > 1e-6 else 1.0
+
+        self._model = self._build_model()
+        state_dict = payload.get("state_dict")
+        if state_dict is None:
+            raise KeyError("Model_1 checkpoint missing state_dict")
+        self._model.load_state_dict(state_dict)
+        self._model.eval()
+
         self._loaded = True
