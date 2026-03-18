@@ -6,7 +6,7 @@ This will be a list of things that need to be done in order to finish the projec
 
 ### Deep Learning
 
-- [ ] chronos2 might be too good and recent, it's not fair to compare it with older models (2024 vs 2025), look into chronos 1, which is named bolt and is released in 2024
+- [x] chronos2 might be too good and recent, it's not fair to compare it with older models (2024 vs 2025), look into chronos 1, which is named bolt and is released in 2024
 - [ ] make 3 or 4 distinctive models for my own implementation, should look into basics like: LSTM, GRU, bi-directional LSTM, more or less hidden layers and count of neurons, sometimes convolution layers are used for time series data
   - [ ] those models will need many epochs to train, add it to the train script and log loss or some other metrics to MLFlow if that is possible, simple csv should be sufficient for that
 - [ ] do script that will take all those training data from MLFlow db via library, maybe save it as json or keep it in memory and use it for plotting and comparing results of different models, all that is needed and necessary for the paper

@@ -6,6 +6,7 @@ import torch
 from adapters.base import BaseFoundationModelAdapter, ForecastResult, ModelContext
 from adapters.custom import Model1Adapter
 from adapters.foundation import (
+    Chronos1Adapter,
     Chronos2Adapter,
     LagLlamaAdapter,
     MoiraiAdapter,
@@ -20,6 +21,7 @@ class AdapterSpec:
 
 
 MODEL_REGISTRY: dict[str, AdapterSpec] = {
+    "chronos1": AdapterSpec(adapter_cls=Chronos1Adapter, family="foundation"),
     "chronos2": AdapterSpec(adapter_cls=Chronos2Adapter, family="foundation"),
     "lag-llama": AdapterSpec(adapter_cls=LagLlamaAdapter, family="foundation"),
     "moirai": AdapterSpec(adapter_cls=MoiraiAdapter, family="foundation"),
@@ -63,6 +65,7 @@ __all__ = [
     "build_model_adapter",
     "resolve_model_family",
     "supported_model_ids",
+    "Chronos1Adapter",
     "Chronos2Adapter",
     "LagLlamaAdapter",
     "MoiraiAdapter",
