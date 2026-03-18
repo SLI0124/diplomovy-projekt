@@ -17,15 +17,15 @@ This will be a list of things that need to be done in order to finish the projec
   - [ ] for starters do some basic EDA plots for the paper
   - [ ] plot fine-tuning and one-shot results, compare them, plot the delta between them (MLFlow has nice tools to get those data training and test results from db file), show some tables
   - [ ] I really like the prediction vs ground truth plots, they are very informative and can add insight into those breaking years we are interested in
-- [ ] those very hard to understand and implement preprocessing steps are for machine learning, find some paper that mentions that those long domain knowledge for machine learning models are the same steps for deep learning models but they do it internally
 - [ ] write
   - [ ] time series data and what are they
     - [ ] if you find that paper that shows that deep learning do those preprocessing steps internally, write about it here
-    - [ ] crisis years and cross reference with some events/citations
   - [ ] machine learning models, briefly
   - [ ] deep learning models, more deeply (same chapter)
     - [ ] basics, layers, all that well known and widely used stuff
     - [ ] foundation SOTA models, their architecture, how they work, how they are trained, what are the differences between them, what are the differences between fine-tuning and one-shot
+  - [ ] collecting my own data, preprocessing it, metrics, extreme outliers, basic EDA
+    - [ ] crisis years and cross reference with some events/citations
   - [ ] own models, metrics, training, results, experiments
 
 ## Next steps
@@ -48,18 +48,4 @@ This will be a list of things that need to be done in order to finish the projec
 
 ## Notes for consultation
 
-- I think it is in paper but he uses different sliding window sizes for different models,  eg. 24 hours, 48 hours, 7 days, 14 days, 30 days, lag variables **maybe later if I have time, include plots and results as appendix**
-  - this can be further extended to different context window sizes AND at the same time lagged features
-- all other hyperparameter that can be used or considered for training those models **maybe later if I have some time, include plots and results as appendix**
-- a lot of derivates of those state-of-the-art models exist, do I try small, medium, large, base or some other less know variants? do I focus more on well known but rather older models or try new rock stars? **did not ask directly but since three big models are enough there is probably no need to include derivates**
-  - [amazon/chronos-2](https://huggingface.co/amazon/chronos-2), [amazon/chronos-bolt-base](https://huggingface.co/amazon/chronos-bolt-base), [amazon/chronos-t5-small](https://huggingface.co/amazon/chronos-t5-small), [amazon/chronos-t5-large](https://huggingface.co/amazon/chronos-t5-large), [amazon/chronos-t5-mini](https://huggingface.co/amazon/chronos-t5-mini), [autogluon/chronos-bolt-small](https://huggingface.co/autogluon/chronos-bolt-small), ...
-  - is he familiar with some models or is it up to me? **it's all up to me**
-- preprocessing is quite a tough nut to crack, ask as much as you can about it (I don't wanna do some stupid mistakes that will make whole project worthless so ask as much as you can and make as much notes and appointments as you can)  
-  - do I need some fancy statistical methods? should I do some special transformations? ask everything that can be applicable, help here is welcomed **later if I have some time, include plots and results as appendix**
-  - ask about how did he do preprocessing in his papers **don't be lazy and skim through those papers yourself**
-- tell him about initial thesis structure and chapters **he proposed that, I better get on it**
-
----
-
-- if I won't do any fancy preprocessing tied with seasonality and trend removal, do I still write about it in the paper?
-- do I do some fancy preprocessing for my own models? get into training them then you will know for sure
+- *soon™*
