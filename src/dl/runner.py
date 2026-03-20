@@ -5,12 +5,14 @@ from collections import defaultdict
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import mlflow
 import numpy as np
 import pandas as pd
 import torch
 from adapters import ModelContext, build_model_adapter, resolve_model_family
+from adapters.base import TrainingLossPoint
 from checkpoints import (
     build_checkpoint_dir,
     build_missing_checkpoint_error,
@@ -45,12 +47,56 @@ def _run_id() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
+def _save_training_losses(
+    run_root: Path,
+    adapter_slug: str,
+    config: RuntimeConfig,
+    fold: FoldSpec,
+    rows: list[TrainingLossPoint],
+) -> None:
+    if not rows:
+        return
+
+    out_dir = run_root / "training_losses"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    df = pd.DataFrame(
+        {
+            "model": [adapter_slug for _ in rows],
+            "mode": [config.mode for _ in rows],
+            "train_years": [fold.train_years_label for _ in rows],
+            "test_year": [fold.test_year for _ in rows],
+            "epoch": [row.epoch for row in rows],
+            "loss": [row.loss for row in rows],
+        }
+    )
+    out_path = out_dir / f"{adapter_slug}__test-{fold.test_year}.csv"
+    df.to_csv(out_path, index=False)
+
+
+def _save_prediction_rows(
+    run_root: Path,
+    adapter_slug: str,
+    fold: FoldSpec,
+    rows: list[dict[str, Any]],
+) -> None:
+    if not rows:
+        return
+
+    out_dir = run_root / "predictions"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    df = pd.DataFrame(rows)
+    out_path = out_dir / f"{adapter_slug}__test-{fold.test_year}.csv"
+    df.to_csv(out_path, index=False)
+
+
 def _evaluate_fold(
     adapter,
     full_df: pd.DataFrame,
     config: RuntimeConfig,
     fold: FoldSpec,
-) -> list[FoldMetrics]:
+) -> tuple[list[FoldMetrics], list[dict[str, Any]]]:
     test_df = make_test_df(full_df, fold.test_year)
     if test_df.empty:
         raise ValueError(f"No rows for test year {fold.test_year}")
@@ -66,6 +112,7 @@ def _evaluate_fold(
         "post_conflict": [],
     }
     seg_windows: dict[str, int] = {"all": 0, "pre_conflict": 0, "post_conflict": 0}
+    prediction_rows: list[dict[str, Any]] = []
 
     origins = list(
         iter_test_origins(
@@ -103,6 +150,27 @@ def _evaluate_fold(
 
         segment = "post_conflict" if origin_ts >= conflict_date else "pre_conflict"
 
+        for horizon_index, (true_value, pred_value) in enumerate(
+            zip(y_true, y_pred, strict=True)
+        ):
+            target_ts = origin_ts + pd.Timedelta(hours=horizon_index)
+            prediction_rows.append(
+                {
+                    "model": adapter.slug,
+                    "mode": config.mode,
+                    "train_years": fold.train_years_label,
+                    "test_year": fold.test_year,
+                    "segment": segment,
+                    "origin_index": int(i),
+                    "origin_timestamp": origin_ts.isoformat(),
+                    "context_start": context_start.isoformat(),
+                    "horizon_index": int(horizon_index),
+                    "target_timestamp": target_ts.isoformat(),
+                    "y_true": float(true_value),
+                    "y_pred": float(pred_value),
+                }
+            )
+
         seg_true["all"].append(y_true)
         seg_pred["all"].append(y_pred)
         seg_windows["all"] += 1
@@ -132,7 +200,7 @@ def _evaluate_fold(
             )
         )
 
-    return rows
+    return rows, prediction_rows
 
 
 def _log_rows_to_mlflow(rows: list[FoldMetrics]) -> None:
@@ -303,6 +371,14 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                                     raise NotImplementedError(
                                         f"Model '{adapter.slug}' does not support finetuning in this script yet."
                                     )
+                                if (
+                                    (config.train_loss is not None or config.train_optimizer is not None)
+                                    and model_family != "custom"
+                                ):
+                                    raise ValueError(
+                                        "--train-loss/--train-optimizer are only supported for custom models. "
+                                        f"Model '{adapter.slug}' is in family '{model_family}'."
+                                    )
 
                                 train_series = make_train_target(
                                     full_df=bundle.dataframe,
@@ -316,14 +392,23 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                                         ),
                                     }
                                 )
-                                adapter.finetune(
+                                training_history = adapter.finetune(
                                     train_series=train_series,
                                     train_epochs=config.train_epochs,
                                     train_batch_size=config.train_batch_size,
                                     train_steps_per_epoch=config.train_steps_per_epoch,
                                     train_lr=config.train_lr,
                                     train_weight_decay=config.train_weight_decay,
+                                    train_loss=config.train_loss,
+                                    train_optimizer=config.train_optimizer,
                                     artifact_dir=ckpt_dir,
+                                )
+                                _save_training_losses(
+                                    run_root=run_root,
+                                    adapter_slug=adapter.slug,
+                                    config=config,
+                                    fold=fold,
+                                    rows=training_history,
                                 )
                                 adapter.save_finetuned(ckpt_dir)
                                 mlflow.log_param("checkpoint_dir", str(ckpt_dir))
@@ -367,11 +452,17 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                             mlflow.log_param("checkpoint_dir", str(ckpt_dir))
 
                     if should_evaluate:
-                        fold_rows = _evaluate_fold(
+                        fold_rows, prediction_rows = _evaluate_fold(
                             adapter=adapter,
                             full_df=bundle.dataframe,
                             config=config,
                             fold=fold,
+                        )
+                        _save_prediction_rows(
+                            run_root=run_root,
+                            adapter_slug=adapter.slug,
+                            fold=fold,
+                            rows=prediction_rows,
                         )
                         _log_rows_to_mlflow(fold_rows)
                         results.extend(fold_rows)

@@ -27,6 +27,18 @@ Default `--models` runs all four.
 
 Default `--context-length` is `512`.
 
+### Training loss parameter
+
+- `--train-loss {mae,mse,rmse,mape,smape}` is supported only for custom models (currently `model_1`).
+- Foundation models (`chronos2`, `lag-llama`, `moirai`, `timesfm2.5`) reject `--train-loss`.
+- If omitted, custom models default to `mse`.
+
+### Training optimizer parameter
+
+- `--train-optimizer {adamw,adam,sgd}` is supported only for custom models (currently `model_1`).
+- Foundation models reject `--train-optimizer`.
+- If omitted, custom models default to `adamw` (same as previous behavior).
+
 ## Actions
 
 - `train`: for `--test-year N`, runs all folds from 2014..N
@@ -162,6 +174,13 @@ python main.py train --mode finetuned --test-year 2020 --variant-stem drop-year_
 ```bash
 cd src/dl
 python main.py train --mode finetuned --test-year 2014 --models chronos2 --max-origins-per-year 2 --train-epochs 1 --train-steps-per-epoch 2 --train-batch-size 2
+```
+
+### 8) Custom model with explicit training loss
+
+```bash
+cd src/dl
+python main.py train --mode finetuned --test-year 2014 --models model_1 --train-loss smape --train-optimizer adamw
 ```
 
 ## Notes

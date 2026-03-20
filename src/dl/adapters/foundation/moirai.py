@@ -5,7 +5,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from adapters.base import BaseFoundationModelAdapter, ForecastResult, ModelContext
+from adapters.base import (
+    BaseFoundationModelAdapter,
+    ForecastResult,
+    ModelContext,
+    TrainingLossPoint,
+)
 
 
 class MoiraiAdapter(BaseFoundationModelAdapter):
@@ -55,15 +60,40 @@ class MoiraiAdapter(BaseFoundationModelAdapter):
         train_steps_per_epoch: int,
         train_lr: float,
         train_weight_decay: float,
+        train_loss: str | None,
+        train_optimizer: str | None,
         artifact_dir: Path,
-    ) -> None:
+    ) -> list[TrainingLossPoint]:
+        if train_loss is not None or train_optimizer is not None:
+            raise ValueError(
+                f"--train-loss/--train-optimizer are only supported for custom models. '{self.slug}' is a foundation model."
+            )
+
         import lightning as L
+        from lightning.pytorch.callbacks import Callback
         from uni2ts.data.dataset import TimeSeriesDataset
         from uni2ts.data.indexer._base import Indexer
         from uni2ts.data.loader import DataLoader as UniDataLoader
         from uni2ts.data.loader import PackCollate
         from uni2ts.model.moirai import MoiraiModule
         from uni2ts.model.moirai.finetune import MoiraiFinetune
+
+        class _EpochLossCallback(Callback):
+            def __init__(self) -> None:
+                self.history: list[TrainingLossPoint] = []
+
+            def on_train_epoch_end(self, trainer, pl_module) -> None:
+                del pl_module
+                metrics = trainer.callback_metrics
+                value = metrics.get("train_loss") or metrics.get("loss")
+                if value is None:
+                    return
+                self.history.append(
+                    TrainingLossPoint(
+                        epoch=int(trainer.current_epoch),
+                        loss=float(value.detach().cpu().item()),
+                    )
+                )
 
         class _SingleSeriesIndexer(Indexer):
             def __init__(self, series: np.ndarray, freq: str = "H"):
@@ -136,6 +166,7 @@ class MoiraiAdapter(BaseFoundationModelAdapter):
             fill_last=True,
         )
 
+        epoch_loss_cb = _EpochLossCallback()
         trainer = L.Trainer(
             max_epochs=train_epochs,
             accelerator="gpu" if self.device.type == "cuda" else "cpu",
@@ -144,6 +175,7 @@ class MoiraiAdapter(BaseFoundationModelAdapter):
             enable_checkpointing=False,
             enable_progress_bar=True,
             log_every_n_steps=10,
+            callbacks=[epoch_loss_cb],
         )
         trainer.fit(ft, train_dataloaders=train_loader)
 
@@ -151,6 +183,7 @@ class MoiraiAdapter(BaseFoundationModelAdapter):
         self._module.to(self.device)
         self._module.eval()
         self._refresh_predictor()
+        return epoch_loss_cb.history
 
     def forecast(
         self, context: np.ndarray, context_start: pd.Timestamp

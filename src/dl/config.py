@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from adapters import supported_model_ids
+from adapters import resolve_model_family, supported_model_ids
 
 
 @dataclass(frozen=True)
@@ -27,6 +27,8 @@ class RuntimeConfig:
     train_lr: float
     train_weight_decay: float
     train_steps_per_epoch: int
+    train_loss: str | None
+    train_optimizer: str | None
 
     lag_llama_num_parallel_samples: int
     num_samples: int
@@ -146,6 +148,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--train-lr", type=float, default=5e-5)
     parser.add_argument("--train-weight-decay", type=float, default=0.0)
     parser.add_argument("--train-steps-per-epoch", type=int, default=50)
+    parser.add_argument(
+        "--train-loss",
+        choices=["mae", "mse", "rmse", "mape", "smape"],
+        default=None,
+        help=(
+            "Optional training loss for custom models only. "
+            "Foundation models reject this parameter."
+        ),
+    )
+    parser.add_argument(
+        "--train-optimizer",
+        choices=["adamw", "adam", "sgd"],
+        default=None,
+        help=(
+            "Optional optimizer for custom models only. "
+            "Defaults to adamw when omitted. Foundation models reject this parameter."
+        ),
+    )
 
     parser.add_argument("--num-samples", type=int, default=20)
     parser.add_argument("--lag-llama-num-parallel-samples", type=int, default=20)
@@ -185,6 +205,28 @@ def parse_args() -> RuntimeConfig:
         parser.error(
             "Invalid combination: '--eval-after-train' is only valid with action 'train'."
         )
+    if args.train_loss is not None:
+        non_custom_models = [
+            model_name
+            for model_name in args.models
+            if resolve_model_family(model_name) != "custom"
+        ]
+        if non_custom_models:
+            parser.error(
+                "Invalid combination: '--train-loss' is only supported for custom models. "
+                f"Received foundation model(s): {', '.join(non_custom_models)}"
+            )
+    if args.train_optimizer is not None:
+        non_custom_models = [
+            model_name
+            for model_name in args.models
+            if resolve_model_family(model_name) != "custom"
+        ]
+        if non_custom_models:
+            parser.error(
+                "Invalid combination: '--train-optimizer' is only supported for custom models. "
+                f"Received foundation model(s): {', '.join(non_custom_models)}"
+            )
 
     return RuntimeConfig(
         mode=args.mode,
@@ -203,6 +245,8 @@ def parse_args() -> RuntimeConfig:
         train_lr=args.train_lr,
         train_weight_decay=args.train_weight_decay,
         train_steps_per_epoch=args.train_steps_per_epoch,
+        train_loss=args.train_loss,
+        train_optimizer=args.train_optimizer,
         lag_llama_num_parallel_samples=args.lag_llama_num_parallel_samples,
         num_samples=args.num_samples,
         dataset_path=args.dataset_path.resolve(),

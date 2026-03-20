@@ -6,7 +6,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from adapters.base import BaseFoundationModelAdapter, ForecastResult, ModelContext
+from adapters.base import (
+    BaseFoundationModelAdapter,
+    ForecastResult,
+    ModelContext,
+    TrainingLossPoint,
+)
 from adapters.shared import RandomWindowDataset
 from torch.utils.data import DataLoader
 
@@ -39,8 +44,15 @@ class Chronos2Adapter(BaseFoundationModelAdapter):
         train_steps_per_epoch: int,
         train_lr: float,
         train_weight_decay: float,
+        train_loss: str | None,
+        train_optimizer: str | None,
         artifact_dir: Path,
-    ) -> None:
+    ) -> list[TrainingLossPoint]:
+        if train_loss is not None or train_optimizer is not None:
+            raise ValueError(
+                f"--train-loss/--train-optimizer are only supported for custom models. '{self.slug}' is a foundation model."
+            )
+
         from chronos.chronos2 import Chronos2Model
 
         model = Chronos2Model.from_pretrained(self.model_id).to(self.device)  # type: ignore
@@ -75,7 +87,9 @@ class Chronos2Adapter(BaseFoundationModelAdapter):
         )
 
         model.train()
-        for _ in range(train_epochs):
+        history: list[TrainingLossPoint] = []
+        for ep in range(train_epochs):
+            epoch_losses: list[float] = []
             for batch in dl:
                 ctx = batch["context"].to(self.device)
                 fut = batch["future_target"].to(self.device)
@@ -92,6 +106,12 @@ class Chronos2Adapter(BaseFoundationModelAdapter):
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
                 optimizer.step()
+                epoch_losses.append(float(loss.detach().cpu().item()))
+
+            if epoch_losses:
+                history.append(
+                    TrainingLossPoint(epoch=ep, loss=float(np.mean(epoch_losses)))
+                )
 
         model.eval()
         self._model = model
@@ -99,6 +119,7 @@ class Chronos2Adapter(BaseFoundationModelAdapter):
 
         qs = model.chronos_config.quantiles
         self._q_index = int(np.argmin(np.abs(np.asarray(qs) - 0.5)))
+        return history
 
     def forecast(
         self, context: np.ndarray, context_start: pd.Timestamp

@@ -21,6 +21,12 @@ class ForecastResult:
     y_pred: np.ndarray
 
 
+@dataclass(frozen=True)
+class TrainingLossPoint:
+    epoch: int
+    loss: float
+
+
 class BaseFoundationModelAdapter:
     model_id: str
     slug: str
@@ -42,8 +48,10 @@ class BaseFoundationModelAdapter:
         train_steps_per_epoch: int,
         train_lr: float,
         train_weight_decay: float,
+        train_loss: str | None,
+        train_optimizer: str | None,
         artifact_dir: Path,
-    ) -> None:
+    ) -> list[TrainingLossPoint]:
         raise NotImplementedError
 
     def forecast(

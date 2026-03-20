@@ -8,7 +8,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from adapters.base import BaseFoundationModelAdapter, ForecastResult, ModelContext
+from adapters.base import (
+    BaseFoundationModelAdapter,
+    ForecastResult,
+    ModelContext,
+    TrainingLossPoint,
+)
 
 
 def _patch_lag_llama_lags_handling() -> None:
@@ -202,15 +207,39 @@ class LagLlamaAdapter(BaseFoundationModelAdapter):
         train_steps_per_epoch: int,
         train_lr: float,
         train_weight_decay: float,
+        train_loss: str | None,
+        train_optimizer: str | None,
         artifact_dir: Path,
-    ) -> None:
+    ) -> list[TrainingLossPoint]:
+        if train_loss is not None or train_optimizer is not None:
+            raise ValueError(
+                f"--train-loss/--train-optimizer are only supported for custom models. '{self.slug}' is a foundation model."
+            )
+
         _ensure_lag_llama_augmentation_shims()
 
         from gluonts.dataset.common import ListDataset
         from gluonts.torch.distributions.studentT import StudentTOutput
         from gluonts.torch.modules.loss import NegativeLogLikelihood
         from lag_llama.gluon.estimator import LagLlamaEstimator
-        from lightning.pytorch.callbacks import ModelCheckpoint
+        from lightning.pytorch.callbacks import Callback, ModelCheckpoint
+
+        class _EpochLossCallback(Callback):
+            def __init__(self) -> None:
+                self.history: list[TrainingLossPoint] = []
+
+            def on_train_epoch_end(self, trainer, pl_module) -> None:
+                del pl_module
+                metrics = trainer.callback_metrics
+                value = metrics.get("train_loss") or metrics.get("loss")
+                if value is None:
+                    return
+                self.history.append(
+                    TrainingLossPoint(
+                        epoch=int(trainer.current_epoch),
+                        loss=float(value.detach().cpu().item()),
+                    )
+                )
 
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
@@ -231,6 +260,7 @@ class LagLlamaAdapter(BaseFoundationModelAdapter):
             save_top_k=-1,
             every_n_epochs=1,
         )
+        epoch_loss_cb = _EpochLossCallback()
 
         estimator = LagLlamaEstimator(
             prediction_length=self.model_ctx.prediction_length,
@@ -255,7 +285,7 @@ class LagLlamaAdapter(BaseFoundationModelAdapter):
                 "max_epochs": max(1, train_epochs),
                 "logger": False,
                 "enable_progress_bar": True,
-                "callbacks": [checkpoint_cb],
+                "callbacks": [checkpoint_cb, epoch_loss_cb],
                 "default_root_dir": str(artifact_dir),
             },
         )
@@ -276,6 +306,8 @@ class LagLlamaAdapter(BaseFoundationModelAdapter):
             raise FileNotFoundError(
                 f"Lag-Llama fine-tuning finished but no checkpoint was saved in: {artifact_dir}"
             )
+
+        return epoch_loss_cb.history
 
     def forecast(
         self, context: np.ndarray, context_start: pd.Timestamp

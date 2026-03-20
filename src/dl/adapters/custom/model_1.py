@@ -7,7 +7,12 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from adapters.base import BaseFoundationModelAdapter, ForecastResult, ModelContext
+from adapters.base import (
+    BaseFoundationModelAdapter,
+    ForecastResult,
+    ModelContext,
+    TrainingLossPoint,
+)
 
 
 class _Model1LSTM(nn.Module):
@@ -42,6 +47,36 @@ class _Model1LSTM(nn.Module):
         last = out[:, -1, :]
         last = self.norm(last)
         return self.head(last)
+
+
+class _RMSELoss(nn.Module):
+    def __init__(self, eps: float = 1e-8) -> None:
+        super().__init__()
+        self.eps = eps
+
+    def forward(self, preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        mse = torch.mean((preds - targets) ** 2)
+        return torch.sqrt(mse + self.eps)
+
+
+class _MAPELoss(nn.Module):
+    def __init__(self, eps: float = 1e-6) -> None:
+        super().__init__()
+        self.eps = eps
+
+    def forward(self, preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        denom = torch.clamp(targets.abs(), min=self.eps)
+        return torch.mean((preds - targets).abs() / denom)
+
+
+class _SMAPELoss(nn.Module):
+    def __init__(self, eps: float = 1e-6) -> None:
+        super().__init__()
+        self.eps = eps
+
+    def forward(self, preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        denom = torch.clamp(preds.abs() + targets.abs(), min=self.eps)
+        return torch.mean(2.0 * (preds - targets).abs() / denom)
 
 
 class Model1Adapter(BaseFoundationModelAdapter):
@@ -88,8 +123,10 @@ class Model1Adapter(BaseFoundationModelAdapter):
         train_steps_per_epoch: int,
         train_lr: float,
         train_weight_decay: float,
+        train_loss: str | None,
+        train_optimizer: str | None,
         artifact_dir: Path,
-    ) -> None:
+    ) -> list[TrainingLossPoint]:
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
         series = np.asarray(train_series, dtype=np.float32)
@@ -115,7 +152,7 @@ class Model1Adapter(BaseFoundationModelAdapter):
             self._model = self._build_model()
             self._model.eval()
             self._loaded = True
-            return
+            return []
 
         batch_size = int(max(1, train_batch_size))
         steps_per_epoch = int(max(1, train_steps_per_epoch))
@@ -124,15 +161,18 @@ class Model1Adapter(BaseFoundationModelAdapter):
         self._model = self._build_model()
         self._model.train()
 
-        optimizer = torch.optim.AdamW(
-            self._model.parameters(),
-            lr=float(train_lr),
-            weight_decay=float(train_weight_decay),
+        optimizer = self._build_optimizer(
+            train_optimizer=train_optimizer,
+            params=self._model.parameters(),
+            train_lr=train_lr,
+            train_weight_decay=train_weight_decay,
         )
-        loss_fn = nn.MSELoss()
+        loss_fn = self._build_loss_fn(train_loss)
         rng = np.random.default_rng()
+        history: list[TrainingLossPoint] = []
 
-        for _ in range(epochs):
+        for ep in range(epochs):
+            epoch_losses: list[float] = []
             for _ in range(steps_per_epoch):
                 starts = rng.integers(start_min, start_max + 1, size=batch_size)
                 contexts_np = np.stack(
@@ -154,9 +194,56 @@ class Model1Adapter(BaseFoundationModelAdapter):
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self._model.parameters(), max_norm=1.0)
                 optimizer.step()
+                epoch_losses.append(float(loss.detach().cpu().item()))
+
+            if epoch_losses:
+                history.append(
+                    TrainingLossPoint(
+                        epoch=ep,
+                        loss=float(np.mean(epoch_losses)),
+                    )
+                )
 
         self._model.eval()
         self._loaded = True
+        return history
+
+    def _build_loss_fn(self, train_loss: str | None) -> nn.Module:
+        loss_name = (train_loss or "mse").strip().lower()
+        if loss_name == "mse":
+            return nn.MSELoss()
+        if loss_name == "mae":
+            return nn.L1Loss()
+        if loss_name == "rmse":
+            return _RMSELoss()
+        if loss_name == "mape":
+            return _MAPELoss()
+        if loss_name == "smape":
+            return _SMAPELoss()
+        raise ValueError(
+            f"Unsupported train loss '{train_loss}' for {self.slug}. Supported: mae, mse, rmse, mape, smape"
+        )
+
+    def _build_optimizer(
+        self,
+        train_optimizer: str | None,
+        params,
+        train_lr: float,
+        train_weight_decay: float,
+    ) -> torch.optim.Optimizer:
+        optimizer_name = (train_optimizer or "adamw").strip().lower()
+        lr = float(train_lr)
+        weight_decay = float(train_weight_decay)
+
+        if optimizer_name == "adamw":
+            return torch.optim.AdamW(params, lr=lr, weight_decay=weight_decay)
+        if optimizer_name == "adam":
+            return torch.optim.Adam(params, lr=lr, weight_decay=weight_decay)
+        if optimizer_name == "sgd":
+            return torch.optim.SGD(params, lr=lr, weight_decay=weight_decay)
+        raise ValueError(
+            f"Unsupported train optimizer '{train_optimizer}' for {self.slug}. Supported: adamw, adam, sgd"
+        )
 
     def forecast(
         self, context: np.ndarray, context_start: pd.Timestamp
