@@ -18,7 +18,6 @@ dependencies = [
     "huggingface-hub",
     "chronos-forecasting",
     "uni2ts",
-    "lag-llama @ git+https://github.com/time-series-foundation-models/lag-llama.git",
     "timesfm @ git+https://github.com/google-research/timesfm.git",
     "mlflow",
     "setuptools<81",

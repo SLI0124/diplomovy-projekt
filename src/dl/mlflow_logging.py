@@ -110,7 +110,6 @@ def safe_log_run_params(
         mlflow.log_params(
             {
                 "num_samples": config.num_samples,
-                "lag_llama_num_parallel_samples": config.lag_llama_num_parallel_samples,
             }
         )
 

@@ -30,7 +30,6 @@ class RuntimeConfig:
     train_loss: str | None
     train_optimizer: str | None
 
-    lag_llama_num_parallel_samples: int
     num_samples: int
 
     variant_stem: str
@@ -118,7 +117,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--models",
         type=_parse_models,
-        default=("chronos2", "lag-llama", "moirai1_base", "timesfm25"),
+        default=("chronos2", "moirai1_base", "timesfm25"),
         help=f"Comma-separated model ids: {supported_models}",
     )
     parser.add_argument(
@@ -166,7 +165,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument("--num-samples", type=int, default=20)
-    parser.add_argument("--lag-llama-num-parallel-samples", type=int, default=20)
 
     parser.add_argument(
         "--variant-stem",
@@ -246,7 +244,6 @@ def parse_args() -> RuntimeConfig:
         train_steps_per_epoch=args.train_steps_per_epoch,
         train_loss=args.train_loss,
         train_optimizer=args.train_optimizer,
-        lag_llama_num_parallel_samples=args.lag_llama_num_parallel_samples,
         num_samples=args.num_samples,
         variant_stem=args.variant_stem.strip(),
         eval_after_train=args.eval_after_train,

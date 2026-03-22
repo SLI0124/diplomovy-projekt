@@ -13,7 +13,6 @@ class ModelContext:
     prediction_length: int
     context_length: int
     num_samples: int
-    lag_llama_num_parallel_samples: int
 
 
 @dataclass(frozen=True)

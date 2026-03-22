@@ -14,11 +14,10 @@ python main.py --help
 ## Supported models
 
 - `chronos2` (`amazon/chronos-2`)
-- `lag-llama` (`time-series-foundation-models/Lag-Llama`)
 - `moirai1_base` (`Salesforce/moirai-1.0-R-base`)
 - `timesfm25` (`google/timesfm-2.5-200m-pytorch`)
 
-Default `--models` runs all four.
+Default `--models` runs all three foundation models.
 
 ## Modes
 
@@ -30,7 +29,7 @@ Default `--context-length` is `512`.
 ### Training loss parameter
 
 - `--train-loss {mae,mse,rmse,mape,smape}` is supported only for custom models (currently `model_1`).
-- Foundation models (`chronos2`, `lag-llama`, `moirai1_base`, `timesfm25`) reject `--train-loss`.
+- Foundation models (`chronos2`, `moirai1_base`, `timesfm25`) reject `--train-loss`.
 - If omitted, custom models default to `mse`.
 
 ### Training optimizer parameter
@@ -110,7 +109,6 @@ python main.py
 
 - Foundation adapters:
   - `adapters/foundation/chronos2.py`
-  - `adapters/foundation/lag_llama.py`
   - `adapters/foundation/moirai1_base.py`
   - `adapters/foundation/timesfm25.py`
 - Custom adapters:
@@ -199,5 +197,5 @@ python main.py train --mode finetuned --test-year 2014 --models model_1 --train-
 - No additional preprocessing/scaling/imputation or train/test split calculation is done here.
 - GPU is used automatically when available (`torch.cuda.is_available()`).
 - Finetune support in script:
-  - implemented: `chronos2`, `lag-llama`, `moirai1_base`, `timesfm25`
+  - implemented: `chronos2`, `moirai1_base`, `timesfm25`
   - note: `timesfm25` uses a lightweight head-only fine-tuning loop for runtime practicality

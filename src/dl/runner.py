@@ -229,7 +229,6 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
         prediction_length=config.prediction_length,
         context_length=config.context_length,
         num_samples=config.num_samples,
-        lag_llama_num_parallel_samples=config.lag_llama_num_parallel_samples,
     )
 
     folds = folds_for_action(config)
