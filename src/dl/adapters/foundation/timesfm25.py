@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 
 class TimesFM25Adapter(BaseFoundationModelAdapter):
     model_id = "google/timesfm-2.5-200m-pytorch"
-    slug = "timesfm2.5"
+    slug = "timesfm25"
     model_family = "foundation"
     supports_finetune = True
 

@@ -9,7 +9,7 @@ from adapters.foundation import (
     Chronos1Adapter,
     Chronos2Adapter,
     LagLlamaAdapter,
-    MoiraiAdapter,
+    Moirai1BaseAdapter,
     TimesFM25Adapter,
 )
 
@@ -24,8 +24,8 @@ MODEL_REGISTRY: dict[str, AdapterSpec] = {
     "chronos1": AdapterSpec(adapter_cls=Chronos1Adapter, family="foundation"),
     "chronos2": AdapterSpec(adapter_cls=Chronos2Adapter, family="foundation"),
     "lag-llama": AdapterSpec(adapter_cls=LagLlamaAdapter, family="foundation"),
-    "moirai": AdapterSpec(adapter_cls=MoiraiAdapter, family="foundation"),
-    "timesfm2.5": AdapterSpec(adapter_cls=TimesFM25Adapter, family="foundation"),
+    "moirai1_base": AdapterSpec(adapter_cls=Moirai1BaseAdapter, family="foundation"),
+    "timesfm25": AdapterSpec(adapter_cls=TimesFM25Adapter, family="foundation"),
     "model_1": AdapterSpec(adapter_cls=Model1Adapter, family="custom"),
 }
 
@@ -68,7 +68,7 @@ __all__ = [
     "Chronos1Adapter",
     "Chronos2Adapter",
     "LagLlamaAdapter",
-    "MoiraiAdapter",
+    "Moirai1BaseAdapter",
     "Model1Adapter",
     "TimesFM25Adapter",
 ]
