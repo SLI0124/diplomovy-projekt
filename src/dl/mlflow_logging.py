@@ -4,7 +4,6 @@ import hashlib
 from pathlib import Path
 
 import mlflow
-import pandas as pd
 import torch
 from config import (
     RuntimeConfig,
@@ -13,7 +12,7 @@ from config import (
     results_root,
     to_serializable_dict,
 )
-from dataset import DatasetBundle
+from dataset import DatasetBundle, FoldData
 from folds import FoldSpec
 
 
@@ -30,25 +29,32 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def build_dataset_profile(bundle: DatasetBundle, target_col: str) -> dict[str, object]:
-    df = bundle.dataframe
-    target = df[target_col].astype(float)
+def build_dataset_profile(
+    bundle: DatasetBundle,
+    fold_data: FoldData,
+    target_col: str,
+) -> dict[str, object]:
+    test_df = fold_data.test_df
+    target = test_df[target_col].astype(float)
 
     profile: dict[str, object] = {
-        "dataset_path": str(bundle.dataset_path),
-        "dataset_file_size_bytes": int(bundle.dataset_path.stat().st_size),
-        "dataset_file_sha256": sha256_file(bundle.dataset_path),
-        "dataset_rows": int(len(df)),
-        "dataset_columns": int(len(df.columns)),
-        "timestamp_min": str(pd.Timestamp(df["timestamp"].min())),
-        "timestamp_max": str(pd.Timestamp(df["timestamp"].max())),
+        "split_root": str(bundle.split_root),
+        "train_split_path": str(fold_data.train_path),
+        "test_split_path": str(fold_data.test_path),
+        "train_split_size_bytes": int(fold_data.train_path.stat().st_size),
+        "test_split_size_bytes": int(fold_data.test_path.stat().st_size),
+        "train_split_sha256": sha256_file(fold_data.train_path),
+        "test_split_sha256": sha256_file(fold_data.test_path),
+        "train_rows": int(fold_data.train_series.shape[0]),
+        "test_rows": int(len(test_df)),
+        "test_columns": int(len(test_df.columns)),
         "target_col": target_col,
-        "target_mean": float(target.mean()),
-        "target_std": float(target.std(ddof=0)),
-        "target_min": float(target.min()),
-        "target_p50": float(target.quantile(0.5)),
-        "target_max": float(target.max()),
-        "target_nan_count": int(df[target_col].isna().sum()),
+        "test_target_mean": float(target.mean()),
+        "test_target_std": float(target.std(ddof=0)),
+        "test_target_min": float(target.min()),
+        "test_target_p50": float(target.quantile(0.5)),
+        "test_target_max": float(target.max()),
+        "test_target_nan_count": int(test_df[target_col].isna().sum()),
     }
 
     if bundle.run_params_path is not None:
@@ -57,10 +63,10 @@ def build_dataset_profile(bundle: DatasetBundle, target_col: str) -> dict[str, o
     return profile
 
 
-def build_dataset_columns_preview(bundle: DatasetBundle, max_rows: int = 120) -> str:
+def build_dataset_columns_preview(fold_data: FoldData, max_rows: int = 120) -> str:
     rows: list[str] = ["column,dtype,na_count"]
 
-    df = bundle.dataframe
+    df = fold_data.test_df
     for column in df.columns[:max_rows]:
         rows.append(f"{column},{df[column].dtype},{int(df[column].isna().sum())}")
 
@@ -109,13 +115,21 @@ def safe_log_run_params(
         )
 
 
-def safe_log_dataset_context(bundle: DatasetBundle, config: RuntimeConfig) -> None:
-    profile = build_dataset_profile(bundle=bundle, target_col=config.target_col)
+def safe_log_dataset_context(
+    bundle: DatasetBundle,
+    fold_data: FoldData,
+    config: RuntimeConfig,
+) -> None:
+    profile = build_dataset_profile(
+        bundle=bundle,
+        fold_data=fold_data,
+        target_col=config.target_col,
+    )
 
     mlflow.set_tags(
         {
-            "dataset.path": str(profile["dataset_path"]),
-            "dataset.sha256": str(profile["dataset_file_sha256"]),
+            "dataset.path": str(profile["split_root"]),
+            "dataset.sha256": str(profile["test_split_sha256"]),
         }
     )
     mlflow.log_dict(profile, "dataset_profile.json")
@@ -125,6 +139,7 @@ def safe_log_run_context(
     *,
     config: RuntimeConfig,
     bundle: DatasetBundle,
+    fold_data: FoldData,
     fold: FoldSpec,
     adapter,
     requested_model_name: str,
@@ -174,7 +189,9 @@ def safe_log_run_context(
         },
         "runtime": to_serializable_dict(config),
         "dataset": {
-            "path": str(bundle.dataset_path),
+            "split_root": str(bundle.split_root),
+            "train_split_path": str(fold_data.train_path),
+            "test_split_path": str(fold_data.test_path),
             "tag": dataset_tag,
             "run_params_path": (
                 str(bundle.run_params_path) if bundle.run_params_path else None

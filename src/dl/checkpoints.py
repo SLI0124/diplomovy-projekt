@@ -16,7 +16,7 @@ CheckpointStatus = Literal["compatible_exists", "missing", "incompatible_manifes
 def dataset_tag(bundle: DatasetBundle) -> str:
     if bundle.run_params and isinstance(bundle.run_params.get("variant_stem"), str):
         return str(bundle.run_params["variant_stem"])
-    return bundle.dataset_path.stem
+    return bundle.split_root.name
 
 
 def build_checkpoint_dir(

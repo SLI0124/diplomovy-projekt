@@ -63,17 +63,27 @@ For finetuned `test`/`eval`, checkpoint loading is strict: the script does not a
 
 ## Dataset loading
 
-Default dataset:
+Default preprocessing split variant:
 
-- `../../data/preprocessed/merged_all_years_preprocessed.csv`
+- `base`
 
-Optional preprocessing split variant:
+DL resolves split artifacts from:
 
-- pass `--variant-stem <name>` and script resolves:
-  - `../../data/preprocessed/splits/<name>/merged_all_years_preprocessed.csv`
-  - reads shared preprocessing params from `run_params.json` if present
+- `../../data/preprocessed/splits/<variant_stem>/`
 
-If dataset file is missing, script fails with a clear command hint to create it via `src/preprocessing/main.py`.
+For each fold with test year `T`, DL loads:
+
+- training data: `ranges_from_2013_to_*/range_2013_<T-1>.csv`
+- test data: `single_years/year_<T>.csv`
+
+DL does not build train/test splits internally from a merged CSV anymore. It consumes the precomputed split files directly.
+
+If the split root or required split files are missing, script fails fast with this remediation:
+
+```bash
+cd ../preprocessing
+python main.py
+```
 
 ## Logging and artifacts
 
@@ -186,7 +196,7 @@ python main.py train --mode finetuned --test-year 2014 --models model_1 --train-
 ## Notes
 
 - No plots are generated in this module.
-- No additional preprocessing/scaling/imputation is done here.
+- No additional preprocessing/scaling/imputation or train/test split calculation is done here.
 - GPU is used automatically when available (`torch.cuda.is_available()`).
 - Finetune support in script:
   - implemented: `chronos2`, `lag-llama`, `moirai1_base`, `timesfm25`

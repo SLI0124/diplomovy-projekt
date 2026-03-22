@@ -23,10 +23,10 @@ def main() -> None:
 
     _log(f"action={config.action} mode={config.mode} test_year={config.test_year}")
     _log(f"models={config.models}")
-    _log(f"dataset_path={config.dataset_path}")
+    _log(f"variant_stem={config.variant_stem}")
 
     bundle = load_dataset(config)
-    _log(f"resolved_dataset={bundle.dataset_path}")
+    _log(f"resolved_split_root={bundle.split_root}")
 
     if bundle.run_params_path is not None:
         _log(f"preprocessing_run_params={bundle.run_params_path}")

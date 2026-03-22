@@ -7,53 +7,66 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from config import RuntimeConfig, preprocessed_root
+from folds import FoldSpec
 
 
 @dataclass(frozen=True)
 class DatasetBundle:
-    dataframe: pd.DataFrame
-    dataset_path: Path
+    split_root: Path
     run_params_path: Path | None
     run_params: dict[str, object] | None
 
 
-def _resolve_dataset_path(config: RuntimeConfig) -> Path:
-    if config.variant_stem is None:
-        return config.dataset_path
-
-    from_variant = (
-        preprocessed_root()
-        / "splits"
-        / config.variant_stem
-        / "merged_all_years_preprocessed.csv"
-    )
-
-    default_root_dataset = (
-        preprocessed_root() / "merged_all_years_preprocessed.csv"
-    ).resolve()
-
-    if config.dataset_path == default_root_dataset:
-        return from_variant.resolve()
-
-    return config.dataset_path
+@dataclass(frozen=True)
+class FoldData:
+    train_path: Path
+    test_path: Path
+    train_series: np.ndarray
+    test_df: pd.DataFrame
 
 
-def _resolve_run_params_path(config: RuntimeConfig, dataset_path: Path) -> Path | None:
-    candidate_in_variant = dataset_path.parent / "run_params.json"
-    if candidate_in_variant.exists():
-        return candidate_in_variant
+def _resolve_split_root(config: RuntimeConfig) -> Path:
+    return (preprocessed_root() / "splits" / config.variant_stem).resolve()
 
-    if config.variant_stem is not None:
-        candidate = (
-            preprocessed_root()
-            / "splits"
-            / config.variant_stem
-            / "run_params.json"
+
+def _resolve_run_params_path(split_root: Path) -> Path | None:
+    candidate = split_root / "run_params.json"
+    return candidate if candidate.exists() else None
+
+
+def _resolve_train_path(split_root: Path, train_end_year: int) -> Path:
+    pattern = f"ranges_from_2013_to_*/range_2013_{train_end_year}.csv"
+    candidates = sorted(split_root.glob(pattern))
+
+    if not candidates:
+        raise FileNotFoundError(
+            _build_missing_split_artifact_message(
+                split_root=split_root,
+                missing_path=split_root / pattern,
+            )
         )
-        if candidate.exists():
-            return candidate.resolve()
 
-    return None
+    if len(candidates) > 1:
+        rendered = "\n".join(str(path) for path in candidates)
+        raise ValueError(
+            "Ambiguous training split artifact match. "
+            f"Expected exactly one file for train_end_year={train_end_year}, got {len(candidates)}:\n"
+            f"{rendered}"
+        )
+
+    return candidates[0].resolve()
+
+
+def _resolve_test_path(split_root: Path, test_year: int) -> Path:
+    path = split_root / "single_years" / f"year_{test_year}.csv"
+    if not path.exists():
+        raise FileNotFoundError(
+            _build_missing_split_artifact_message(
+                split_root=split_root,
+                missing_path=path,
+            )
+        )
+    return path.resolve()
 
 
 def _load_run_params(path: Path | None) -> dict[str, object] | None:
@@ -83,7 +96,7 @@ def _validate_run_params(
     if "variant_stem" not in run_params:
         _warn(
             f"Missing 'variant_stem' in {run_params_path}. "
-            "Dataset tagging will fallback to file stem."
+            "Dataset tagging will fallback to variant stem."
         )
 
     features = run_params.get("features")
@@ -95,87 +108,92 @@ def _validate_run_params(
         _warn(f"Missing or invalid 'splits' section in {run_params_path}.")
 
 
-def _build_missing_dataset_message(path: Path) -> str:
-    script = Path(__file__).resolve().parents[1] / "preprocessing" / "main.py"
+def _build_missing_split_artifact_message(split_root: Path, missing_path: Path) -> str:
     return (
-        f"Dataset file does not exist: {path}\n"
-        "Create it first using preprocessing module, for example:\n"
-        f"  cd {script.parent}\n"
-        "  python main.py --add-cyclical --drop-cyclical-source-columns\n"
+        f"Required preprocessing split artifact does not exist: {missing_path}\n"
+        f"Expected split root: {split_root}\n"
+        "Create base preprocessing splits first, then rerun DL:\n"
+        "  cd ../preprocessing\n"
+        "  python main.py\n"
     )
 
 
 def load_dataset(config: RuntimeConfig) -> DatasetBundle:
-    dataset_path = _resolve_dataset_path(config)
-    if not dataset_path.exists():
-        raise FileNotFoundError(_build_missing_dataset_message(dataset_path))
-
-    df = pd.read_csv(dataset_path)
-
-    required_time = ["year", "month", "day", "hour"]
-    missing_time = [column for column in required_time if column not in df.columns]
-    if missing_time:
-        raise ValueError(
-            f"Missing required time columns: {missing_time}. "
-            "Dataset must include year/month/day/hour."
+    split_root = _resolve_split_root(config)
+    if not split_root.exists():
+        raise FileNotFoundError(
+            _build_missing_split_artifact_message(
+                split_root=split_root,
+                missing_path=split_root,
+            )
         )
 
-    if config.target_col not in df.columns:
-        raise ValueError(
-            f"Missing target column '{config.target_col}' in dataset: {dataset_path}"
-        )
-
-    timestamp = pd.to_datetime(df[required_time], errors="coerce")
-    if timestamp.isna().any():
-        bad = int(timestamp.isna().sum())
-        raise ValueError(
-            f"Found {bad} invalid timestamps in dataset. Fix preprocessing."
-        )
-
-    if df[config.target_col].isna().any():
-        missing = int(df[config.target_col].isna().sum())
-        raise ValueError(
-            f"Target column '{config.target_col}' contains {missing} NaN values. "
-            "No in-module imputation is performed."
-        )
-
-    out = df.copy()
-    out["timestamp"] = timestamp
-    out = out.sort_values("timestamp", kind="stable").reset_index(drop=True)
-
-    run_params_path = _resolve_run_params_path(config, dataset_path)
+    run_params_path = _resolve_run_params_path(split_root)
     run_params = _load_run_params(run_params_path)
     _validate_run_params(run_params=run_params, run_params_path=run_params_path)
 
     return DatasetBundle(
-        dataframe=out,
-        dataset_path=dataset_path.resolve(),
+        split_root=split_root,
         run_params_path=run_params_path,
         run_params=run_params,
     )
 
 
-def make_train_target(
-    full_df: pd.DataFrame,
-    target_col: str,
-    train_end_year: int,
-) -> np.ndarray:
-    end = pd.Timestamp(year=train_end_year + 1, month=1, day=1)
-    return full_df.loc[full_df["timestamp"] < end, target_col].to_numpy(
-        dtype=np.float32
+def _validate_target_column(df: pd.DataFrame, target_col: str, path: Path) -> None:
+    if target_col not in df.columns:
+        raise ValueError(f"Missing target column '{target_col}' in dataset: {path}")
+
+    if df[target_col].isna().any():
+        missing = int(df[target_col].isna().sum())
+        raise ValueError(
+            f"Target column '{target_col}' contains {missing} NaN values in {path}. "
+            "No in-module imputation is performed."
+        )
+
+
+def load_fold_data(
+    bundle: DatasetBundle,
+    config: RuntimeConfig,
+    fold: FoldSpec,
+) -> FoldData:
+    train_path = _resolve_train_path(
+        split_root=bundle.split_root,
+        train_end_year=fold.train_end_year,
+    )
+    test_path = _resolve_test_path(
+        split_root=bundle.split_root,
+        test_year=fold.test_year,
     )
 
+    train_df = pd.read_csv(train_path)
+    test_df = pd.read_csv(test_path)
 
-def make_test_df(full_df: pd.DataFrame, test_year: int) -> pd.DataFrame:
-    start = pd.Timestamp(year=test_year, month=1, day=1)
-    end = pd.Timestamp(year=test_year + 1, month=1, day=1)
-    return full_df[
-        (full_df["timestamp"] >= start) & (full_df["timestamp"] < end)
-    ].reset_index(drop=True)
+    _validate_target_column(train_df, config.target_col, train_path)
+    _validate_target_column(test_df, config.target_col, test_path)
+
+    if train_df.empty:
+        raise ValueError(f"Training split is empty: {train_path}")
+    if test_df.empty:
+        raise ValueError(f"Testing split is empty: {test_path}")
+
+    train_series = train_df[config.target_col].to_numpy(dtype=np.float32)
+
+    return FoldData(
+        train_path=train_path,
+        test_path=test_path,
+        train_series=train_series,
+        test_df=test_df.reset_index(drop=True),
+    )
 
 
 def iter_test_origins(test_df: pd.DataFrame, prediction_length: int, stride: int):
     max_i = len(test_df) - prediction_length
+    if max_i < 0:
+        raise ValueError(
+            "Not enough test points for a single forecast window: "
+            f"rows={len(test_df)} prediction_length={prediction_length}"
+        )
+
     i = 0
     while i <= max_i:
         yield i

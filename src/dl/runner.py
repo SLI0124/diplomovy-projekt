@@ -27,7 +27,7 @@ from config import (
     save_runtime_config,
     to_serializable_dict,
 )
-from dataset import DatasetBundle, iter_test_origins, make_test_df, make_train_target
+from dataset import DatasetBundle, FoldData, iter_test_origins, load_fold_data
 from folds import FoldSpec, folds_for_action
 from metrics import FoldMetrics, compute_metrics
 from mlflow_logging import (
@@ -93,13 +93,12 @@ def _save_prediction_rows(
 
 def _evaluate_fold(
     adapter,
-    full_df: pd.DataFrame,
+    fold_data: FoldData,
     config: RuntimeConfig,
     fold: FoldSpec,
 ) -> tuple[list[FoldMetrics], list[dict[str, Any]]]:
-    test_df = make_test_df(full_df, fold.test_year)
-    if test_df.empty:
-        raise ValueError(f"No rows for test year {fold.test_year}")
+    test_df = fold_data.test_df
+    test_series = test_df[config.target_col].to_numpy(dtype=np.float32)
 
     seg_true: dict[str, list[np.ndarray]] = {
         "all": [],
@@ -126,18 +125,16 @@ def _evaluate_fold(
 
     conflict_date = pd.Timestamp(config.conflict_date)
 
+    def row_timestamp(index: int) -> pd.Timestamp:
+        # Adapters require a datetime start value, but DL does not build or index by timestamps.
+        return pd.Timestamp(year=fold.test_year, month=1, day=1) + pd.Timedelta(
+            hours=index
+        )
+
     for i in origins:
-        origin_ts = pd.Timestamp(test_df["timestamp"].iloc[i])
-
-        context = full_df[full_df["timestamp"] < origin_ts][config.target_col].to_numpy(
-            dtype=np.float32
-        )
-
-        y_true = (
-            test_df[config.target_col]
-            .iloc[i : i + config.prediction_length]
-            .to_numpy(dtype=np.float32)
-        )
+        origin_ts = row_timestamp(i)
+        context = np.concatenate((fold_data.train_series, test_series[:i]))
+        y_true = test_series[i : i + config.prediction_length]
 
         context_used = context[-config.context_length :]
         context_start = origin_ts - pd.Timedelta(hours=len(context_used))
@@ -153,7 +150,7 @@ def _evaluate_fold(
         for horizon_index, (true_value, pred_value) in enumerate(
             zip(y_true, y_pred, strict=True)
         ):
-            target_ts = origin_ts + pd.Timedelta(hours=horizon_index)
+            target_ts = row_timestamp(i + horizon_index)
             prediction_rows.append(
                 {
                     "model": adapter.slug,
@@ -236,6 +233,10 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
     )
 
     folds = folds_for_action(config)
+    fold_data_by_test_year = {
+        fold.test_year: load_fold_data(bundle=bundle, config=config, fold=fold)
+        for fold in folds
+    }
     results: list[FoldMetrics] = []
     successful_runs = 0
     failed_runs: list[dict[str, object]] = []
@@ -248,6 +249,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
     total_folds = len(folds)
     for model_name in config.models:
         for fold_index, fold in enumerate(folds, start=1):
+            fold_data = fold_data_by_test_year[fold.test_year]
             _log(
                 f"Model={model_name} mode={config.mode} action={config.action} "
                 f"fold={fold_index}/{total_folds} "
@@ -309,10 +311,15 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                     fold=fold,
                     dataset_tag=current_dataset_tag,
                 )
-                safe_log_dataset_context(bundle=bundle, config=config)
+                safe_log_dataset_context(
+                    bundle=bundle,
+                    fold_data=fold_data,
+                    config=config,
+                )
                 safe_log_run_context(
                     config=config,
                     bundle=bundle,
+                    fold_data=fold_data,
                     fold=fold,
                     adapter=adapter,
                     requested_model_name=model_name,
@@ -324,7 +331,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                 )
 
                 mlflow.log_text(
-                    build_dataset_columns_preview(bundle),
+                    build_dataset_columns_preview(fold_data=fold_data),
                     "dataset_columns_preview.csv",
                 )
 
@@ -372,19 +379,15 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                                         f"Model '{adapter.slug}' does not support finetuning in this script yet."
                                     )
                                 if (
-                                    (config.train_loss is not None or config.train_optimizer is not None)
-                                    and model_family != "custom"
-                                ):
+                                    config.train_loss is not None
+                                    or config.train_optimizer is not None
+                                ) and model_family != "custom":
                                     raise ValueError(
                                         "--train-loss/--train-optimizer are only supported for custom models. "
                                         f"Model '{adapter.slug}' is in family '{model_family}'."
                                     )
 
-                                train_series = make_train_target(
-                                    full_df=bundle.dataframe,
-                                    target_col=config.target_col,
-                                    train_end_year=fold.train_end_year,
-                                )
+                                train_series = fold_data.train_series
                                 mlflow.log_params(
                                     {
                                         "train_series_points": int(
@@ -454,7 +457,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                     if should_evaluate:
                         fold_rows, prediction_rows = _evaluate_fold(
                             adapter=adapter,
-                            full_df=bundle.dataframe,
+                            fold_data=fold_data,
                             config=config,
                             fold=fold,
                         )

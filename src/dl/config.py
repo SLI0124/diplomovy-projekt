@@ -33,8 +33,7 @@ class RuntimeConfig:
     lag_llama_num_parallel_samples: int
     num_samples: int
 
-    dataset_path: Path
-    variant_stem: str | None
+    variant_stem: str
     eval_after_train: bool
 
 
@@ -92,7 +91,6 @@ def _parse_models(value: str) -> tuple[str, ...]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    default_dataset = preprocessed_root() / "merged_all_years_preprocessed.csv"
     supported_models = ", ".join(supported_model_ids())
 
     parser = argparse.ArgumentParser(
@@ -170,14 +168,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-samples", type=int, default=20)
     parser.add_argument("--lag-llama-num-parallel-samples", type=int, default=20)
 
-    parser.add_argument("--dataset-path", type=Path, default=default_dataset)
     parser.add_argument(
         "--variant-stem",
         type=str,
-        default=None,
+        default="base",
         help=(
-            "Optional preprocessing split variant stem. If provided and --dataset-path is not overridden, "
-            "dataset resolves to preprocessed/splits/<variant_stem>/merged_all_years_preprocessed.csv"
+            "Preprocessing split variant stem. "
+            "DL resolves train/test artifacts from preprocessed/splits/<variant_stem>/"
         ),
     )
     parser.add_argument(
@@ -227,6 +224,8 @@ def parse_args() -> RuntimeConfig:
                 "Invalid combination: '--train-optimizer' is only supported for custom models. "
                 f"Received foundation model(s): {', '.join(non_custom_models)}"
             )
+    if not args.variant_stem.strip():
+        parser.error("Invalid value: '--variant-stem' must not be empty.")
 
     return RuntimeConfig(
         mode=args.mode,
@@ -249,8 +248,7 @@ def parse_args() -> RuntimeConfig:
         train_optimizer=args.train_optimizer,
         lag_llama_num_parallel_samples=args.lag_llama_num_parallel_samples,
         num_samples=args.num_samples,
-        dataset_path=args.dataset_path.resolve(),
-        variant_stem=args.variant_stem,
+        variant_stem=args.variant_stem.strip(),
         eval_after_train=args.eval_after_train,
     )
 
@@ -258,7 +256,6 @@ def parse_args() -> RuntimeConfig:
 def to_serializable_dict(config: RuntimeConfig) -> dict[str, object]:
     out = {
         **config.__dict__,
-        "dataset_path": str(config.dataset_path),
         "preprocessed_root": str(preprocessed_root()),
         "models_root": str(models_root()),
         "results_root": str(results_root()),
