@@ -13,6 +13,8 @@ This module performs robust remote CSV fetching:
 
 import datetime
 import io
+import socket
+import ssl
 import time
 import urllib.error
 import urllib.request
@@ -76,30 +78,38 @@ def _read_csv_with_fallback(url: str) -> pd.DataFrame:
     request = urllib.request.Request(url, headers=DEFAULT_HEADERS)
 
     for attempt in range(1, READ_MAX_RETRIES + 1):
-        for encoding in ENCODING_FALLBACKS:
-            try:
-                with urllib.request.urlopen(
-                    request, timeout=READ_TIMEOUT_SECONDS
-                ) as response:
-                    payload = response.read()
-                return pd.read_csv(
-                    io.BytesIO(payload),
-                    sep=";",
-                    encoding=encoding,
-                )
-            except UnicodeDecodeError as error:
-                last_error = error
-            except urllib.error.HTTPError as error:
-                # Treat these status codes as transient (rate limiting or server
-                # issues) and break out so we can retry after a backoff period.
-                last_error = error
-                if error.code in {403, 429, 500, 502, 503, 504}:
-                    break
+        try:
+            with urllib.request.urlopen(request, timeout=READ_TIMEOUT_SECONDS) as response:
+                payload = response.read()
+        except urllib.error.HTTPError as error:
+            # Treat these status codes as transient (rate limiting or server
+            # issues) and retry after backoff.
+            last_error = error
+            if error.code in {403, 429, 500, 502, 503, 504}:
+                pass
+            else:
                 # For other HTTP errors, re-raise immediately.
                 raise
-            except urllib.error.URLError as error:
-                last_error = error
-                break
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            socket.timeout,
+            ConnectionError,
+            ssl.SSLError,
+        ) as error:
+            # urllib can surface read timeouts and TLS/network issues via several
+            # exception types depending on where the request fails.
+            last_error = error
+        else:
+            for encoding in ENCODING_FALLBACKS:
+                try:
+                    return pd.read_csv(
+                        io.BytesIO(payload),
+                        sep=";",
+                        encoding=encoding,
+                    )
+                except UnicodeDecodeError as error:
+                    last_error = error
 
         if attempt < READ_MAX_RETRIES:
             sleep_for = READ_BACKOFF_SECONDS * (2 ** (attempt - 1))
@@ -217,7 +227,17 @@ def download_consumption_data_with_range(
             try:
                 df = _read_csv_with_fallback(file_url)
                 df.to_csv(file_path, index=False)
-            except (UnicodeDecodeError, ValueError, pd.errors.EmptyDataError) as exc:
+            except (
+                UnicodeDecodeError,
+                ValueError,
+                pd.errors.EmptyDataError,
+                urllib.error.HTTPError,
+                urllib.error.URLError,
+                TimeoutError,
+                socket.timeout,
+                ConnectionError,
+                ssl.SSLError,
+            ) as exc:
                 print(
                     f"Failed to download data for {current_date} from {file_url}: {exc}"
                 )
