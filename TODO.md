@@ -37,7 +37,7 @@ This will be a list of things that need to be done in order to finish the projec
   - [ ] refactor: look at pipeline module
   - [ ] docs: write everywhere that every runnable script should be run from corresponding module, never from project root
   - [ ] style: I may be schizophrenic with code style, I should pick one and stick to it, look at ruff and linting rules, ruff should be achieving >99.9% Black compatibility
-  - [ ] add `.vscode` folder, idk all I can put here but as I run this project on many machines atm it wouldn't hurt to have some common settings for vscode for formatting, linting, etc.
+  - [X] add `.vscode` folder, idk all I can put here but as I run this project on many machines atm it wouldn't hurt to have some common settings for vscode for formatting, linting, etc.
   - [ ] Dockerfile for easier setup and training, GPU support is
 - [ ] notebooks overall redo, they should be more informative rather than just a playground, anything that run longer than 15 minutes should be moved to a script, should not be too hard at this point
 - [ ] seasonal decomposition, trend and seasonality removal, fourier transforms, etc. are somewhat complicated but very common techniques for time series data preprocessing, if I have time later, I can look into it and add it to the pipeline, for now I will just write it down as a note for later research
