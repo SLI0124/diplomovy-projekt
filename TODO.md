@@ -6,9 +6,14 @@ This will be a list of things that need to be done in order to finish the projec
 
 ### Deep Learning
 
-- [x] chronos2 might be too good and recent, it's not fair to compare it with older models (2024 vs 2025), look into chronos 1, which is named bolt and is released in 2024
+- [ ] support fine-tuning and one-shot learning, on top of that add uni-variate and covariant support (multivariate is mathematically and computationally more complex and it does not bring much to the table, a lot of those papers use covariant over multivariate approach)
+  - [ ] make chronos2 and moirai1 support uni and covariant data
+  - [ ] timesfm25 does it experimentally so I better check of that is possible
+  - [ ] find another one or two models that support one-shot and fine-tuning, univariate and covariant data
 - [ ] make 3 or 4 distinctive models for my own implementation, should look into basics like: LSTM, GRU, bi-directional LSTM, more or less hidden layers and count of neurons, sometimes convolution layers are used for time series data
-  - [ ] those models will need many epochs to train, add it to the train script and log loss or some other metrics to MLFlow if that is possible, simple csv should be sufficient for that
+  - [x] those models will need many epochs to train, add it to the train script and log loss or some other metrics to MLFlow if that is possible, simple csv should be sufficient for that
+  - [x] add for testing true and predicted values
+  - [ ] also support uni and covariant data
 - [ ] do script that will take all those training data from MLFlow db via library, maybe save it as json or keep it in memory and use it for plotting and comparing results of different models, all that is needed and necessary for the paper
 
 ### Others
@@ -31,16 +36,18 @@ This will be a list of things that need to be done in order to finish the projec
 ## Next steps
 
 - [ ] in all README files, format running scripts to the bash style, not PowerShell style, just use python and `name_of_script.py`, not `.\name_of_script.py`
-- [ ] add to `tools` a **bash script** with all defaults, this script should download all data, preprocess it and train it and test it? there could be many of them, one for visualization, one for training, many options so this script will narrow it down and follow the path I used in the paper
+- [ ] add to `tools` a **bash script** and **PowerShell script** with all defaults, this script should download all data, preprocess it and train it and test it? there could be many of them, one for visualization, one for training, many options so this script will narrow it down and follow the path I used in the paper or give decent look into workflow
 - when you may be really bored:
   - [ ] docs: some comments and docstrings in `pipeline` are useless and obvious, remove the obvious ones or adjust them to be more informative, read through the code and add or remove comments as necessary
   - [ ] refactor: look at pipeline module
   - [ ] docs: write everywhere that every runnable script should be run from corresponding module, never from project root
-  - [ ] style: I may be schizophrenic with code style, I should pick one and stick to it, look at ruff and linting rules, ruff should be achieving >99.9% Black compatibility
   - [X] add `.vscode` folder, idk all I can put here but as I run this project on many machines atm it wouldn't hurt to have some common settings for vscode for formatting, linting, etc.
-  - [ ] Dockerfile for easier setup and training, GPU support is
 - [ ] notebooks overall redo, they should be more informative rather than just a playground, anything that run longer than 15 minutes should be moved to a script, should not be too hard at this point
-- [ ] seasonal decomposition, trend and seasonality removal, fourier transforms, etc. are somewhat complicated but very common techniques for time series data preprocessing, if I have time later, I can look into it and add it to the pipeline, for now I will just write it down as a note for later research
+
+---
+
+- seasonal decomposition, trend and seasonality removal, fourier transforms, etc. are somewhat complicated but very common techniques for time series data preprocessing, if I have time later, I can look into it and add it to the pipeline, for now I will just write it down as a note for later research
+  - nevermind, deep learning models are able to do all those things internally, those are for machine learning models such as random forest, xgboost, etc.
 
 ## Notes after consultation
 
