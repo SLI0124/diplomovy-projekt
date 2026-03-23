@@ -35,7 +35,7 @@ This will be a list of things that need to be done in order to finish the projec
 
 ## Next steps
 
-- [ ] in all README files, format running scripts to the bash style, not PowerShell style, just use python and `name_of_script.py`, not `.\name_of_script.py`
+- [X] in all README files, format running scripts to the bash style, not PowerShell style, just use python and `name_of_script.py`, not `.\name_of_script.py`
 - [ ] add to `tools` a **bash script** and **PowerShell script** with all defaults, this script should download all data, preprocess it and train it and test it? there could be many of them, one for visualization, one for training, many options so this script will narrow it down and follow the path I used in the paper or give decent look into workflow
 - when you may be really bored:
   - [ ] docs: some comments and docstrings in `pipeline` are useless and obvious, remove the obvious ones or adjust them to be more informative, read through the code and add or remove comments as necessary

@@ -47,19 +47,19 @@ Runner (`main.py`) currently uses these defaults directly.
 Run from `src/preprocessing`:
 
 ```bash
-python .\main.py
+python main.py
 ```
 
 Optional:
 
 ```bash
-python .\main.py --input <merged.csv> --output <cleaned.csv> --report <report.json>
+python main.py --input <merged.csv> --output <cleaned.csv> --report <report.json>
 ```
 
 Print full JSON report to console only when needed:
 
 ```bash
-python .\main.py --print-report
+python main.py --print-report
 ```
 
 ## New CLI features 🆕
@@ -120,7 +120,7 @@ Additional dataset exports are saved to a dedicated subfolder under output direc
 ### Full-range generation example (all requested files)
 
 ```bash
-python .\main.py --add-cyclical --drop-cyclical-source-columns --add-lag-features --add-rolling-features --rolling-aggregation both --add-expanding-features --expanding-aggregation both
+python main.py --add-cyclical --drop-cyclical-source-columns --add-lag-features --add-rolling-features --rolling-aggregation both --add-expanding-features --expanding-aggregation both
 ```
 
 This run keeps the original cleaned file in `--output` and generates all cumulative ranges plus single-year files under a readable parameter-based folder in `splits`.
@@ -132,25 +132,25 @@ Note: cumulative ranges intentionally stop one year before the latest year in da
 - Cyclical features + drop cyclical source columns + all splits:
 
 ```bash
-python .\main.py --add-cyclical --drop-cyclical-source-columns
+python main.py --add-cyclical --drop-cyclical-source-columns
 ```
 
 - Cyclical features + drop non-total consumption components + all splits:
 
 ```bash
-python .\main.py --add-cyclical --drop-cyclical-source-columns --drop-columns consumption_gasnet,consumption_jmpnet,consumption_smpnet,consumption_vcpnet
+python main.py --add-cyclical --drop-cyclical-source-columns --drop-columns consumption_gasnet,consumption_jmpnet,consumption_smpnet,consumption_vcpnet
 ```
 
 - Drop only non-total consumption components (no extra temporal features):
 
 ```bash
-python .\main.py --drop-columns consumption_gasnet,consumption_jmpnet,consumption_smpnet,consumption_vcpnet
+python main.py --drop-columns consumption_gasnet,consumption_jmpnet,consumption_smpnet,consumption_vcpnet
 ```
 
 - Cyclical + lag features (no rolling/expanding) + all splits:
 
 ```bash
-python .\main.py --add-cyclical --drop-cyclical-source-columns --add-lag-features
+python main.py --add-cyclical --drop-cyclical-source-columns --add-lag-features
 ```
 
 ## Report 📊
