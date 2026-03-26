@@ -24,6 +24,16 @@ Default `--models` runs all three foundation models.
 - `--mode one-shot`: evaluate pretrained model weights only
 - `--mode finetuned`: train fold-specific model and save checkpoint, or load saved checkpoint for testing/evaluation
 
+### Covariate input mode
+
+- `--training-input-mode univariate`: target only.
+- `--training-input-mode covariate`: enables covariates for `chronos2` and `moirai1_base`.
+- In covariate mode, selected covariates are split into past and known-future groups via:
+  - `--covariate-columns`
+  - `--future-covariate-columns`
+  - `--past-covariate-columns`
+- `timesfm25` currently does not support covariate mode in this CLI.
+
 Default `--context-length` is `512`.
 
 ### Training loss parameter

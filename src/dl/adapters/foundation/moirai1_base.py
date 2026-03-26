@@ -23,6 +23,37 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
         super().__init__(model_ctx, device)
         self._module = None
         self._predictor = None
+        self._feat_dynamic_real_dim = 0
+        self._past_feat_dynamic_real_dim = 0
+
+    @staticmethod
+    def _as_float2d(
+        array: np.ndarray, *, name: str, expected_length: int | None = None
+    ) -> np.ndarray:
+        out = np.asarray(array, dtype=np.float32)
+        if out.ndim != 2:
+            raise ValueError(f"{name} must be a 2D array. Got shape={out.shape}.")
+        if expected_length is not None and out.shape[0] != expected_length:
+            raise ValueError(
+                f"{name} length mismatch. Expected {expected_length}, got {out.shape[0]}."
+            )
+        return out
+
+    @staticmethod
+    def _sanitize_with_observed_mask(
+        values: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        observed = np.isfinite(values).astype(np.float32)
+        sanitized = np.where(observed > 0, values, 0.0).astype(np.float32)
+        return sanitized, observed
+
+    def _set_covariate_dims(self, *, feat_dim: int, past_feat_dim: int) -> None:
+        if feat_dim < 0 or past_feat_dim < 0:
+            raise ValueError(
+                f"Covariate dims must be non-negative. Got feat_dim={feat_dim}, past_feat_dim={past_feat_dim}."
+            )
+        self._feat_dynamic_real_dim = int(feat_dim)
+        self._past_feat_dynamic_real_dim = int(past_feat_dim)
 
     def _refresh_predictor(self) -> None:
         from uni2ts.model.moirai import MoiraiForecast
@@ -33,8 +64,8 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
         forecast = MoiraiForecast(
             prediction_length=self.model_ctx.prediction_length,
             target_dim=1,
-            feat_dynamic_real_dim=0,
-            past_feat_dynamic_real_dim=0,
+            feat_dynamic_real_dim=self._feat_dynamic_real_dim,
+            past_feat_dynamic_real_dim=self._past_feat_dynamic_real_dim,
             context_length=self.model_ctx.context_length,
             module=self._module,
             num_samples=self.model_ctx.num_samples,
@@ -47,6 +78,7 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
     def load_pretrained(self) -> None:
         from uni2ts.model.moirai import MoiraiModule
 
+        self._set_covariate_dims(feat_dim=0, past_feat_dim=0)
         self._module = MoiraiModule.from_pretrained(self.model_id)
         self._module.to(self.device)
         self._module.eval()
@@ -66,7 +98,7 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
         train_covariates: np.ndarray | None = None,
         train_future_covariates: np.ndarray | None = None,
     ) -> list[TrainingLossPoint]:
-        del train_covariates, train_future_covariates
+        del artifact_dir
         if train_loss is not None or train_optimizer is not None:
             raise ValueError(
                 f"--train-loss/--train-optimizer are only supported for custom models. '{self.slug}' is a foundation model."
@@ -99,30 +131,102 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
                 )
 
         class _SingleSeriesIndexer(Indexer):
-            def __init__(self, series: np.ndarray, freq: str = "H"):
+            def __init__(
+                self,
+                series: np.ndarray,
+                freq: str = "H",
+                past_feat_dynamic_real: np.ndarray | None = None,
+                past_observed_feat_dynamic_real: np.ndarray | None = None,
+            ):
                 super().__init__(uniform=True)
                 self._series = np.asarray(series, dtype=np.float32)
                 self._freq = freq
+                self._past_feat_dynamic_real = past_feat_dynamic_real
+                self._past_observed_feat_dynamic_real = past_observed_feat_dynamic_real
 
             def __len__(self) -> int:
                 return 1
 
             def _getitem_int(self, idx: int) -> dict[str, object]:
-                return {
+                del idx
+                row: dict[str, object] = {
                     "target": self._series,
                     "freq": self._freq,
                     "start": pd.Timestamp("2013-01-01 00:00:00"),
                     "item_id": "series",
                 }
+                if self._past_feat_dynamic_real is not None:
+                    row["past_feat_dynamic_real"] = self._past_feat_dynamic_real
+                if self._past_observed_feat_dynamic_real is not None:
+                    row["past_observed_feat_dynamic_real"] = (
+                        self._past_observed_feat_dynamic_real
+                    )
+                return row
 
             def _getitem_iterable(self, idx):
                 idx_list = list(idx)
-                return {
+                row: dict[str, object] = {
                     "target": [self._series for _ in idx_list],
                     "freq": [self._freq for _ in idx_list],
                     "start": [pd.Timestamp("2013-01-01 00:00:00") for _ in idx_list],
                     "item_id": ["series" for _ in idx_list],
                 }
+                if self._past_feat_dynamic_real is not None:
+                    row["past_feat_dynamic_real"] = [
+                        self._past_feat_dynamic_real for _ in idx_list
+                    ]
+                if self._past_observed_feat_dynamic_real is not None:
+                    row["past_observed_feat_dynamic_real"] = [
+                        self._past_observed_feat_dynamic_real for _ in idx_list
+                    ]
+                return row
+
+        y_train = np.asarray(train_series, dtype=np.float32)
+        if y_train.ndim != 1:
+            raise ValueError(
+                f"train_series must be a 1D array. Got shape={y_train.shape}."
+            )
+
+        train_past_covariates: np.ndarray | None = None
+        train_past_observed_covariates: np.ndarray | None = None
+        if train_covariates is not None:
+            cov_train = self._as_float2d(
+                train_covariates,
+                name="train_covariates",
+                expected_length=len(y_train),
+            )
+            (
+                train_past_covariates_time_major,
+                train_past_observed_covariates_time_major,
+            ) = self._sanitize_with_observed_mask(cov_train)
+            train_past_covariates = train_past_covariates_time_major.T
+            train_past_observed_covariates = train_past_observed_covariates_time_major.T
+
+        feat_dim = 0
+        if train_future_covariates is not None:
+            fut_train = self._as_float2d(
+                train_future_covariates,
+                name="train_future_covariates",
+                expected_length=len(y_train),
+            )
+            feat_dim = int(fut_train.shape[1])
+
+            if (
+                train_covariates is not None
+                and fut_train.shape[1] != train_covariates.shape[1]
+            ):
+                raise ValueError(
+                    "train_future_covariates must have the same feature count as train_covariates. "
+                    f"Got {fut_train.shape[1]} and {train_covariates.shape[1]}."
+                )
+
+        past_feat_dim = (
+            int(train_past_covariates.shape[1])
+            if train_past_covariates is not None
+            else 0
+        )
+        self._set_covariate_dims(feat_dim=feat_dim, past_feat_dim=past_feat_dim)
+        max_dim = 1 + past_feat_dim
 
         base_module = MoiraiModule.from_pretrained(self.model_id)
         base_module.to(self.device)
@@ -134,7 +238,7 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
             min_patches=2,
             min_mask_ratio=0.1,
             max_mask_ratio=0.5,
-            max_dim=1,
+            max_dim=max_dim,
             num_training_steps=num_training_steps,
             num_warmup_steps=num_warmup_steps,
             module=base_module,
@@ -143,7 +247,12 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
         )
 
         train_transform = ft.train_transform_map["default"]()
-        indexer = _SingleSeriesIndexer(train_series, freq="H")
+        indexer = _SingleSeriesIndexer(
+            y_train,
+            freq="H",
+            past_feat_dynamic_real=train_past_covariates,
+            past_observed_feat_dynamic_real=train_past_observed_covariates,
+        )
 
         ds = TimeSeriesDataset(
             indexer=indexer, transform=train_transform, dataset_weight=100.0
@@ -195,15 +304,86 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
         context_covariates: np.ndarray | None = None,
         future_covariates: np.ndarray | None = None,
     ) -> ForecastResult:
-        del context_covariates, future_covariates
         from gluonts.dataset.common import ListDataset
 
         if self._predictor is None:
             raise RuntimeError("Moirai predictor is not loaded.")
 
         x = np.asarray(context, dtype=np.float32)[-self.model_ctx.context_length :]
+        if x.ndim != 1:
+            raise ValueError(f"context must be a 1D array. Got shape={x.shape}.")
+
+        context_cov_view: np.ndarray | None = None
+        if context_covariates is not None:
+            context_cov_full = self._as_float2d(
+                context_covariates,
+                name="context_covariates",
+                expected_length=len(np.asarray(context)),
+            )
+            context_cov_view = context_cov_full[-len(x) :]
+
+        future_cov_view: np.ndarray | None = None
+        if future_covariates is not None:
+            future_cov_all = self._as_float2d(
+                future_covariates,
+                name="future_covariates",
+            )
+            if future_cov_all.shape[0] < self.model_ctx.prediction_length:
+                raise ValueError(
+                    "future_covariates does not contain enough rows for prediction horizon. "
+                    f"Required {self.model_ctx.prediction_length}, got {future_cov_all.shape[0]}."
+                )
+            future_cov_view = future_cov_all[: self.model_ctx.prediction_length]
+
+        if context_cov_view is not None and future_cov_view is not None:
+            if context_cov_view.shape[1] != future_cov_view.shape[1]:
+                raise ValueError(
+                    "context_covariates and future_covariates must have the same feature count. "
+                    f"Got {context_cov_view.shape[1]} and {future_cov_view.shape[1]}."
+                )
+
+        required_past_dim = (
+            int(context_cov_view.shape[1]) if context_cov_view is not None else 0
+        )
+        required_feat_dim = (
+            int(future_cov_view.shape[1]) if future_cov_view is not None else 0
+        )
+        if (
+            required_feat_dim != self._feat_dynamic_real_dim
+            or required_past_dim != self._past_feat_dynamic_real_dim
+        ):
+            self._set_covariate_dims(
+                feat_dim=required_feat_dim,
+                past_feat_dim=required_past_dim,
+            )
+            self._refresh_predictor()
+
+        record: dict[str, object] = {"start": context_start, "target": x}
+        if context_cov_view is not None:
+            past_values, past_observed = self._sanitize_with_observed_mask(
+                context_cov_view
+            )
+            record["past_feat_dynamic_real"] = past_values.T
+            record["past_observed_feat_dynamic_real"] = past_observed.T
+
+        if future_cov_view is not None:
+            if context_cov_view is None:
+                raise ValueError(
+                    "future_covariates were provided but context_covariates are missing."
+                )
+            context_values, context_observed = self._sanitize_with_observed_mask(
+                context_cov_view
+            )
+            future_values, future_observed = self._sanitize_with_observed_mask(
+                future_cov_view
+            )
+            feat_values = np.concatenate((context_values, future_values), axis=0)
+            feat_observed = np.concatenate((context_observed, future_observed), axis=0)
+            record["feat_dynamic_real"] = feat_values.T
+            record["observed_feat_dynamic_real"] = feat_observed.T
+
         dataset = ListDataset(
-            [{"start": context_start, "target": x}],
+            [record],
             freq="h",
             one_dim_target=True,
         )
@@ -236,5 +416,6 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
         module.to(self.device)
         module.eval()
 
+        self._set_covariate_dims(feat_dim=0, past_feat_dim=0)
         self._module = module
         self._refresh_predictor()
