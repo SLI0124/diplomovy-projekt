@@ -48,6 +48,12 @@ Default `--context-length` is `512`.
 - Foundation models reject `--train-optimizer`.
 - If omitted, custom models default to `adamw` (same as previous behavior).
 
+### Checkpoint selection
+
+- `--checkpoint-selection {best-train-loss,last}` controls which finetuned weights are saved.
+- Default is `best-train-loss`: the model restores the epoch with the lowest training loss before checkpoint save.
+- Use `last` to keep previous behavior and save final-epoch weights.
+
 ## Actions
 
 - `train`: for `--test-year N`, runs all folds from 2014..N

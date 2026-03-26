@@ -444,6 +444,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                                     train_steps_per_epoch=config.train_steps_per_epoch,
                                     train_lr=config.train_lr,
                                     train_weight_decay=config.train_weight_decay,
+                                    checkpoint_selection=config.checkpoint_selection,
                                     train_loss=config.train_loss,
                                     train_optimizer=config.train_optimizer,
                                     artifact_dir=ckpt_dir,

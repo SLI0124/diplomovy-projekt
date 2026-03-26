@@ -31,6 +31,7 @@ class RuntimeConfig:
     train_lr: float
     train_weight_decay: float
     train_steps_per_epoch: int
+    checkpoint_selection: str
     train_loss: str | None
     train_optimizer: str | None
 
@@ -200,6 +201,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--train-weight-decay", type=float, default=0.0)
     parser.add_argument("--train-steps-per-epoch", type=int, default=200)
     parser.add_argument(
+        "--checkpoint-selection",
+        choices=["best-train-loss", "last"],
+        default="best-train-loss",
+        help=(
+            "Checkpoint selection strategy during finetuning. "
+            "best-train-loss restores the epoch with lowest training loss before saving; "
+            "last saves the final epoch state."
+        ),
+    )
+    parser.add_argument(
         "--train-loss",
         choices=["mae", "mse", "rmse", "mape", "smape"],
         default=None,
@@ -325,6 +336,7 @@ def parse_args() -> RuntimeConfig:
         train_lr=args.train_lr,
         train_weight_decay=args.train_weight_decay,
         train_steps_per_epoch=args.train_steps_per_epoch,
+        checkpoint_selection=args.checkpoint_selection,
         train_loss=args.train_loss,
         train_optimizer=args.train_optimizer,
         num_samples=args.num_samples,

@@ -42,6 +42,7 @@ def build_checkpoint_dir(
         "gb_n_estimators": config.gb_n_estimators,
         "gb_learning_rate": config.gb_learning_rate,
         "gb_max_depth": config.gb_max_depth,
+        "checkpoint_selection": config.checkpoint_selection,
         "feature_signature": _feature_signature(feature_columns),
     }
     digest = hashlib.md5(
@@ -90,6 +91,7 @@ def write_checkpoint_manifest(
             "gb_n_estimators": config.gb_n_estimators,
             "gb_learning_rate": config.gb_learning_rate,
             "gb_max_depth": config.gb_max_depth,
+            "checkpoint_selection": config.checkpoint_selection,
         },
     }
 
@@ -138,6 +140,10 @@ def validate_checkpoint_manifest(
         "compatibility.feature_signature": (
             ((payload.get("compatibility") or {}).get("feature_signature")),
             _feature_signature(feature_columns),
+        ),
+        "compatibility.checkpoint_selection": (
+            ((payload.get("compatibility") or {}).get("checkpoint_selection")),
+            config.checkpoint_selection,
         ),
     }
 

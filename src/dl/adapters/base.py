@@ -47,6 +47,7 @@ class BaseFoundationModelAdapter:
         train_steps_per_epoch: int,
         train_lr: float,
         train_weight_decay: float,
+        checkpoint_selection: str,
         train_loss: str | None,
         train_optimizer: str | None,
         artifact_dir: Path,

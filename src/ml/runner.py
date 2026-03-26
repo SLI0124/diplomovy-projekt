@@ -48,6 +48,72 @@ def _hour_feature_columns(feature_columns: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(col for col in feature_columns if col != "hour")
 
 
+def _fit_pipeline_with_checkpoint_selection(
+    *,
+    model_name: str,
+    config: RuntimeConfig,
+    train_hour: pd.DataFrame,
+    hour_features: tuple[str, ...],
+    target_col: str,
+    warned_models: set[str],
+):
+    strategy = config.checkpoint_selection
+    if strategy not in {"best-train-loss", "last-fit"}:
+        raise ValueError(
+            f"Unsupported checkpoint selection '{strategy}'. Supported: best-train-loss, last-fit"
+        )
+
+    x_train = train_hour[list(hour_features)]
+    y_train = train_hour[target_col]
+
+    pipeline = build_pipeline(model_name=model_name, config=config)
+    pipeline.fit(x_train, y_train)
+
+    if strategy == "last-fit":
+        return pipeline
+
+    if model_name != "gradient-boosting":
+        if model_name not in warned_models:
+            _log(
+                f"model={model_name}: checkpoint-selection=best-train-loss falls back to last-fit "
+                "because this estimator does not expose staged training loss."
+            )
+            warned_models.add(model_name)
+        return pipeline
+
+    model = pipeline.named_steps["model"]
+    x_transformed = pipeline[:-1].transform(x_train)
+    y_true = y_train.to_numpy(dtype=float)
+
+    best_stage = 1
+    best_loss = float("inf")
+    final_stage = 0
+
+    for stage, stage_pred in enumerate(model.staged_predict(x_transformed), start=1):
+        final_stage = stage
+        stage_pred_arr = np.asarray(stage_pred, dtype=float)
+        mse = float(np.mean((y_true - stage_pred_arr) ** 2))
+        if mse < best_loss:
+            best_loss = mse
+            best_stage = stage
+
+    if final_stage <= 0:
+        return pipeline
+
+    if best_stage >= final_stage:
+        return pipeline
+
+    _log(
+        f"model=gradient-boosting: selected best-train-loss stage n_estimators={best_stage} "
+        f"(final={final_stage})."
+    )
+
+    best_pipeline = build_pipeline(model_name=model_name, config=config)
+    best_pipeline.named_steps["model"].set_params(n_estimators=best_stage)
+    best_pipeline.fit(x_train, y_train)
+    return best_pipeline
+
+
 def _train_hourly_models(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
@@ -61,6 +127,7 @@ def _train_hourly_models(
     trained_hours: list[int] = []
     skipped_rows: list[dict[str, object]] = []
     hour_features = _hour_feature_columns(feature_columns)
+    warned_models: set[str] = set()
 
     for hour in range(24):
         train_hour = train_df[train_df["hour"] == hour]
@@ -88,8 +155,14 @@ def _train_hourly_models(
             )
             continue
 
-        pipeline = build_pipeline(model_name=model_name, config=config)
-        pipeline.fit(train_hour[list(hour_features)], train_hour[target_col])
+        pipeline = _fit_pipeline_with_checkpoint_selection(
+            model_name=model_name,
+            config=config,
+            train_hour=train_hour,
+            hour_features=hour_features,
+            target_col=target_col,
+            warned_models=warned_models,
+        )
 
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         joblib.dump(pipeline, checkpoint_dir / f"hour_{hour:02d}.joblib")
@@ -137,7 +210,7 @@ def _evaluate_hourly_models(
 
         model = hourly_models[hour]
         y_true = test_hour[target_col].to_numpy(dtype=float)
-        y_pred = model.predict(test_hour[list(hour_features)])
+        y_pred = model.predict(test_hour[list(hour_features)]) # type: ignore
         y_pred = np.asarray(y_pred, dtype=float)
 
         core = compute_metrics(y_true, y_pred)

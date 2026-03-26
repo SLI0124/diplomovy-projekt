@@ -30,6 +30,7 @@ class RuntimeConfig:
     gb_n_estimators: int
     gb_learning_rate: float
     gb_max_depth: int
+    checkpoint_selection: str
 
     dataset_path: Path
     variant_stem: str | None
@@ -128,6 +129,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--gb-n-estimators", type=int, default=100)
     parser.add_argument("--gb-learning-rate", type=float, default=0.1)
     parser.add_argument("--gb-max-depth", type=int, default=3)
+    parser.add_argument(
+        "--checkpoint-selection",
+        choices=["best-train-loss", "last-fit"],
+        default="best-train-loss",
+        help=(
+            "Checkpoint selection strategy. "
+            "best-train-loss picks the lowest train-loss stage for gradient-boosting and falls back to last-fit for non-iterative models; "
+            "last-fit always saves the final fitted model."
+        ),
+    )
 
     parser.add_argument("--dataset-path", type=Path, default=default_dataset)
     parser.add_argument(
@@ -184,6 +195,7 @@ def parse_args() -> RuntimeConfig:
         gb_n_estimators=args.gb_n_estimators,
         gb_learning_rate=args.gb_learning_rate,
         gb_max_depth=args.gb_max_depth,
+        checkpoint_selection=args.checkpoint_selection,
         dataset_path=args.dataset_path.resolve(),
         variant_stem=args.variant_stem,
         eval_after_train=args.eval_after_train,

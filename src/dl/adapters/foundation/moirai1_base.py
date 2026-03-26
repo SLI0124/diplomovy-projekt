@@ -92,6 +92,7 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
         train_steps_per_epoch: int,
         train_lr: float,
         train_weight_decay: float,
+        checkpoint_selection: str,
         train_loss: str | None,
         train_optimizer: str | None,
         artifact_dir: Path,
@@ -116,6 +117,8 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
         class _EpochLossCallback(Callback):
             def __init__(self) -> None:
                 self.history: list[TrainingLossPoint] = []
+                self.best_loss = float("inf")
+                self.best_module_state: dict[str, torch.Tensor] | None = None
 
             def on_train_epoch_end(self, trainer, pl_module) -> None:
                 del pl_module
@@ -123,12 +126,19 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
                 value = metrics.get("train_loss") or metrics.get("loss")
                 if value is None:
                     return
+                loss_value = float(value.detach().cpu().item())
                 self.history.append(
                     TrainingLossPoint(
                         epoch=int(trainer.current_epoch),
-                        loss=float(value.detach().cpu().item()),
+                        loss=loss_value,
                     )
                 )
+                if loss_value < self.best_loss:
+                    self.best_loss = loss_value
+                    self.best_module_state = {
+                        key: weight.detach().cpu().clone()
+                        for key, weight in ft.module.state_dict().items()
+                    }
 
         class _SingleSeriesIndexer(Indexer):
             def __init__(
@@ -290,6 +300,17 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
             callbacks=[epoch_loss_cb],
         )
         trainer.fit(ft, train_dataloaders=train_loader)
+
+        if checkpoint_selection not in {"best-train-loss", "last"}:
+            raise ValueError(
+                f"Unsupported checkpoint selection '{checkpoint_selection}'. "
+                "Supported: best-train-loss, last"
+            )
+        if (
+            checkpoint_selection == "best-train-loss"
+            and epoch_loss_cb.best_module_state is not None
+        ):
+            ft.module.load_state_dict(epoch_loss_cb.best_module_state)
 
         self._module = ft.module
         self._module.to(self.device)

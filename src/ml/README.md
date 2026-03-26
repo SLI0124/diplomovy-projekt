@@ -26,6 +26,13 @@ Default --models runs all four.
   - trains 24 separate models for each fold and model (one per hour 0..23)
   - each hour model trains only when it meets configured minimum sample thresholds
 
+## Checkpoint selection
+
+- `--checkpoint-selection {best-train-loss,last-fit}` controls what fitted model is saved.
+- Default is `best-train-loss`.
+- For `gradient-boosting`, best stage is selected using minimum training MSE from staged predictions.
+- For non-iterative estimators (`decision-tree`, `random-forest`, `linear-regression`), `best-train-loss` falls back to `last-fit`.
+
 ## Actions
 
 - train: for --test-year N, trains folds from 2014..N

@@ -68,6 +68,7 @@ class TimesFM25Adapter(BaseFoundationModelAdapter):
         train_steps_per_epoch: int,
         train_lr: float,
         train_weight_decay: float,
+        checkpoint_selection: str,
         train_loss: str | None,
         train_optimizer: str | None,
         artifact_dir: Path,
@@ -110,10 +111,17 @@ class TimesFM25Adapter(BaseFoundationModelAdapter):
             lr=float(train_lr),
             weight_decay=float(train_weight_decay),
         )
+        if checkpoint_selection not in {"best-train-loss", "last"}:
+            raise ValueError(
+                f"Unsupported checkpoint selection '{checkpoint_selection}'. "
+                "Supported: best-train-loss, last"
+            )
         loss_fn = torch.nn.MSELoss()
 
         module.train()
         history: list[TrainingLossPoint] = []
+        best_loss = float("inf")
+        best_state_dict: dict[str, torch.Tensor] | None = None
         for ep in range(max(1, train_epochs)):
             epoch_losses: list[float] = []
             for batch in dl:
@@ -148,9 +156,25 @@ class TimesFM25Adapter(BaseFoundationModelAdapter):
                 epoch_losses.append(float(loss.detach().cpu().item()))
 
             if epoch_losses:
+                mean_epoch_loss = float(np.mean(epoch_losses))
                 history.append(
-                    TrainingLossPoint(epoch=ep, loss=float(np.mean(epoch_losses)))
+                    TrainingLossPoint(epoch=ep, loss=mean_epoch_loss)
                 )
+                if (
+                    checkpoint_selection == "best-train-loss"
+                    and mean_epoch_loss < best_loss
+                ):
+                    best_loss = mean_epoch_loss
+                    best_state_dict = {
+                        key: value.detach().cpu().clone()
+                        for key, value in module.state_dict().items()
+                    }
+
+        if (
+            checkpoint_selection == "best-train-loss"
+            and best_state_dict is not None
+        ):
+            module.load_state_dict(best_state_dict)
 
         module.eval()
         artifact_dir.mkdir(parents=True, exist_ok=True)

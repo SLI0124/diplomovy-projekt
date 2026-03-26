@@ -34,6 +34,7 @@ def build_checkpoint_dir(
         "lr": config.train_lr,
         "weight_decay": config.train_weight_decay,
         "steps_per_epoch": config.train_steps_per_epoch,
+        "checkpoint_selection": config.checkpoint_selection,
         "stride": config.window_stride,
         "target": config.target_col,
         "covariates": config.covariate_columns,
@@ -85,6 +86,7 @@ def write_checkpoint_manifest(
             "train_lr": config.train_lr,
             "train_weight_decay": config.train_weight_decay,
             "train_steps_per_epoch": config.train_steps_per_epoch,
+            "checkpoint_selection": config.checkpoint_selection,
             "covariate_columns": list(covariate_columns),
             "future_covariate_columns": list(future_covariate_columns),
             "past_covariate_columns": list(past_covariate_columns),
@@ -170,6 +172,10 @@ def validate_checkpoint_manifest(
         "compatibility.train_steps_per_epoch": (
             ((payload.get("compatibility") or {}).get("train_steps_per_epoch")),
             config.train_steps_per_epoch,
+        ),
+        "compatibility.checkpoint_selection": (
+            ((payload.get("compatibility") or {}).get("checkpoint_selection")),
+            config.checkpoint_selection,
         ),
         "compatibility.covariate_columns": (
             ((payload.get("compatibility") or {}).get("covariate_columns")),

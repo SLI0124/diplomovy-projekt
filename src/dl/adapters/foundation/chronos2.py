@@ -147,6 +147,7 @@ class Chronos2Adapter(BaseFoundationModelAdapter):
         train_steps_per_epoch: int,
         train_lr: float,
         train_weight_decay: float,
+        checkpoint_selection: str,
         train_loss: str | None,
         train_optimizer: str | None,
         artifact_dir: Path,
@@ -214,6 +215,13 @@ class Chronos2Adapter(BaseFoundationModelAdapter):
 
         model.train()
         history: list[TrainingLossPoint] = []
+        best_loss = float("inf")
+        best_state_dict: dict[str, torch.Tensor] | None = None
+        if checkpoint_selection not in {"best-train-loss", "last"}:
+            raise ValueError(
+                f"Unsupported checkpoint selection '{checkpoint_selection}'. "
+                "Supported: best-train-loss, last"
+            )
         for ep in range(train_epochs):
             epoch_losses: list[float] = []
             for batch in dl:
@@ -259,9 +267,20 @@ class Chronos2Adapter(BaseFoundationModelAdapter):
                 epoch_losses.append(float(loss.detach().cpu().item()))
 
             if epoch_losses:
-                history.append(
-                    TrainingLossPoint(epoch=ep, loss=float(np.mean(epoch_losses)))
-                )
+                mean_epoch_loss = float(np.mean(epoch_losses))
+                history.append(TrainingLossPoint(epoch=ep, loss=mean_epoch_loss))
+                if (
+                    checkpoint_selection == "best-train-loss"
+                    and mean_epoch_loss < best_loss
+                ):
+                    best_loss = mean_epoch_loss
+                    best_state_dict = {
+                        key: value.detach().cpu().clone()
+                        for key, value in model.state_dict().items()
+                    }
+
+        if checkpoint_selection == "best-train-loss" and best_state_dict is not None:
+            model.load_state_dict(best_state_dict)
 
         model.eval()
         self._model = model
@@ -432,7 +451,7 @@ class Chronos2Adapter(BaseFoundationModelAdapter):
         }
 
         with torch.no_grad():
-            out = self._pipe.predict(x3, **predict_kwargs)
+            out = self._pipe.predict(x3, **predict_kwargs)  # type: ignore
 
         samples = out[0][0]
         y_pred = samples.float().mean(dim=0).cpu().numpy()
