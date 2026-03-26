@@ -16,6 +16,7 @@ dependencies = [
     "openpyxl",
     "scikit-learn",
     "huggingface-hub",
+    "granite-tsfm",
     "chronos-forecasting",
     "uni2ts",
     "timesfm @ git+https://github.com/google-research/timesfm.git",
