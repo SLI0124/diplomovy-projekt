@@ -194,11 +194,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--conflict-date", type=str, default="2022-02-24 00:00:00")
     parser.add_argument("--seed", type=int, default=42)
 
-    parser.add_argument("--train-epochs", type=int, default=1)
-    parser.add_argument("--train-batch-size", type=int, default=8)
+    parser.add_argument("--train-epochs", type=int, default=10)
+    parser.add_argument("--train-batch-size", type=int, default=64)
     parser.add_argument("--train-lr", type=float, default=5e-5)
     parser.add_argument("--train-weight-decay", type=float, default=0.0)
-    parser.add_argument("--train-steps-per-epoch", type=int, default=50)
+    parser.add_argument("--train-steps-per-epoch", type=int, default=200)
     parser.add_argument(
         "--train-loss",
         choices=["mae", "mse", "rmse", "mape", "smape"],
