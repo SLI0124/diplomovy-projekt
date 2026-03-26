@@ -14,10 +14,11 @@ python main.py --help
 ## Supported models
 
 - `chronos2` (`amazon/chronos-2`)
+- `granite_ttm` (`ibm-granite/granite-timeseries-ttm-r2`)
 - `moirai1_base` (`Salesforce/moirai-1.0-R-base`)
 - `timesfm25` (`google/timesfm-2.5-200m-pytorch`)
 
-Default `--models` runs all three foundation models.
+Default `--models` runs `chronos2,moirai1_base,timesfm25`.
 
 ## Modes
 
@@ -27,7 +28,7 @@ Default `--models` runs all three foundation models.
 ### Covariate input mode
 
 - `--training-input-mode univariate`: target only.
-- `--training-input-mode covariate`: enables covariates for `chronos2` and `moirai1_base`.
+- `--training-input-mode covariate`: enables covariates for `chronos2`, `moirai1_base`, and `granite_ttm`.
 - In covariate mode, selected covariates are split into past and known-future groups via:
   - `--covariate-columns`
   - `--future-covariate-columns`
@@ -198,6 +199,24 @@ python main.py train --mode finetuned --test-year 2020 --variant-stem drop-year_
 ```bash
 cd src/dl
 python main.py train --mode finetuned --test-year 2014 --models chronos2 --max-origins-per-year 2 --train-epochs 1 --train-steps-per-epoch 2 --train-batch-size 2
+```
+
+### 7b) Granite TTM quick smoke (all mode/input combinations)
+
+```bash
+cd src/dl
+
+# one-shot + univariate
+python main.py test --mode one-shot --test-year 2014 --models granite_ttm --training-input-mode univariate --max-origins-per-year 2
+
+# one-shot + covariate
+python main.py test --mode one-shot --test-year 2014 --models granite_ttm --training-input-mode covariate --max-origins-per-year 2
+
+# finetuned + univariate
+python main.py train --mode finetuned --test-year 2014 --models granite_ttm --training-input-mode univariate --train-epochs 1 --train-steps-per-epoch 2 --train-batch-size 2 --eval-after-train --max-origins-per-year 2
+
+# finetuned + covariate
+python main.py train --mode finetuned --test-year 2014 --models granite_ttm --training-input-mode covariate --train-epochs 1 --train-steps-per-epoch 2 --train-batch-size 2 --eval-after-train --max-origins-per-year 2
 ```
 
 ### 8) Custom model with explicit training loss

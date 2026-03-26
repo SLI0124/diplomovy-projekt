@@ -266,7 +266,7 @@ def parse_args() -> RuntimeConfig:
             "Invalid combination: '--eval-after-train' is only valid with action 'train'."
         )
     if args.training_input_mode == "covariate":
-        covariate_capable_models = {"chronos2", "moirai1_base"}
+        covariate_capable_models = {"chronos2", "moirai1_base", "granite_ttm"}
         unsupported_models = [
             model_name
             for model_name in args.models
@@ -275,7 +275,7 @@ def parse_args() -> RuntimeConfig:
         if unsupported_models:
             parser.error(
                 "Invalid combination: '--training-input-mode covariate' is currently "
-                "supported only for models 'chronos2' and 'moirai1_base'. "
+                "supported only for models 'chronos2', 'moirai1_base', and 'granite_ttm'. "
                 f"Received unsupported model(s): {', '.join(unsupported_models)}"
             )
     elif any(
