@@ -22,6 +22,7 @@ def main() -> None:
     torch.backends.cudnn.benchmark = False
 
     _log(f"action={config.action} mode={config.mode} test_year={config.test_year}")
+    _log(f"training_input_mode={config.training_input_mode}")
     _log(f"models={config.models}")
     _log(f"variant_stem={config.variant_stem}")
 

@@ -16,6 +16,10 @@ from dataset import DatasetBundle, FoldData
 from folds import FoldSpec
 
 
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
 def ensure_mlflow(experiment_name: str) -> None:
     mlflow.set_tracking_uri(mlflow_uri())
     mlflow.set_experiment(experiment_name)
@@ -73,16 +77,32 @@ def build_dataset_columns_preview(fold_data: FoldData, max_rows: int = 120) -> s
     return "\n".join(rows) + "\n"
 
 
+def build_covariate_columns_preview(fold_data: FoldData) -> str:
+    rows: list[str] = ["group,column"]
+    for column in fold_data.covariate_columns:
+        rows.append(f"selected,{column}")
+    for column in fold_data.future_covariate_columns:
+        rows.append(f"future,{column}")
+    for column in fold_data.past_covariate_columns:
+        rows.append(f"past,{column}")
+    return "\n".join(rows) + "\n"
+
+
 def safe_log_run_params(
     config: RuntimeConfig,
     bundle: DatasetBundle,
     fold: FoldSpec,
     dataset_tag: str,
+    fold_data: FoldData,
 ) -> None:
+    del bundle
+    covariate_digest = _sha256_text("|".join(fold_data.covariate_columns))
+
     mlflow.log_params(
         {
             "action": config.action,
             "mode": config.mode,
+            "training_input_mode": config.training_input_mode,
             "eval_after_train": config.eval_after_train,
             "test_year": fold.test_year,
             "train_end_year": fold.train_end_year,
@@ -93,6 +113,10 @@ def safe_log_run_params(
             "max_origins_per_year": config.max_origins_per_year,
             "variant_stem": config.variant_stem or "",
             "dataset_tag": dataset_tag,
+            "covariate_columns_count": len(fold_data.covariate_columns),
+            "future_covariate_columns_count": len(fold_data.future_covariate_columns),
+            "past_covariate_columns_count": len(fold_data.past_covariate_columns),
+            "covariate_column_digest": covariate_digest,
         }
     )
 
@@ -160,6 +184,7 @@ def safe_log_run_context(
     mlflow.set_tags(
         {
             "run.kind": f"{config.action}:{config.mode}",
+            "run.training_input_mode": config.training_input_mode,
             "run.model.requested": requested_model_name,
             "run.model.resolved": adapter.slug,
             "run.model.family": model_family,
@@ -205,3 +230,4 @@ def safe_log_run_context(
         "device": str(device),
     }
     mlflow.log_dict(context_payload, "run_context.json")
+    mlflow.log_text(build_covariate_columns_preview(fold_data), "covariate_columns.csv")

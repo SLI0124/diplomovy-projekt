@@ -63,7 +63,10 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
         train_loss: str | None,
         train_optimizer: str | None,
         artifact_dir: Path,
+        train_covariates: np.ndarray | None = None,
+        train_future_covariates: np.ndarray | None = None,
     ) -> list[TrainingLossPoint]:
+        del train_covariates, train_future_covariates
         if train_loss is not None or train_optimizer is not None:
             raise ValueError(
                 f"--train-loss/--train-optimizer are only supported for custom models. '{self.slug}' is a foundation model."
@@ -186,8 +189,13 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
         return epoch_loss_cb.history
 
     def forecast(
-        self, context: np.ndarray, context_start: pd.Timestamp
+        self,
+        context: np.ndarray,
+        context_start: pd.Timestamp,
+        context_covariates: np.ndarray | None = None,
+        future_covariates: np.ndarray | None = None,
     ) -> ForecastResult:
+        del context_covariates, future_covariates
         from gluonts.dataset.common import ListDataset
 
         if self._predictor is None:

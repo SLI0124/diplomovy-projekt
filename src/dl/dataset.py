@@ -23,6 +23,24 @@ class FoldData:
     test_path: Path
     train_series: np.ndarray
     test_df: pd.DataFrame
+    train_covariates: np.ndarray | None
+    test_covariates: np.ndarray | None
+    train_future_covariates: np.ndarray | None
+    test_future_covariates: np.ndarray | None
+    covariate_columns: tuple[str, ...]
+    future_covariate_columns: tuple[str, ...]
+    past_covariate_columns: tuple[str, ...]
+
+
+DEFAULT_FUTURE_COVARIATE_COLUMNS: tuple[str, ...] = (
+    "year",
+    "month",
+    "day",
+    "hour",
+    "day_of_week",
+    "holiday",
+    "before_holiday",
+)
 
 
 def _resolve_split_root(config: RuntimeConfig) -> Path:
@@ -151,6 +169,129 @@ def _validate_target_column(df: pd.DataFrame, target_col: str, path: Path) -> No
         )
 
 
+def _validate_columns_exist(
+    *,
+    requested: tuple[str, ...],
+    available: set[str],
+    role: str,
+    train_path: Path,
+    test_path: Path,
+) -> None:
+    missing = tuple(column for column in requested if column not in available)
+    if missing:
+        rendered = ", ".join(missing)
+        raise ValueError(
+            f"Missing {role} column(s): {rendered}. "
+            f"Columns must exist in both train and test splits. "
+            f"train={train_path} test={test_path}"
+        )
+
+
+def _resolve_covariate_layout(
+    *,
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    config: RuntimeConfig,
+    train_path: Path,
+    test_path: Path,
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    if config.training_input_mode != "covariate":
+        return (), (), ()
+
+    train_columns = set(str(column) for column in train_df.columns)
+    test_columns = set(str(column) for column in test_df.columns)
+    shared_columns = train_columns.intersection(test_columns)
+
+    if config.target_col not in shared_columns:
+        raise ValueError(
+            "Target column must exist in both train and test splits for covariate mode. "
+            f"target={config.target_col} train={train_path} test={test_path}"
+        )
+
+    if config.covariate_columns is not None:
+        selected_covariates = tuple(config.covariate_columns)
+    else:
+        selected_covariates = tuple(
+            str(column)
+            for column in train_df.columns
+            if str(column) in shared_columns and str(column) != config.target_col
+        )
+
+    if config.target_col in selected_covariates:
+        raise ValueError(
+            f"Covariates must not contain target column '{config.target_col}'."
+        )
+
+    _validate_columns_exist(
+        requested=selected_covariates,
+        available=shared_columns,
+        role="covariate",
+        train_path=train_path,
+        test_path=test_path,
+    )
+
+    if not selected_covariates:
+        raise ValueError(
+            "Covariate mode requires at least one covariate column. "
+            "Pass --covariate-columns or provide non-target columns in the dataset."
+        )
+
+    if config.future_covariate_columns is not None:
+        future_covariates = tuple(config.future_covariate_columns)
+    else:
+        future_covariates = tuple(
+            column
+            for column in DEFAULT_FUTURE_COVARIATE_COLUMNS
+            if column in selected_covariates
+        )
+
+    _validate_columns_exist(
+        requested=future_covariates,
+        available=shared_columns,
+        role="future covariate",
+        train_path=train_path,
+        test_path=test_path,
+    )
+
+    if config.past_covariate_columns is not None:
+        past_covariates = tuple(config.past_covariate_columns)
+    else:
+        future_set = set(future_covariates)
+        past_covariates = tuple(
+            column for column in selected_covariates if column not in future_set
+        )
+
+    _validate_columns_exist(
+        requested=past_covariates,
+        available=shared_columns,
+        role="past covariate",
+        train_path=train_path,
+        test_path=test_path,
+    )
+
+    selected_set = set(selected_covariates)
+    if not set(future_covariates).issubset(selected_set):
+        raise ValueError(
+            "All future covariates must be selected covariates. "
+            f"selected={selected_covariates} future={future_covariates}"
+        )
+    if not set(past_covariates).issubset(selected_set):
+        raise ValueError(
+            "All past covariates must be selected covariates. "
+            f"selected={selected_covariates} past={past_covariates}"
+        )
+
+    overlap = set(future_covariates).intersection(past_covariates)
+    if overlap:
+        rendered = ", ".join(sorted(overlap))
+        raise ValueError(
+            "Future and past covariates must be disjoint. "
+            f"Overlapping columns: {rendered}"
+        )
+
+    return selected_covariates, future_covariates, past_covariates
+
+
 def load_fold_data(
     bundle: DatasetBundle,
     config: RuntimeConfig,
@@ -177,12 +318,55 @@ def load_fold_data(
         raise ValueError(f"Testing split is empty: {test_path}")
 
     train_series = train_df[config.target_col].to_numpy(dtype=np.float32)
+    covariate_columns, future_covariate_columns, past_covariate_columns = (
+        _resolve_covariate_layout(
+            train_df=train_df,
+            test_df=test_df,
+            config=config,
+            train_path=train_path,
+            test_path=test_path,
+        )
+    )
+
+    train_covariates: np.ndarray | None = None
+    test_covariates: np.ndarray | None = None
+    train_future_covariates: np.ndarray | None = None
+    test_future_covariates: np.ndarray | None = None
+
+    if covariate_columns:
+        train_covariates = train_df.loc[:, list(covariate_columns)].to_numpy(
+            dtype=np.float32
+        )
+        test_covariates = test_df.loc[:, list(covariate_columns)].to_numpy(
+            dtype=np.float32
+        )
+
+        # Future covariates are aligned to selected covariate columns; non-future columns remain NaN.
+        train_future_covariates = np.full_like(train_covariates, np.nan)
+        test_future_covariates = np.full_like(test_covariates, np.nan)
+        future_set = set(future_covariate_columns)
+        for column_index, column_name in enumerate(covariate_columns):
+            if column_name not in future_set:
+                continue
+            train_future_covariates[:, column_index] = train_df[column_name].to_numpy(
+                dtype=np.float32
+            )
+            test_future_covariates[:, column_index] = test_df[column_name].to_numpy(
+                dtype=np.float32
+            )
 
     return FoldData(
         train_path=train_path,
         test_path=test_path,
         train_series=train_series,
         test_df=test_df.reset_index(drop=True),
+        train_covariates=train_covariates,
+        test_covariates=test_covariates,
+        train_future_covariates=train_future_covariates,
+        test_future_covariates=test_future_covariates,
+        covariate_columns=covariate_columns,
+        future_covariate_columns=future_covariate_columns,
+        past_covariate_columns=past_covariate_columns,
     )
 
 

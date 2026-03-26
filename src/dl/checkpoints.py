@@ -26,6 +26,7 @@ def build_checkpoint_dir(
     current_dataset_tag: str,
 ) -> Path:
     params_for_hash = {
+        "training_input_mode": config.training_input_mode,
         "pred_len": config.prediction_length,
         "context_len": config.context_length,
         "epochs": config.train_epochs,
@@ -35,6 +36,9 @@ def build_checkpoint_dir(
         "steps_per_epoch": config.train_steps_per_epoch,
         "stride": config.window_stride,
         "target": config.target_col,
+        "covariates": config.covariate_columns,
+        "future_covariates": config.future_covariate_columns,
+        "past_covariates": config.past_covariate_columns,
     }
     digest = hashlib.md5(
         json.dumps(params_for_hash, sort_keys=True).encode("utf-8")
@@ -43,7 +47,7 @@ def build_checkpoint_dir(
     return (
         models_root()
         / model_slug
-        / "finetuned"
+        / config.training_input_mode
         / current_dataset_tag
         / f"train_2013-{fold.train_end_year}__test-{fold.test_year}__{digest}"
     )
@@ -56,11 +60,15 @@ def write_checkpoint_manifest(
     fold: FoldSpec,
     model_slug: str,
     current_dataset_tag: str,
+    covariate_columns: tuple[str, ...],
+    future_covariate_columns: tuple[str, ...],
+    past_covariate_columns: tuple[str, ...],
 ) -> Path:
     payload = {
         "schema": CHECKPOINT_MANIFEST_VERSION,
         "model_slug": model_slug,
         "mode": "finetuned",
+        "training_input_mode": config.training_input_mode,
         "fold": {
             "train_years": fold.train_years_label,
             "train_end_year": fold.train_end_year,
@@ -77,6 +85,9 @@ def write_checkpoint_manifest(
             "train_lr": config.train_lr,
             "train_weight_decay": config.train_weight_decay,
             "train_steps_per_epoch": config.train_steps_per_epoch,
+            "covariate_columns": list(covariate_columns),
+            "future_covariate_columns": list(future_covariate_columns),
+            "past_covariate_columns": list(past_covariate_columns),
         },
     }
 
@@ -93,6 +104,9 @@ def validate_checkpoint_manifest(
     fold: FoldSpec,
     model_slug: str,
     current_dataset_tag: str,
+    covariate_columns: tuple[str, ...],
+    future_covariate_columns: tuple[str, ...],
+    past_covariate_columns: tuple[str, ...],
 ) -> None:
     manifest_path = checkpoint_dir / "checkpoint_manifest.json"
     if not manifest_path.exists():
@@ -113,6 +127,10 @@ def validate_checkpoint_manifest(
     checks = {
         "model_slug": (payload.get("model_slug"), model_slug),
         "dataset_tag": (payload.get("dataset_tag"), current_dataset_tag),
+        "training_input_mode": (
+            payload.get("training_input_mode"),
+            config.training_input_mode,
+        ),
         "fold.test_year": (
             ((payload.get("fold") or {}).get("test_year")),
             fold.test_year,
@@ -153,6 +171,18 @@ def validate_checkpoint_manifest(
             ((payload.get("compatibility") or {}).get("train_steps_per_epoch")),
             config.train_steps_per_epoch,
         ),
+        "compatibility.covariate_columns": (
+            ((payload.get("compatibility") or {}).get("covariate_columns")),
+            list(covariate_columns),
+        ),
+        "compatibility.future_covariate_columns": (
+            ((payload.get("compatibility") or {}).get("future_covariate_columns")),
+            list(future_covariate_columns),
+        ),
+        "compatibility.past_covariate_columns": (
+            ((payload.get("compatibility") or {}).get("past_covariate_columns")),
+            list(past_covariate_columns),
+        ),
     }
 
     mismatches: list[str] = []
@@ -176,6 +206,9 @@ def resolve_checkpoint_status(
     fold: FoldSpec,
     model_slug: str,
     current_dataset_tag: str,
+    covariate_columns: tuple[str, ...],
+    future_covariate_columns: tuple[str, ...],
+    past_covariate_columns: tuple[str, ...],
 ) -> tuple[CheckpointStatus, str | None]:
     if not checkpoint_dir.exists():
         return "missing", None
@@ -187,6 +220,9 @@ def resolve_checkpoint_status(
             fold=fold,
             model_slug=model_slug,
             current_dataset_tag=current_dataset_tag,
+            covariate_columns=covariate_columns,
+            future_covariate_columns=future_covariate_columns,
+            past_covariate_columns=past_covariate_columns,
         )
     except (FileNotFoundError, ValueError) as exc:
         return "incompatible_manifest", str(exc)
@@ -199,6 +235,7 @@ def build_missing_checkpoint_error(
     fold: FoldSpec,
     model_slug: str,
     ckpt_dir: Path,
+    training_input_mode: str,
 ) -> str:
     return (
         "Fine-tuned checkpoint folder not found.\n"
@@ -206,6 +243,6 @@ def build_missing_checkpoint_error(
         "This runner does not auto-load the latest checkpoint in finetuned mode.\n"
         "Create this checkpoint first, for example:\n"
         f"  cd src/dl\n"
-        f"  python main.py train --mode finetuned --test-year {fold.test_year} --models {model_slug}\n"
+        f"  python main.py train --mode finetuned --training-input-mode {training_input_mode} --test-year {fold.test_year} --models {model_slug}\n"
         "Optional: add --eval-after-train if you also want immediate evaluation metrics."
     )

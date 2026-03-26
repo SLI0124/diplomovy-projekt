@@ -126,7 +126,10 @@ class Model1Adapter(BaseFoundationModelAdapter):
         train_loss: str | None,
         train_optimizer: str | None,
         artifact_dir: Path,
+        train_covariates: np.ndarray | None = None,
+        train_future_covariates: np.ndarray | None = None,
     ) -> list[TrainingLossPoint]:
+        del train_covariates, train_future_covariates
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
         series = np.asarray(train_series, dtype=np.float32)
@@ -246,8 +249,13 @@ class Model1Adapter(BaseFoundationModelAdapter):
         )
 
     def forecast(
-        self, context: np.ndarray, context_start: pd.Timestamp
+        self,
+        context: np.ndarray,
+        context_start: pd.Timestamp,
+        context_covariates: np.ndarray | None = None,
+        future_covariates: np.ndarray | None = None,
     ) -> ForecastResult:
+        del context_start, context_covariates, future_covariates
         if not self._loaded:
             raise RuntimeError(
                 "Model_1 is not loaded. Call load_pretrained/load_finetuned."

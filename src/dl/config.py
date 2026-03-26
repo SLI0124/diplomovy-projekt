@@ -19,6 +19,10 @@ class RuntimeConfig:
     context_length: int
     max_origins_per_year: int | None
     target_col: str
+    training_input_mode: str
+    covariate_columns: tuple[str, ...] | None
+    future_covariate_columns: tuple[str, ...] | None
+    past_covariate_columns: tuple[str, ...] | None
     conflict_date: str
     seed: int
 
@@ -89,6 +93,20 @@ def _parse_models(value: str) -> tuple[str, ...]:
     return parsed
 
 
+def _parse_column_list(value: str) -> tuple[str, ...]:
+    parsed: list[str] = []
+    seen: set[str] = set()
+    for part in value.split(","):
+        column = part.strip()
+        if not column:
+            continue
+        if column in seen:
+            continue
+        seen.add(column)
+        parsed.append(column)
+    return tuple(parsed)
+
+
 def build_parser() -> argparse.ArgumentParser:
     supported_models = ", ".join(supported_model_ids())
 
@@ -126,6 +144,15 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Target test year (e.g. 2021).",
     )
+    parser.add_argument(
+        "--training-input-mode",
+        choices=["univariate", "covariate"],
+        required=True,
+        help=(
+            "Required input mode. univariate uses only target; "
+            "covariate enables Chronos2 multi-covariate inputs."
+        ),
+    )
 
     parser.add_argument("--prediction-length", type=int, default=24)
     parser.add_argument("--window-stride", type=int, default=24)
@@ -137,6 +164,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional cap for faster experiments.",
     )
     parser.add_argument("--target-col", type=str, default="consumption_total")
+    parser.add_argument(
+        "--covariate-columns",
+        type=_parse_column_list,
+        default=None,
+        help=(
+            "Optional comma-separated covariate columns. "
+            "When omitted in covariate mode, all non-target columns are used."
+        ),
+    )
+    parser.add_argument(
+        "--future-covariate-columns",
+        type=_parse_column_list,
+        default=None,
+        help=(
+            "Optional comma-separated future covariates. "
+            "When omitted in covariate mode, defaults to calendar/holiday features."
+        ),
+    )
+    parser.add_argument(
+        "--past-covariate-columns",
+        type=_parse_column_list,
+        default=None,
+        help=(
+            "Optional comma-separated past covariates. "
+            "When omitted in covariate mode, defaults to selected covariates minus future covariates."
+        ),
+    )
     parser.add_argument("--conflict-date", type=str, default="2022-02-24 00:00:00")
     parser.add_argument("--seed", type=int, default=42)
 
@@ -200,6 +254,28 @@ def parse_args() -> RuntimeConfig:
         parser.error(
             "Invalid combination: '--eval-after-train' is only valid with action 'train'."
         )
+    if args.training_input_mode == "covariate":
+        non_chronos_models = [
+            model_name for model_name in args.models if model_name != "chronos2"
+        ]
+        if non_chronos_models:
+            parser.error(
+                "Invalid combination: '--training-input-mode covariate' is currently "
+                "supported only for model 'chronos2'. "
+                f"Received additional model(s): {', '.join(non_chronos_models)}"
+            )
+    elif any(
+        value is not None
+        for value in (
+            args.covariate_columns,
+            args.future_covariate_columns,
+            args.past_covariate_columns,
+        )
+    ):
+        parser.error(
+            "Invalid combination: '--covariate-columns', '--future-covariate-columns', "
+            "and '--past-covariate-columns' require '--training-input-mode covariate'."
+        )
     if args.train_loss is not None:
         non_custom_models = [
             model_name
@@ -235,6 +311,10 @@ def parse_args() -> RuntimeConfig:
         context_length=args.context_length,
         max_origins_per_year=args.max_origins_per_year,
         target_col=args.target_col,
+        training_input_mode=args.training_input_mode,
+        covariate_columns=args.covariate_columns,
+        future_covariate_columns=args.future_covariate_columns,
+        past_covariate_columns=args.past_covariate_columns,
         conflict_date=args.conflict_date,
         seed=args.seed,
         train_epochs=args.train_epochs,

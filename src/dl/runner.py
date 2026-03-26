@@ -135,10 +135,31 @@ def _evaluate_fold(
         origin_ts = row_timestamp(i)
         context = np.concatenate((fold_data.train_series, test_series[:i]))
         y_true = test_series[i : i + config.prediction_length]
+        context_covariates = None
+        future_covariates = None
+
+        if config.training_input_mode == "covariate":
+            if fold_data.train_covariates is None or fold_data.test_covariates is None:
+                raise ValueError(
+                    "Covariate mode is enabled but context covariate arrays are missing in fold data."
+                )
+
+            context_covariates = np.concatenate(
+                (fold_data.train_covariates, fold_data.test_covariates[:i]), axis=0
+            )
+            if fold_data.test_future_covariates is not None:
+                future_covariates = fold_data.test_future_covariates[
+                    i : i + config.prediction_length
+                ]
 
         context_used = context[-config.context_length :]
         context_start = origin_ts - pd.Timedelta(hours=len(context_used))
-        y_pred = adapter.forecast(context=context, context_start=context_start).y_pred
+        y_pred = adapter.forecast(
+            context=context,
+            context_start=context_start,
+            context_covariates=context_covariates,
+            future_covariates=future_covariates,
+        ).y_pred
 
         if len(y_pred) != len(y_true):
             raise ValueError(
@@ -251,6 +272,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
             fold_data = fold_data_by_test_year[fold.test_year]
             _log(
                 f"Model={model_name} mode={config.mode} action={config.action} "
+                f"input_mode={config.training_input_mode} "
                 f"fold={fold_index}/{total_folds} "
                 f"train=2013-{fold.train_end_year} test={fold.test_year}"
             )
@@ -288,6 +310,9 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                     fold=fold,
                     model_slug=adapter.slug,
                     current_dataset_tag=current_dataset_tag,
+                    covariate_columns=fold_data.covariate_columns,
+                    future_covariate_columns=fold_data.future_covariate_columns,
+                    past_covariate_columns=fold_data.past_covariate_columns,
                 )
 
                 if (
@@ -309,6 +334,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                     bundle=bundle,
                     fold=fold,
                     dataset_tag=current_dataset_tag,
+                    fold_data=fold_data,
                 )
                 safe_log_dataset_context(
                     bundle=bundle,
@@ -353,6 +379,9 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                                     fold=fold,
                                     model_slug=adapter.slug,
                                     current_dataset_tag=current_dataset_tag,
+                                    covariate_columns=fold_data.covariate_columns,
+                                    future_covariate_columns=fold_data.future_covariate_columns,
+                                    past_covariate_columns=fold_data.past_covariate_columns,
                                 )
                             )
 
@@ -387,13 +416,27 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                                     )
 
                                 train_series = fold_data.train_series
-                                mlflow.log_params(
-                                    {
-                                        "train_series_points": int(
-                                            train_series.shape[0]
-                                        ),
-                                    }
-                                )
+                                train_covariates = None
+                                train_future_covariates = None
+                                if config.training_input_mode == "covariate":
+                                    train_covariates = fold_data.train_covariates
+                                    train_future_covariates = (
+                                        fold_data.train_future_covariates
+                                    )
+
+                                train_params: dict[str, int] = {
+                                    "train_series_points": int(train_series.shape[0]),
+                                }
+                                if train_covariates is not None:
+                                    train_params["train_covariate_columns"] = int(
+                                        train_covariates.shape[1]
+                                    )
+                                if train_future_covariates is not None:
+                                    train_params["train_future_covariate_columns"] = (
+                                        int(train_future_covariates.shape[1])
+                                    )
+                                mlflow.log_params(train_params)
+
                                 training_history = adapter.finetune(
                                     train_series=train_series,
                                     train_epochs=config.train_epochs,
@@ -404,6 +447,8 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                                     train_loss=config.train_loss,
                                     train_optimizer=config.train_optimizer,
                                     artifact_dir=ckpt_dir,
+                                    train_covariates=train_covariates,
+                                    train_future_covariates=train_future_covariates,
                                 )
                                 _save_training_losses(
                                     run_root=run_root,
@@ -432,6 +477,9 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                                     fold=fold,
                                     model_slug=adapter.slug,
                                     current_dataset_tag=current_dataset_tag,
+                                    covariate_columns=fold_data.covariate_columns,
+                                    future_covariate_columns=fold_data.future_covariate_columns,
+                                    past_covariate_columns=fold_data.past_covariate_columns,
                                 )
                                 checkpoint_outcomes[adapter.slug]["trained"] += 1
 
@@ -442,6 +490,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                                         model_slug=adapter.slug,
                                         fold=fold,
                                         ckpt_dir=ckpt_dir,
+                                        training_input_mode=config.training_input_mode,
                                     )
                                 )
                             if checkpoint_status == "incompatible_manifest":

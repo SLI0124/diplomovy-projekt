@@ -50,11 +50,17 @@ class BaseFoundationModelAdapter:
         train_loss: str | None,
         train_optimizer: str | None,
         artifact_dir: Path,
+        train_covariates: np.ndarray | None = None,
+        train_future_covariates: np.ndarray | None = None,
     ) -> list[TrainingLossPoint]:
         raise NotImplementedError
 
     def forecast(
-        self, context: np.ndarray, context_start: pd.Timestamp
+        self,
+        context: np.ndarray,
+        context_start: pd.Timestamp,
+        context_covariates: np.ndarray | None = None,
+        future_covariates: np.ndarray | None = None,
     ) -> ForecastResult:
         raise NotImplementedError
 
