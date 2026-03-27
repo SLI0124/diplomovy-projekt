@@ -16,14 +16,14 @@ python main.py --help
 ### Foundation models
 
 - `chronos2` (`amazon/chronos-2`)
-- `granite_ttm` (`ibm-granite/granite-timeseries-ttm-r2`)
-- `moirai1_base` (`Salesforce/moirai-1.0-R-base`)
+- `granite` (`ibm-granite/granite-timeseries-ttm-r2`)
+- `moirai1` (`Salesforce/moirai-1.0-R-base`)
 
 ### Custom models
 
 - `model_1` (target-only LSTM)
 
-Default `--models` runs `chronos2,moirai1_base,granite_ttm` in this order.
+Default `--models` runs `chronos2,moirai1,granite` in this order.
 
 ## Modes
 
@@ -39,7 +39,7 @@ Default `--models` runs `chronos2,moirai1_base,granite_ttm` in this order.
 ### Covariate input mode
 
 - `--training-input-mode univariate`: target only (supported for all models).
-- `--training-input-mode covariate`: enables covariates for `chronos2`, `moirai1_base`, and `granite_ttm`.
+- `--training-input-mode covariate`: enables covariates for `chronos2`, `moirai1`, and `granite`.
 - `model_1` currently does not support covariates (it is univariate only).
 - In covariate mode, selected covariates are split into past and known-future groups via:
   - `--covariate-columns`
@@ -69,7 +69,7 @@ Evaluation follows an **expanding window** (walk-forward) approach for each fold
 ### Training loss parameter
 
 - `--train-loss {mae,mse,rmse,mape,smape}` is supported only for custom models (currently `model_1`).
-- Foundation models (`chronos2`, `granite_ttm`, `moirai1_base`) reject `--train-loss`.
+- Foundation models (`chronos2`, `granite`, `moirai1`) reject `--train-loss`.
 - If omitted, custom models default to `mse`.
 
 ### Training optimizer parameter
@@ -157,8 +157,8 @@ python main.py
 
 - Foundation adapters:
   - `adapters/foundation/chronos2.py`
-  - `adapters/foundation/granite_ttm.py`
-  - `adapters/foundation/moirai1_base.py`
+  - `adapters/foundation/granite.py`
+  - `adapters/foundation/moirai1.py`
 - Custom adapters:
   - `adapters/custom/` (register your own models in `adapters/__init__.py`)
 - Backward compatibility shim:
@@ -236,7 +236,7 @@ python main.py train --mode finetuned --training-input-mode univariate --test-ye
 python main.py train --mode finetuned --training-input-mode univariate --test-year 2014 --models chronos2 --max-origins-per-year 2 --train-epochs 1 --train-steps-per-epoch 2
 
 # Granite TTM smoke (Covariate)
-python main.py train --mode finetuned --training-input-mode covariate --test-year 2014 --models granite_ttm --max-origins-per-year 5 --train-epochs 1 --eval-after-train
+python main.py train --mode finetuned --training-input-mode covariate --test-year 2014 --models granite --max-origins-per-year 5 --train-epochs 1 --eval-after-train
 ```
 
 ## Notes
@@ -245,4 +245,4 @@ python main.py train --mode finetuned --training-input-mode covariate --test-yea
 - No additional preprocessing/scaling/imputation or train/test split calculation is done here.
 - GPU is used automatically when available (`torch.cuda.is_available()`).
 - Finetune support in script:
-  - implemented: `chronos2`, `granite_ttm`, `moirai1_base`, `model_1`
+  - implemented: `chronos2`, `granite`, `moirai1`, `model_1`

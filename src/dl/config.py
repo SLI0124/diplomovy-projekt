@@ -136,7 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--models",
         type=_parse_models,
-        default=("chronos2", "moirai1_base", "granite_ttm"),
+        default=("chronos2", "moirai1", "granite"),
         help=f"Comma-separated model ids: {supported_models}",
     )
     parser.add_argument(
@@ -151,7 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help=(
             "Required input mode. univariate uses only target; "
-            "covariate enables model-specific multi-covariate inputs (chronos2, moirai1_base)."
+            "covariate enables model-specific multi-covariate inputs (chronos2, moirai1, granite)."
         ),
     )
 
@@ -266,7 +266,7 @@ def parse_args() -> RuntimeConfig:
             "Invalid combination: '--eval-after-train' is only valid with action 'train'."
         )
     if args.training_input_mode == "covariate":
-        covariate_capable_models = {"chronos2", "moirai1_base", "granite_ttm"}
+        covariate_capable_models = {"chronos2", "moirai1", "granite"}
         unsupported_models = [
             model_name
             for model_name in args.models
@@ -275,7 +275,7 @@ def parse_args() -> RuntimeConfig:
         if unsupported_models:
             parser.error(
                 "Invalid combination: '--training-input-mode covariate' is currently "
-                "supported only for models 'chronos2', 'moirai1_base', and 'granite_ttm'. "
+                "supported only for models 'chronos2', 'moirai1', and 'granite'. "
                 f"Received unsupported model(s): {', '.join(unsupported_models)}"
             )
     elif any(

@@ -7,8 +7,8 @@ from adapters.base import BaseFoundationModelAdapter, ForecastResult, ModelConte
 from adapters.custom import Model1Adapter
 from adapters.foundation import (
     Chronos2Adapter,
-    GraniteTTMAdapter,
-    Moirai1BaseAdapter,
+    GraniteAdapter,
+    Moirai1Adapter,
 )
 
 
@@ -20,8 +20,8 @@ class AdapterSpec:
 
 MODEL_REGISTRY: dict[str, AdapterSpec] = {
     "chronos2": AdapterSpec(adapter_cls=Chronos2Adapter, family="foundation"),
-    "granite_ttm": AdapterSpec(adapter_cls=GraniteTTMAdapter, family="foundation"),
-    "moirai1_base": AdapterSpec(adapter_cls=Moirai1BaseAdapter, family="foundation"),
+    "granite": AdapterSpec(adapter_cls=GraniteAdapter, family="foundation"),
+    "moirai1": AdapterSpec(adapter_cls=Moirai1Adapter, family="foundation"),
     "model_1": AdapterSpec(adapter_cls=Model1Adapter, family="custom"),
 }
 
@@ -62,7 +62,7 @@ __all__ = [
     "resolve_model_family",
     "supported_model_ids",
     "Chronos2Adapter",
-    "GraniteTTMAdapter",
-    "Moirai1BaseAdapter",
+    "GraniteAdapter",
+    "Moirai1Adapter",
     "Model1Adapter",
 ]

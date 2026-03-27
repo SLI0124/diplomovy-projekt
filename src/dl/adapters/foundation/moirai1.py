@@ -13,9 +13,9 @@ from adapters.base import (
 )
 
 
-class Moirai1BaseAdapter(BaseFoundationModelAdapter):
+class Moirai1Adapter(BaseFoundationModelAdapter):
     model_id = "Salesforce/moirai-1.0-R-base"
-    slug = "moirai1_base"
+    slug = "moirai1"
     model_family = "foundation"
     supports_finetune = True
 

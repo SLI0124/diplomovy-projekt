@@ -15,9 +15,9 @@ from adapters.shared import RandomWindowDataset, RandomWindowDatasetWithCovariat
 from torch.utils.data import DataLoader
 
 
-class GraniteTTMAdapter(BaseFoundationModelAdapter):
+class GraniteAdapter(BaseFoundationModelAdapter):
     model_id = "ibm-granite/granite-timeseries-ttm-r2"
-    slug = "granite_ttm"
+    slug = "granite"
     model_family = "foundation"
     supports_finetune = True
 
