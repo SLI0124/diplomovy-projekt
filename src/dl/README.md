@@ -84,6 +84,7 @@ Evaluation follows an **expanding window** (walk-forward) approach for each fold
 - Default is `best-train-loss`: the model restores the epoch with the lowest training loss before checkpoint save.
 - Use `last` to save final-epoch weights.
 - Checkpoint directory paths include a short MD5 hash of training parameters (LR, epochs, context length, covariates, etc.) to ensure that existing checkpoints are only reused if the configuration matches exactly.
+- Important: in `--mode finetuned`, `test` and `eval` must use the same training hyperparameters that produced the checkpoint hash (for example `--train-epochs`, `--train-batch-size`, `--train-steps-per-epoch`, `--train-lr`, `--train-weight-decay`). If they differ, strict loading will report checkpoint-not-found for the computed hash path.
 
 ## Actions
 

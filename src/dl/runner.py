@@ -233,6 +233,69 @@ def _log_rows_to_mlflow(rows: list[FoldMetrics]) -> None:
         mlflow.log_metric(prefix + "n_points", row.n_points)
 
 
+def _validate_covariate_preflight(
+    *, config: RuntimeConfig, fold_data: FoldData
+) -> None:
+    if config.training_input_mode != "covariate":
+        return
+
+    train_covariates = fold_data.train_covariates
+    test_covariates = fold_data.test_covariates
+    train_future_covariates = fold_data.train_future_covariates
+    test_future_covariates = fold_data.test_future_covariates
+
+    if train_covariates is None or test_covariates is None:
+        raise ValueError(
+            "Covariate mode requires train_covariates and test_covariates in fold data."
+        )
+
+    expected_train_len = int(fold_data.train_series.shape[0])
+    expected_test_len = int(fold_data.test_df.shape[0])
+
+    if int(train_covariates.shape[0]) != expected_train_len:
+        raise ValueError(
+            "Training covariate length mismatch. "
+            f"Expected {expected_train_len}, got {train_covariates.shape[0]}."
+        )
+    if int(test_covariates.shape[0]) != expected_test_len:
+        raise ValueError(
+            "Testing covariate length mismatch. "
+            f"Expected {expected_test_len}, got {test_covariates.shape[0]}."
+        )
+
+    train_cov_dim = int(train_covariates.shape[1])
+    test_cov_dim = int(test_covariates.shape[1])
+    if train_cov_dim != test_cov_dim:
+        raise ValueError(
+            "Covariate feature-count mismatch between train and test arrays. "
+            f"train={train_cov_dim} test={test_cov_dim}"
+        )
+
+    if train_future_covariates is not None:
+        if int(train_future_covariates.shape[0]) != expected_train_len:
+            raise ValueError(
+                "Training future-covariate length mismatch. "
+                f"Expected {expected_train_len}, got {train_future_covariates.shape[0]}."
+            )
+        if int(train_future_covariates.shape[1]) != train_cov_dim:
+            raise ValueError(
+                "Training future-covariate feature-count mismatch. "
+                f"Expected {train_cov_dim}, got {train_future_covariates.shape[1]}."
+            )
+
+    if test_future_covariates is not None:
+        if int(test_future_covariates.shape[0]) != expected_test_len:
+            raise ValueError(
+                "Testing future-covariate length mismatch. "
+                f"Expected {expected_test_len}, got {test_future_covariates.shape[0]}."
+            )
+        if int(test_future_covariates.shape[1]) != test_cov_dim:
+            raise ValueError(
+                "Testing future-covariate feature-count mismatch. "
+                f"Expected {test_cov_dim}, got {test_future_covariates.shape[1]}."
+            )
+
+
 def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
     run_root = results_root() / _run_id()
     run_root.mkdir(parents=True, exist_ok=True)
@@ -270,6 +333,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
     for model_name in config.models:
         for fold_index, fold in enumerate(folds, start=1):
             fold_data = fold_data_by_test_year[fold.test_year]
+            _validate_covariate_preflight(config=config, fold_data=fold_data)
             _log(
                 f"Model={model_name} mode={config.mode} action={config.action} "
                 f"input_mode={config.training_input_mode} "
