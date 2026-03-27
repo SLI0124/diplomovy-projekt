@@ -75,6 +75,36 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
             device="cuda" if self.device.type == "cuda" else "cpu",
         )
 
+    @staticmethod
+    def _ensure_patch_freq_aliases() -> None:
+        """Backfill Uni2TS patch-size aliases for newer pandas offset names.
+
+        Uni2TS 1.1.1 expects legacy uppercase aliases (e.g. "H", "T", "S"), but
+        newer pandas can emit lowercase/renamed offsets (e.g. "h", "min", "s").
+        """
+        from uni2ts.transform.patch import DefaultPatchSizeConstraints
+
+        ranges = DefaultPatchSizeConstraints.DEFAULT_RANGES
+        alias_to_canonical = {
+            "h": "H",
+            "min": "T",
+            "t": "T",
+            "s": "S",
+            "d": "D",
+            "b": "B",
+            "w": "W",
+            "me": "M",
+            "m": "M",
+            "qe": "Q",
+            "q": "Q",
+            "ye": "Y",
+            "y": "Y",
+            "a": "A",
+        }
+        for alias, canonical in alias_to_canonical.items():
+            if alias not in ranges and canonical in ranges:
+                ranges[alias] = ranges[canonical]
+
     def load_pretrained(self) -> None:
         from uni2ts.model.moirai import MoiraiModule
 
@@ -255,6 +285,8 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
             lr=train_lr,
             log_on_step=False,
         )
+
+        self._ensure_patch_freq_aliases()
 
         train_transform = ft.train_transform_map["default"]()
         indexer = _SingleSeriesIndexer(
