@@ -177,12 +177,16 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
                 freq: str = "H",
                 past_feat_dynamic_real: np.ndarray | None = None,
                 past_observed_feat_dynamic_real: np.ndarray | None = None,
+                feat_dynamic_real: np.ndarray | None = None,
+                observed_feat_dynamic_real: np.ndarray | None = None,
             ):
                 super().__init__(uniform=True)
                 self._series = np.asarray(series, dtype=np.float32)
                 self._freq = freq
                 self._past_feat_dynamic_real = past_feat_dynamic_real
                 self._past_observed_feat_dynamic_real = past_observed_feat_dynamic_real
+                self._feat_dynamic_real = feat_dynamic_real
+                self._observed_feat_dynamic_real = observed_feat_dynamic_real
 
             def __len__(self) -> int:
                 return 1
@@ -201,6 +205,10 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
                     row["past_observed_feat_dynamic_real"] = (
                         self._past_observed_feat_dynamic_real
                     )
+                if self._feat_dynamic_real is not None:
+                    row["feat_dynamic_real"] = self._feat_dynamic_real
+                if self._observed_feat_dynamic_real is not None:
+                    row["observed_feat_dynamic_real"] = self._observed_feat_dynamic_real
                 return row
 
             def _getitem_iterable(self, idx):
@@ -219,6 +227,14 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
                     row["past_observed_feat_dynamic_real"] = [
                         self._past_observed_feat_dynamic_real for _ in idx_list
                     ]
+                if self._feat_dynamic_real is not None:
+                    row["feat_dynamic_real"] = [
+                        self._feat_dynamic_real for _ in idx_list
+                    ]
+                if self._observed_feat_dynamic_real is not None:
+                    row["observed_feat_dynamic_real"] = [
+                        self._observed_feat_dynamic_real for _ in idx_list
+                    ]
                 return row
 
         y_train = np.asarray(train_series, dtype=np.float32)
@@ -229,6 +245,8 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
 
         train_past_covariates: np.ndarray | None = None
         train_past_observed_covariates: np.ndarray | None = None
+        train_feat_dynamic_real: np.ndarray | None = None
+        train_observed_feat_dynamic_real: np.ndarray | None = None
         if train_covariates is not None:
             cov_train = self._as_float2d(
                 train_covariates,
@@ -250,6 +268,14 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
                 expected_length=len(y_train),
             )
             feat_dim = int(fut_train.shape[1])
+            (
+                train_feat_dynamic_real_time_major,
+                train_observed_feat_dynamic_real_time_major,
+            ) = self._sanitize_with_observed_mask(fut_train)
+            train_feat_dynamic_real = train_feat_dynamic_real_time_major.T
+            train_observed_feat_dynamic_real = (
+                train_observed_feat_dynamic_real_time_major.T
+            )
 
             if (
                 train_covariates is not None
@@ -294,6 +320,8 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
             freq="H",
             past_feat_dynamic_real=train_past_covariates,
             past_observed_feat_dynamic_real=train_past_observed_covariates,
+            feat_dynamic_real=train_feat_dynamic_real,
+            observed_feat_dynamic_real=train_observed_feat_dynamic_real,
         )
 
         ds = TimeSeriesDataset(
@@ -456,6 +484,8 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
             {
                 "state_dict": self._module.state_dict(),
                 "repo_id": self.model_id,
+                "feat_dynamic_real_dim": int(self._feat_dynamic_real_dim),
+                "past_feat_dynamic_real_dim": int(self._past_feat_dynamic_real_dim),
             },
             artifact_dir / "model.pt",
         )
@@ -466,12 +496,17 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
         payload = torch.load(artifact_dir / "model.pt", map_location="cpu")
         repo_id = str(payload["repo_id"])
         state_dict = payload["state_dict"]
+        feat_dynamic_real_dim = int(payload.get("feat_dynamic_real_dim", 0))
+        past_feat_dynamic_real_dim = int(payload.get("past_feat_dynamic_real_dim", 0))
 
         module = MoiraiModule.from_pretrained(repo_id)
         module.load_state_dict(state_dict)
         module.to(self.device)
         module.eval()
 
-        self._set_covariate_dims(feat_dim=0, past_feat_dim=0)
+        self._set_covariate_dims(
+            feat_dim=feat_dynamic_real_dim,
+            past_feat_dim=past_feat_dynamic_real_dim,
+        )
         self._module = module
         self._refresh_predictor()
