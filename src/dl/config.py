@@ -196,10 +196,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=42)
 
     parser.add_argument("--train-epochs", type=int, default=10)
-    parser.add_argument("--train-batch-size", type=int, default=64)
+    parser.add_argument("--train-batch-size", type=int, default=16)
     parser.add_argument("--train-lr", type=float, default=5e-5)
     parser.add_argument("--train-weight-decay", type=float, default=0.0)
-    parser.add_argument("--train-steps-per-epoch", type=int, default=200)
+    parser.add_argument("--train-steps-per-epoch", type=int, default=100)
     parser.add_argument(
         "--checkpoint-selection",
         choices=["best-train-loss", "last"],
