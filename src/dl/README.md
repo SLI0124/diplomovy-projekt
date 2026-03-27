@@ -1,4 +1,4 @@
-# Deep Learning Scripts (Foundation Models)
+# Deep Learning Scripts (Foundation & Custom Models)
 
 Script module that replicates the expanding-window deep-learning notebook workflow in a CLI form.
 
@@ -13,9 +13,15 @@ python main.py --help
 
 ## Supported models
 
+### Foundation models
+
 - `chronos2` (`amazon/chronos-2`)
 - `granite_ttm` (`ibm-granite/granite-timeseries-ttm-r2`)
 - `moirai1_base` (`Salesforce/moirai-1.0-R-base`)
+
+### Custom models
+
+- `model_1` (target-only LSTM)
 
 Default `--models` runs `chronos2,moirai1_base,granite_ttm` in this order.
 
@@ -24,16 +30,41 @@ Default `--models` runs `chronos2,moirai1_base,granite_ttm` in this order.
 - `--mode one-shot`: evaluate pretrained model weights only
 - `--mode finetuned`: train fold-specific model and save checkpoint, or load saved checkpoint for testing/evaluation
 
+### Required Parameters
+
+- `action {train,test,eval}`: the execution mode
+- `--training-input-mode {univariate,covariate}`: the input data mode
+- `--test-year YYYY`: the target year for the backtest or single-fold evaluation
+
 ### Covariate input mode
 
-- `--training-input-mode univariate`: target only.
+- `--training-input-mode univariate`: target only (supported for all models).
 - `--training-input-mode covariate`: enables covariates for `chronos2`, `moirai1_base`, and `granite_ttm`.
+- `model_1` currently does not support covariates (it is univariate only).
 - In covariate mode, selected covariates are split into past and known-future groups via:
   - `--covariate-columns`
   - `--future-covariate-columns`
   - `--past-covariate-columns`
 
 Default `--context-length` is `512`.
+
+### Evaluation and Performance Tuning
+
+- `--num-samples N`: number of samples for probabilistic forecasts (Moirai, Chronos). Default is `20`.
+- `--window-stride N`: stride for the expanding window. Default is `24`.
+- `--prediction-length N`: forecast horizon. Default is `24`.
+- `--target-col NAME`: the name of the target column. Default is `consumption_total`.
+- `--max-origins-per-year N`: cap the number of windows per fold for faster experiments.
+- `--seed N`: random seed for reproducibility. Default is `42`.
+
+### Evaluation Logic: Expanding Window
+
+Evaluation follows an **expanding window** (walk-forward) approach for each fold:
+
+- **Origins**: The script iterates through the test year, placing a forecast "origin" every `--window-stride` steps (default 24).
+- **Context Construction**: For each origin, the script concatenates the entire available history (all training years from 2013 + the elapsed portion of the test year). The model then receives the most recent `--context-length` (default 512) points from this history as its input.
+- **Horizon**: From each origin, the model predicts the next `--prediction-length` (default 24) steps.
+- **Metrics**: Results are aggregated across all windows to produce the final fold metrics (e.g., if a year has 8760 hours and stride is 24, it evaluates ~365 windows).
 
 ### Training loss parameter
 
@@ -47,11 +78,12 @@ Default `--context-length` is `512`.
 - Foundation models reject `--train-optimizer`.
 - If omitted, custom models default to `adamw` (same as previous behavior).
 
-### Checkpoint selection
+### Checkpoint selection and identification
 
 - `--checkpoint-selection {best-train-loss,last}` controls which finetuned weights are saved.
 - Default is `best-train-loss`: the model restores the epoch with the lowest training loss before checkpoint save.
-- Use `last` to keep previous behavior and save final-epoch weights.
+- Use `last` to save final-epoch weights.
+- Checkpoint directory paths include a short MD5 hash of training parameters (LR, epochs, context length, covariates, etc.) to ensure that existing checkpoints are only reused if the configuration matches exactly.
 
 ## Actions
 
@@ -133,95 +165,77 @@ python main.py
 
 ## Commands
 
-### Full run set (all models, all folds/ranges, context length 512)
+### Full run set (Foundation models, all folds, context length 512)
 
-Use `--test-year 2025` to cover all currently available folds (2014..2025) in this dataset.
+Use `--test-year 2025` to cover all available folds (2014..2025).
 
 ```bash
-cd src/dl
+# 1) Train fine-tune: Univariate (Train from target only)
+python main.py train --mode finetuned --training-input-mode univariate --test-year 2025
 
-# 1) Fine-tune checkpoints for all models on all folds (train-only)
-python main.py train --mode finetuned --test-year 2025
+# 2) Train fine-tune: Covariate (Train with multiple features)
+python main.py train --mode finetuned --training-input-mode covariate --test-year 2025
 
-# 2) Evaluate fine-tuned checkpoints for all models on all folds
-python main.py eval --mode finetuned --test-year 2025
+# 3) Evaluate fine-tuned checkpoints (Univariate)
+python main.py eval --mode finetuned --training-input-mode univariate --test-year 2025
 
-# 3) One-shot evaluation for all models on all folds
-python main.py eval --mode one-shot --test-year 2025
+# 4) Evaluate fine-tuned checkpoints (Covariate)
+python main.py eval --mode finetuned --training-input-mode covariate --test-year 2025
+
+# 5) Evaluate one-shot pretrained weights (Covariate)
+python main.py eval --mode one-shot --training-input-mode covariate --test-year 2025
+
+# 6) Evaluate one-shot pretrained weights (Univariate)
+python main.py eval --mode one-shot --training-input-mode univariate --test-year 2025
 ```
 
-### 1) Train all folds up to 2020 (fine-tuned)
+or run the whole sequence with a single command as one-liner: (bit complex but those are all the combinations I've used for paper)
 
 ```bash
-cd src/dl
-python main.py train --mode finetuned --test-year 2020
+python main.py train --mode finetuned --training-input-mode univariate --test-year 2025 && python main.py train --mode finetuned --training-input-mode covariate --test-year 2025 && python main.py eval --mode finetuned --training-input-mode univariate --test-year 2025 && python main.py eval --mode finetuned --training-input-mode covariate --test-year 2025 && python main.py eval --mode one-shot --training-input-mode covariate --test-year 2025 && python main.py eval --mode one-shot --training-input-mode univariate --test-year 2025
 ```
 
-### 2) Train all folds and evaluate immediately after each fold
+### Common Workflows
+
+#### 1) Train all folds up to 2022 with custom epochs
 
 ```bash
-cd src/dl
-python main.py train --mode finetuned --test-year 2020 --eval-after-train
+python main.py train --mode finetuned --training-input-mode univariate --test-year 2022 --train-epochs 20
 ```
 
-### 3) Test one-shot pretrained on 2021 only
+#### 2) Train and evaluate immediately (single fold)
 
 ```bash
-cd src/dl
-python main.py test --mode one-shot --test-year 2021
+python main.py train --mode finetuned --training-input-mode covariate --test-year 2021 --eval-after-train
 ```
 
-### 4) Test fine-tuned checkpoint on 2021 only
+#### 3) Test fine-tuned checkpoint on a specific year
 
 ```bash
-cd src/dl
-python main.py test --mode finetuned --test-year 2021
+python main.py test --mode finetuned --training-input-mode univariate --test-year 2021
 ```
 
-### 5) Evaluate all folds (expanding window) with existing fine-tuned checkpoints
+#### 4) Use specific covariate columns
 
 ```bash
-cd src/dl
-python main.py eval --mode finetuned --test-year 2021
+python main.py train --mode finetuned --training-input-mode covariate --test-year 2020 --covariate-columns consumption_total,temp,holiday --future-covariate-columns holiday
 ```
 
-### 6) Use preprocessing split variant
+#### 5) Custom model (LSTM) training
 
 ```bash
-cd src/dl
-python main.py train --mode finetuned --test-year 2020 --variant-stem drop-year__cyc-hour-month-day-of-week-src-dropped
+# Note: model_1 is currently univariate only
+python main.py train --mode finetuned --training-input-mode univariate --test-year 2014 --models model_1 --train-loss smape --train-epochs 50
 ```
 
-### 7) Quick smoke run (train-only)
+### Quick smoke runs (Performance check)
 
 ```bash
-cd src/dl
-python main.py train --mode finetuned --test-year 2014 --models chronos2 --max-origins-per-year 2 --train-epochs 1 --train-steps-per-epoch 2 --train-batch-size 2
-```
+# Foundation smoke (Chronos2)
+python main.py train --mode finetuned --training-input-mode univariate --test-year 2014 --models chronos2 --max-origins-per-year 2 --train-epochs 1 --train-steps-per-epoch 2
 
-### 7b) Granite TTM quick smoke (all mode/input combinations)
-
-```bash
-cd src/dl
-
-# one-shot + univariate
-python main.py test --mode one-shot --test-year 2014 --models granite_ttm --training-input-mode univariate --max-origins-per-year 2
-
-# one-shot + covariate
-python main.py test --mode one-shot --test-year 2014 --models granite_ttm --training-input-mode covariate --max-origins-per-year 2
-
-# finetuned + univariate
-python main.py train --mode finetuned --test-year 2014 --models granite_ttm --training-input-mode univariate --train-epochs 1 --train-steps-per-epoch 2 --train-batch-size 2 --eval-after-train --max-origins-per-year 2
-
-# finetuned + covariate
-python main.py train --mode finetuned --test-year 2014 --models granite_ttm --training-input-mode covariate --train-epochs 1 --train-steps-per-epoch 2 --train-batch-size 2 --eval-after-train --max-origins-per-year 2
-```
-
-### 8) Custom model with explicit training loss
-
-```bash
-cd src/dl
-python main.py train --mode finetuned --test-year 2014 --models model_1 --train-loss smape --train-optimizer adamw
+# Granite TTM smoke (Covariate)
+python main.py train --mode finetuned --training-input-mode covariate --test-year 2014 --models granite_ttm --max-origins-per-year 5 --train-epochs 1 --eval-after-train
 ```
 
 ## Notes
@@ -230,4 +244,4 @@ python main.py train --mode finetuned --test-year 2014 --models model_1 --train-
 - No additional preprocessing/scaling/imputation or train/test split calculation is done here.
 - GPU is used automatically when available (`torch.cuda.is_available()`).
 - Finetune support in script:
-  - implemented: `chronos2`, `granite_ttm`, `moirai1_base`
+  - implemented: `chronos2`, `granite_ttm`, `moirai1_base`, `model_1`
