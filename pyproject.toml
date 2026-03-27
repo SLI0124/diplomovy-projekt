@@ -19,7 +19,6 @@ dependencies = [
     "granite-tsfm",
     "chronos-forecasting",
     "uni2ts",
-    "timesfm @ git+https://github.com/google-research/timesfm.git",
     "mlflow",
     "setuptools<81",
     "ruff",
