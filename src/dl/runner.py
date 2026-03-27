@@ -371,20 +371,6 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                                 "Internal error: checkpoint_dir was not prepared for finetuned mode."
                             )
 
-                        if checkpoint_status is None:
-                            checkpoint_status, checkpoint_reason = (
-                                resolve_checkpoint_status(
-                                    checkpoint_dir=ckpt_dir,
-                                    config=config,
-                                    fold=fold,
-                                    model_slug=adapter.slug,
-                                    current_dataset_tag=current_dataset_tag,
-                                    covariate_columns=fold_data.covariate_columns,
-                                    future_covariate_columns=fold_data.future_covariate_columns,
-                                    past_covariate_columns=fold_data.past_covariate_columns,
-                                )
-                            )
-
                         if config.action == "train":
                             if checkpoint_status == "compatible_exists":
                                 _log(
