@@ -136,7 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--models",
         type=_parse_models,
-        default=("chronos2", "moirai1_base", "timesfm25"),
+        default=("chronos2", "moirai1_base", "granite_ttm"),
         help=f"Comma-separated model ids: {supported_models}",
     )
     parser.add_argument(

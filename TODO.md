@@ -8,7 +8,6 @@ This will be a list of things that need to be done in order to finish the projec
 
 - [x] support fine-tuning and one-shot learning, on top of that add uni-variate and covariant support (multivariate is mathematically and computationally more complex and it does not bring much to the table, a lot of those papers use covariant over multivariate approach)
   - [x] make chronos2 and moirai1 support uni and covariant data
-  - [ ] timesfm25 does it experimentally so I better check of that is possible
   - [x] find another one or two models that support one-shot and fine-tuning, univariate and covariant data
   - [x] those models will need many epochs to train, add it to the train script and log loss or some other metrics to MLFlow if that is possible, simple csv should be sufficient for that
   - [x] add for testing true and predicted values
