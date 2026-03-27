@@ -356,12 +356,15 @@ class Moirai1BaseAdapter(BaseFoundationModelAdapter):
                 )
             future_cov_view = future_cov_all[: self.model_ctx.prediction_length]
 
-        if context_cov_view is not None and future_cov_view is not None:
-            if context_cov_view.shape[1] != future_cov_view.shape[1]:
-                raise ValueError(
-                    "context_covariates and future_covariates must have the same feature count. "
-                    f"Got {context_cov_view.shape[1]} and {future_cov_view.shape[1]}."
-                )
+        if (
+            context_cov_view is not None
+            and future_cov_view is not None
+            and context_cov_view.shape[1] != future_cov_view.shape[1]
+        ):
+            raise ValueError(
+                "context_covariates and future_covariates must have the same feature count. "
+                f"Got {context_cov_view.shape[1]} and {future_cov_view.shape[1]}."
+            )
 
         required_past_dim = (
             int(context_cov_view.shape[1]) if context_cov_view is not None else 0
