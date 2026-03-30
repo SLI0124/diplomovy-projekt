@@ -132,6 +132,14 @@ cd ../preprocessing
 python main.py
 ```
 
+If preprocessing used column clip/transform/scale rules, DL validates required
+metadata from variant root before loading splits.
+
+- required metadata source: `run_params.json` (`column_rules` section)
+- required report file when enabled: `column_rules_report.json`
+
+DL dataset switching remains variant-based via `--variant-stem`.
+
 ## Logging and artifacts
 
 - Save/artifact locations are fixed in this module and are not configurable via CLI flags.
@@ -263,7 +271,7 @@ python main.py train --mode finetuned --training-input-mode covariate --test-yea
 - No plots are generated in this module.
 - No additional train/test split calculation is done here.
 - Foundation adapters do not add custom preprocessing in this module.
-- Custom adapters `model_1` and `model_2` apply robust value clipping and local target normalization in their training/forecast pipelines.
+- Custom adapters `model_1` and `model_2` now assume global clipping/scaling/transforms are handled in preprocessing module and only keep local target normalization during model runtime.
 - GPU is used automatically when available (`torch.cuda.is_available()`).
 - Finetune support in script:
   - implemented: `chronos2`, `granite`, `moirai1`, `model_1`, `model_2`

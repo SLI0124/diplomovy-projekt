@@ -160,14 +160,6 @@ class Model2Adapter(BaseFoundationModelAdapter):
         self._dropout: float = 0.2
         self._model: nn.Module | None = None
         self._num_covariates: int = 0
-        self._target_mean: float = 0.0
-        self._target_std: float = 1.0
-        self._target_clip_low: float = float("-inf")
-        self._target_clip_high: float = float("inf")
-        self._covariate_mean: np.ndarray = np.empty((0,), dtype=np.float32)
-        self._covariate_std: np.ndarray = np.empty((0,), dtype=np.float32)
-        self._covariate_clip_low: np.ndarray = np.empty((0,), dtype=np.float32)
-        self._covariate_clip_high: np.ndarray = np.empty((0,), dtype=np.float32)
         self._loaded: bool = False
 
     @staticmethod
@@ -187,53 +179,6 @@ class Model2Adapter(BaseFoundationModelAdapter):
                 f"{name} length mismatch. Expected {expected_length}, got {out.shape[0]}."
             )
         return out
-
-    @staticmethod
-    def _compute_feature_stats(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        with np.errstate(invalid="ignore"):
-            mean = np.nanmean(values, axis=0).astype(np.float32)
-            std = np.nanstd(values, axis=0).astype(np.float32)
-        mean = np.where(np.isfinite(mean), mean, 0.0).astype(np.float32)
-        std = np.where(np.isfinite(std) & (std > 1e-6), std, 1.0).astype(np.float32)
-        return mean, std
-
-    @staticmethod
-    def _normalize_features(
-        values: np.ndarray,
-        mean: np.ndarray,
-        std: np.ndarray,
-    ) -> np.ndarray:
-        out = (values - mean) / std
-        return np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
-
-    @staticmethod
-    def _compute_scalar_clip_bounds(values: np.ndarray) -> tuple[float, float]:
-        valid = values[np.isfinite(values)]
-        if valid.size == 0:
-            return float("-inf"), float("inf")
-        low = float(np.quantile(valid, 0.005))
-        high = float(np.quantile(valid, 0.995))
-        if high <= low:
-            return float("-inf"), float("inf")
-        return low, high
-
-    @staticmethod
-    def _compute_feature_clip_bounds(
-        values: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        with np.errstate(invalid="ignore"):
-            low = np.nanquantile(values, 0.005, axis=0).astype(np.float32)
-            high = np.nanquantile(values, 0.995, axis=0).astype(np.float32)
-        invalid = (~np.isfinite(low)) | (~np.isfinite(high)) | (high <= low)
-        low = np.where(invalid, -np.inf, low).astype(np.float32)
-        high = np.where(invalid, np.inf, high).astype(np.float32)
-        return low, high
-
-    @staticmethod
-    def _clip_features(
-        values: np.ndarray, low: np.ndarray, high: np.ndarray
-    ) -> np.ndarray:
-        return np.clip(values, low, high).astype(np.float32)
 
     @staticmethod
     def _local_normalize_target(
@@ -298,14 +243,6 @@ class Model2Adapter(BaseFoundationModelAdapter):
 
     def load_pretrained(self) -> None:
         self._num_covariates = 0
-        self._target_mean = 0.0
-        self._target_std = 1.0
-        self._target_clip_low = float("-inf")
-        self._target_clip_high = float("inf")
-        self._covariate_mean = np.empty((0,), dtype=np.float32)
-        self._covariate_std = np.empty((0,), dtype=np.float32)
-        self._covariate_clip_low = np.empty((0,), dtype=np.float32)
-        self._covariate_clip_high = np.empty((0,), dtype=np.float32)
         self._model = self._build_model()
         self._model.eval()
         self._loaded = True
@@ -359,54 +296,8 @@ class Model2Adapter(BaseFoundationModelAdapter):
                 f"train_future_covariates: {self._num_covariates} vs {future_covariates.shape[1]}."
             )
 
-        self._target_clip_low, self._target_clip_high = (
-            self._compute_scalar_clip_bounds(series)
-        )
-        series = np.clip(series, self._target_clip_low, self._target_clip_high).astype(
-            np.float32
-        )
-
-        self._target_mean = float(series.mean())
-        std = float(series.std())
-        self._target_std = std if std > 1e-6 else 1.0
-
-        covariates_norm: np.ndarray | None = None
-        future_covariates_norm: np.ndarray | None = None
-        if self._num_covariates > 0 and covariates is not None:
-            self._covariate_clip_low, self._covariate_clip_high = (
-                self._compute_feature_clip_bounds(covariates)
-            )
-            covariates = self._clip_features(
-                covariates,
-                self._covariate_clip_low,
-                self._covariate_clip_high,
-            )
-            if future_covariates is not None:
-                future_covariates = self._clip_features(
-                    future_covariates,
-                    self._covariate_clip_low,
-                    self._covariate_clip_high,
-                )
-
-            self._covariate_mean, self._covariate_std = self._compute_feature_stats(
-                covariates
-            )
-            covariates_norm = self._normalize_features(
-                covariates,
-                self._covariate_mean,
-                self._covariate_std,
-            )
-            if future_covariates is not None:
-                future_covariates_norm = self._normalize_features(
-                    future_covariates,
-                    self._covariate_mean,
-                    self._covariate_std,
-                )
-        else:
-            self._covariate_mean = np.empty((0,), dtype=np.float32)
-            self._covariate_std = np.empty((0,), dtype=np.float32)
-            self._covariate_clip_low = np.empty((0,), dtype=np.float32)
-            self._covariate_clip_high = np.empty((0,), dtype=np.float32)
+        covariates_train = covariates
+        future_covariates_train = future_covariates
 
         prediction_length = int(max(1, self.model_ctx.prediction_length))
         context_length = int(
@@ -463,10 +354,10 @@ class Model2Adapter(BaseFoundationModelAdapter):
                         target_context_raw,
                         target_future_raw,
                     )
-                    if covariates_norm is None:
+                    if covariates_train is None:
                         context_window = target_context[:, None]
                     else:
-                        cov_context = covariates_norm[start - context_length : start, :]
+                        cov_context = covariates_train[start - context_length : start, :]
                         context_window = np.concatenate(
                             (target_context[:, None], cov_context),
                             axis=1,
@@ -474,14 +365,14 @@ class Model2Adapter(BaseFoundationModelAdapter):
                     contexts_np_list.append(context_window.astype(np.float32))
                     targets_np_list.append(target_future.astype(np.float32))
 
-                    if covariates_norm is not None:
-                        if future_covariates_norm is None:
+                    if covariates_train is not None:
+                        if future_covariates_train is None:
                             future_window = np.zeros(
                                 (prediction_length, self._num_covariates),
                                 dtype=np.float32,
                             )
                         else:
-                            future_window = future_covariates_norm[
+                            future_window = future_covariates_train[
                                 start : start + prediction_length,
                                 :,
                             ]
@@ -593,7 +484,6 @@ class Model2Adapter(BaseFoundationModelAdapter):
         context_length = int(max(1, self.model_ctx.context_length))
         prediction_length = int(max(1, self.model_ctx.prediction_length))
 
-        x = np.clip(x, self._target_clip_low, self._target_clip_high).astype(np.float32)
         x = self._pad_left_1d(x, context_length)
 
         context_cov: np.ndarray | None = None
@@ -630,16 +520,7 @@ class Model2Adapter(BaseFoundationModelAdapter):
                     dtype=np.float32,
                 )
             else:
-                context_cov = self._clip_features(
-                    context_cov,
-                    self._covariate_clip_low,
-                    self._covariate_clip_high,
-                )
-                context_cov_norm = self._normalize_features(
-                    context_cov,
-                    self._covariate_mean,
-                    self._covariate_std,
-                )
+                context_cov_norm = context_cov.astype(np.float32)
             x_input = np.concatenate((x_norm[:, None], context_cov_norm), axis=1)
         else:
             x_input = x_norm[:, None]
@@ -673,17 +554,8 @@ class Model2Adapter(BaseFoundationModelAdapter):
                 future_cov = self._align_future_covariates(
                     future_cov, prediction_length
                 )
-                future_cov = self._clip_features(
-                    future_cov,
-                    self._covariate_clip_low,
-                    self._covariate_clip_high,
-                )
 
-            future_cov_norm = self._normalize_features(
-                future_cov,
-                self._covariate_mean,
-                self._covariate_std,
-            )
+            future_cov_norm = future_cov.astype(np.float32)
             future_cov_t = (
                 torch.from_numpy(future_cov_norm)
                 .to(self.device)
@@ -700,9 +572,7 @@ class Model2Adapter(BaseFoundationModelAdapter):
             )
 
         y_pred = np.asarray(y_norm * loc_std + loc_mean, dtype=np.float32)
-        y_pred = np.clip(y_pred, self._target_clip_low, self._target_clip_high).astype(
-            np.float32
-        )
+        y_pred = y_pred.astype(np.float32)
         return ForecastResult(y_pred=y_pred)
 
     def save_finetuned(self, artifact_dir: Path) -> None:
@@ -725,14 +595,6 @@ class Model2Adapter(BaseFoundationModelAdapter):
                 "num_covariates": self._num_covariates,
                 "prediction_length": int(self.model_ctx.prediction_length),
                 "context_length": int(self.model_ctx.context_length),
-                "target_mean": self._target_mean,
-                "target_std": self._target_std,
-                "target_clip_low": self._target_clip_low,
-                "target_clip_high": self._target_clip_high,
-                "covariate_mean": self._covariate_mean.tolist(),
-                "covariate_std": self._covariate_std.tolist(),
-                "covariate_clip_low": self._covariate_clip_low.tolist(),
-                "covariate_clip_high": self._covariate_clip_high.tolist(),
                 "state_dict": self._model.state_dict(),
             },
             artifact_dir / "model.pt",
@@ -752,14 +614,6 @@ class Model2Adapter(BaseFoundationModelAdapter):
                     "num_covariates": self._num_covariates,
                     "prediction_length": int(self.model_ctx.prediction_length),
                     "context_length": int(self.model_ctx.context_length),
-                    "target_mean": self._target_mean,
-                    "target_std": self._target_std,
-                    "target_clip_low": self._target_clip_low,
-                    "target_clip_high": self._target_clip_high,
-                    "covariate_mean": self._covariate_mean.tolist(),
-                    "covariate_std": self._covariate_std.tolist(),
-                    "covariate_clip_low": self._covariate_clip_low.tolist(),
-                    "covariate_clip_high": self._covariate_clip_high.tolist(),
                     "weights_file": "model.pt",
                 },
                 indent=2,
@@ -779,58 +633,6 @@ class Model2Adapter(BaseFoundationModelAdapter):
         self._ffn_size = int(payload.get("ffn_size", 128))
         self._dropout = float(payload.get("dropout", 0.2))
         self._num_covariates = int(payload.get("num_covariates", 0))
-
-        self._target_mean = float(payload.get("target_mean", 0.0))
-        std = float(payload.get("target_std", 1.0))
-        self._target_std = std if std > 1e-6 else 1.0
-        self._target_clip_low = float(payload.get("target_clip_low", float("-inf")))
-        self._target_clip_high = float(payload.get("target_clip_high", float("inf")))
-
-        covariate_mean = payload.get("covariate_mean", [])
-        covariate_std = payload.get("covariate_std", [])
-        covariate_clip_low = payload.get("covariate_clip_low", [])
-        covariate_clip_high = payload.get("covariate_clip_high", [])
-        self._covariate_mean = np.asarray(covariate_mean, dtype=np.float32)
-        self._covariate_std = np.asarray(covariate_std, dtype=np.float32)
-        self._covariate_clip_low = np.asarray(covariate_clip_low, dtype=np.float32)
-        self._covariate_clip_high = np.asarray(covariate_clip_high, dtype=np.float32)
-        if self._num_covariates == 0:
-            self._covariate_mean = np.empty((0,), dtype=np.float32)
-            self._covariate_std = np.empty((0,), dtype=np.float32)
-            self._covariate_clip_low = np.empty((0,), dtype=np.float32)
-            self._covariate_clip_high = np.empty((0,), dtype=np.float32)
-        elif self._covariate_mean.shape != (
-            self._num_covariates,
-        ) or self._covariate_std.shape != (self._num_covariates,):
-            raise ValueError(
-                "Model_2 checkpoint has inconsistent covariate normalization metadata."
-            )
-
-        if self._num_covariates > 0 and (
-            self._covariate_clip_low.shape != (self._num_covariates,)
-            or self._covariate_clip_high.shape != (self._num_covariates,)
-        ):
-            self._covariate_clip_low = np.full(
-                (self._num_covariates,),
-                -np.inf,
-                dtype=np.float32,
-            )
-            self._covariate_clip_high = np.full(
-                (self._num_covariates,),
-                np.inf,
-                dtype=np.float32,
-            )
-
-        self._covariate_std = np.where(
-            (self._covariate_std > 1e-6) & np.isfinite(self._covariate_std),
-            self._covariate_std,
-            1.0,
-        ).astype(np.float32)
-        self._covariate_mean = np.where(
-            np.isfinite(self._covariate_mean),
-            self._covariate_mean,
-            0.0,
-        ).astype(np.float32)
 
         state_dict = payload.get("state_dict")
         if state_dict is None:
