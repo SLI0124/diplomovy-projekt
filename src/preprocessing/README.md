@@ -107,10 +107,20 @@ instead of training scripts.
 
 CLI options:
 
-- `--column-rules-preset <name>` (placeholder; no preset instances defined yet)
+- `--column-rules-preset none|scale_only|scale_transform|scale_transform_clip`
 - `--clip-rule <columns>:<method>[:k=v,...]` (repeatable)
 - `--transform-rule <columns>:<method>[:k=v,...]` (repeatable)
 - `--scale-rule <columns>:<method>[:k=v,...]` (repeatable)
+
+Built-in presets:
+
+- `scale_only`: only scaling (standard/robust/minmax by column distribution shape)
+- `scale_transform`: transform then scale (log1p/yeo-johnson + robust/standard/minmax)
+- `scale_transform_clip`: clip then transform then scale (quantile clipping for heavy tails)
+
+Preset + explicit rule merge policy:
+
+- explicit `--clip-rule`, `--transform-rule`, `--scale-rule` override preset rules for the same columns
 
 When enabled, preprocessing saves extra metadata to variant root:
 
@@ -125,6 +135,22 @@ python main.py \
   --transform-rule consumption_total,temperature_2m:box-cox \
   --scale-rule consumption_total:robust \
   --scale-rule temperature_2m:standard
+```
+
+Example run with presets:
+
+```bash
+python main.py --column-rules-preset scale_only
+python main.py --column-rules-preset scale_transform
+python main.py --column-rules-preset scale_transform_clip
+```
+
+Example run with preset and override:
+
+```bash
+python main.py \
+  --column-rules-preset scale_transform \
+  --transform-rule consumption_total:box-cox
 ```
 
 ### Feature engineering options

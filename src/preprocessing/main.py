@@ -156,11 +156,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--column-rules-preset",
-        type=str,
+        choices=["none", "scale_only", "scale_transform", "scale_transform_clip"],
         default="none",
         help=(
-            "Optional column-rules preset name. "
-            "No preset instances are defined yet; keep 'none'."
+            "Optional built-in preset for distribution-aware preprocessing rules. "
+            "Can be combined with explicit rule flags; explicit rules override preset columns."
         ),
     )
     parser.add_argument(

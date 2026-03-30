@@ -57,16 +57,183 @@ def _normalize_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _preset_payload(preset: str) -> dict[str, Any]:
+    if preset == "none":
+        return {}
+
+    scale_standard = {
+        "temperature_2m": {"method": "standard"},
+        "pressure_msl": {"method": "standard"},
+        "surface_pressure": {"method": "standard"},
+        "dew_point_2m": {"method": "standard"},
+        "apparent_temperature": {"method": "standard"},
+    }
+    scale_robust = {
+        "consumption_gasnet": {"method": "robust"},
+        "consumption_jmpnet": {"method": "robust"},
+        "consumption_smpnet": {"method": "robust"},
+        "consumption_vcpnet": {"method": "robust"},
+        "consumption_total": {"method": "robust"},
+        "traded_volume_mwh": {"method": "robust"},
+        "weighted_avg_price_eur_mwh": {"method": "robust"},
+        "min_price_eur_mwh": {"method": "robust"},
+        "max_price_eur_mwh": {"method": "robust"},
+        "wind_speed_10m": {"method": "robust"},
+        "wind_gusts_10m": {"method": "robust"},
+        "precipitation": {"method": "robust"},
+        "snowfall": {"method": "robust"},
+        "snow_depth": {"method": "robust"},
+    }
+    scale_minmax = {
+        "relative_humidity_2m": {"method": "minmax"},
+        "cloud_cover": {"method": "minmax"},
+        "wind_direction_10m": {"method": "minmax"},
+    }
+
+    if preset == "scale_only":
+        return {
+            "scale": {
+                **scale_standard,
+                **scale_robust,
+                **scale_minmax,
+            }
+        }
+
+    transform_rules = {
+        "consumption_gasnet": {"method": "log1p"},
+        "consumption_jmpnet": {"method": "log1p"},
+        "consumption_smpnet": {"method": "log1p"},
+        "consumption_vcpnet": {"method": "log1p"},
+        "consumption_total": {"method": "log1p"},
+        "traded_volume_mwh": {"method": "log1p"},
+        "weighted_avg_price_eur_mwh": {"method": "log1p"},
+        "min_price_eur_mwh": {"method": "log1p"},
+        "max_price_eur_mwh": {"method": "log1p"},
+        "wind_speed_10m": {"method": "log1p"},
+        "wind_gusts_10m": {"method": "log1p"},
+        "precipitation": {"method": "log1p"},
+        "snowfall": {"method": "log1p"},
+        "snow_depth": {"method": "log1p"},
+        "relative_humidity_2m": {"method": "yeo-johnson"},
+        "cloud_cover": {"method": "yeo-johnson"},
+    }
+
+    if preset == "scale_transform":
+        return {
+            "transform": transform_rules,
+            "scale": {
+                **scale_standard,
+                **scale_robust,
+                "relative_humidity_2m": {"method": "robust"},
+                "cloud_cover": {"method": "robust"},
+                "wind_direction_10m": {"method": "minmax"},
+            },
+        }
+
+    if preset == "scale_transform_clip":
+        return {
+            "clip": {
+                "consumption_gasnet": {
+                    "method": "quantile",
+                    "lower_q": 0.001,
+                    "upper_q": 0.999,
+                },
+                "consumption_jmpnet": {
+                    "method": "quantile",
+                    "lower_q": 0.001,
+                    "upper_q": 0.999,
+                },
+                "consumption_smpnet": {
+                    "method": "quantile",
+                    "lower_q": 0.001,
+                    "upper_q": 0.999,
+                },
+                "consumption_vcpnet": {
+                    "method": "quantile",
+                    "lower_q": 0.001,
+                    "upper_q": 0.999,
+                },
+                "consumption_total": {
+                    "method": "quantile",
+                    "lower_q": 0.001,
+                    "upper_q": 0.999,
+                },
+                "traded_volume_mwh": {
+                    "method": "quantile",
+                    "lower_q": 0.001,
+                    "upper_q": 0.999,
+                },
+                "weighted_avg_price_eur_mwh": {
+                    "method": "quantile",
+                    "lower_q": 0.001,
+                    "upper_q": 0.999,
+                },
+                "min_price_eur_mwh": {
+                    "method": "quantile",
+                    "lower_q": 0.001,
+                    "upper_q": 0.999,
+                },
+                "max_price_eur_mwh": {
+                    "method": "quantile",
+                    "lower_q": 0.001,
+                    "upper_q": 0.999,
+                },
+                "wind_speed_10m": {
+                    "method": "quantile",
+                    "lower_q": 0.001,
+                    "upper_q": 0.999,
+                },
+                "wind_gusts_10m": {
+                    "method": "quantile",
+                    "lower_q": 0.001,
+                    "upper_q": 0.999,
+                },
+                "precipitation": {
+                    "method": "quantile",
+                    "lower_q": 0.0,
+                    "upper_q": 0.999,
+                },
+                "snowfall": {
+                    "method": "quantile",
+                    "lower_q": 0.0,
+                    "upper_q": 0.999,
+                },
+                "snow_depth": {
+                    "method": "quantile",
+                    "lower_q": 0.0,
+                    "upper_q": 0.999,
+                },
+            },
+            "transform": transform_rules,
+            "scale": {
+                **scale_standard,
+                **scale_robust,
+                "relative_humidity_2m": {"method": "robust"},
+                "cloud_cover": {"method": "robust"},
+                "wind_direction_10m": {"method": "minmax"},
+            },
+        }
+
+    raise ValueError(
+        f"Unsupported column rules preset '{preset}'. Supported: none, scale_only, scale_transform, scale_transform_clip"
+    )
+
+
 def load_column_rules(
     rules_payload: dict[str, Any] | None,
     *,
     preset: str = "none",
 ) -> dict[str, Any]:
-    if preset != "none":
-        raise ValueError(
-            f"Unsupported column rules preset '{preset}'. No preset instances are defined yet."
-        )
-    return _normalize_payload(rules_payload or {})
+    base = _normalize_payload(_preset_payload(preset))
+    override = _normalize_payload(rules_payload or {})
+    return {
+        "clip": {**base.get("clip", {}), **override.get("clip", {})},
+        "transform": {
+            **base.get("transform", {}),
+            **override.get("transform", {}),
+        },
+        "scale": {**base.get("scale", {}), **override.get("scale", {})},
+    }
 
 
 def _fit_clip_bounds(
