@@ -94,6 +94,39 @@ Additional dataset exports are saved to a dedicated subfolder under output direc
 - Range anchor/start year is fixed to `2013`.
 - `--exports-subdir` : default `splits`
 
+### Column clip/transform/scale rules
+
+You can now define reusable per-column preprocessing rules in preprocessing
+instead of training scripts.
+
+- Rule stages are applied in a fixed order: `clip -> transform -> scale`
+- Built-in methods:
+  - clip: `bounds`, `quantile`, `iqr`
+  - transform: `log1p`, `sqrt`, `yeo-johnson` (optional `box-cox`)
+  - scale: `standard`, `minmax`, `robust`
+
+CLI options:
+
+- `--column-rules-preset <name>` (placeholder; no preset instances defined yet)
+- `--clip-rule <columns>:<method>[:k=v,...]` (repeatable)
+- `--transform-rule <columns>:<method>[:k=v,...]` (repeatable)
+- `--scale-rule <columns>:<method>[:k=v,...]` (repeatable)
+
+When enabled, preprocessing saves extra metadata to variant root:
+
+- `column_rules_report.json`
+- `run_params.json` includes `column_rules` section
+
+Example run with direct rules:
+
+```bash
+python main.py \
+  --clip-rule consumption_total:quantile:lower_q=0.005,upper_q=0.995 \
+  --transform-rule consumption_total,temperature_2m:box-cox \
+  --scale-rule consumption_total:robust \
+  --scale-rule temperature_2m:standard
+```
+
 ### Feature engineering options
 
 - Drop columns:

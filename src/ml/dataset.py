@@ -129,13 +129,6 @@ def load_dataset(config: RuntimeConfig) -> DatasetBundle:
 
     run_params_path = _resolve_run_params_path(config, dataset_path)
     run_params = _load_run_params(run_params_path)
-    if (
-        run_params is not None
-        and run_params.get("schema") != "preprocessing.run_params.v1"
-    ):
-        _warn(
-            f"Unexpected preprocessing schema in {run_params_path}: {run_params.get('schema')}"
-        )
 
     return DatasetBundle(
         dataframe=out,

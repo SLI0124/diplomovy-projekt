@@ -80,6 +80,22 @@ def save_run_parameters(
     return params_path
 
 
+def save_variant_metadata(
+    payload: dict[str, Any],
+    config: DatasetExportConfig,
+    *,
+    filename: str,
+) -> Path:
+    """Save structured metadata file under variant root."""
+
+    root_dir = _dataset_root(config)
+    root_dir.mkdir(parents=True, exist_ok=True)
+    metadata_path = root_dir / filename
+    _log(f"Saving variant metadata: {metadata_path}")
+    metadata_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return metadata_path
+
+
 def export_split_datasets(
     df: pd.DataFrame,
     config: DatasetExportConfig,

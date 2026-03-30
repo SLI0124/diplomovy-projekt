@@ -5,13 +5,16 @@ import json
 from pathlib import Path
 from typing import Any
 
+from column_rules import apply_column_rules, load_column_rules
 from dataset_exports import (
     DatasetExportConfig,
     export_split_datasets,
     save_run_parameters,
+    save_variant_metadata,
     save_variant_snapshot,
 )
 from run_helpers import (
+    build_column_rules_from_cli,
     build_feature_variant_stem,
     build_run_parameters_payload,
     build_temporal_config,
@@ -151,6 +154,42 @@ def parse_args() -> argparse.Namespace:
         default="splits",
         help="Subdirectory under output folder where additional datasets are saved in nested folders.",
     )
+    parser.add_argument(
+        "--column-rules-preset",
+        type=str,
+        default="none",
+        help=(
+            "Optional column-rules preset name. "
+            "No preset instances are defined yet; keep 'none'."
+        ),
+    )
+    parser.add_argument(
+        "--clip-rule",
+        action="append",
+        default=[],
+        help=(
+            "Repeatable clipping rule in format <columns>:<method>[:k=v,...]. "
+            "Example: consumption_total:quantile:lower_q=0.005,upper_q=0.995"
+        ),
+    )
+    parser.add_argument(
+        "--transform-rule",
+        action="append",
+        default=[],
+        help=(
+            "Repeatable transform rule in format <columns>:<method>[:k=v,...]. "
+            "Example: consumption_total,temperature_2m:box-cox"
+        ),
+    )
+    parser.add_argument(
+        "--scale-rule",
+        action="append",
+        default=[],
+        help=(
+            "Repeatable scaling rule in format <columns>:<method>[:k=v,...]. "
+            "Example: consumption_total:robust"
+        ),
+    )
 
     return parser.parse_args()
 
@@ -169,6 +208,13 @@ def main() -> None:
     working_df = sort_by_time(result.dataframe)
     split_reference_df = sort_by_time(result.dataframe)
     enabled_features = feature_flags_enabled(args)
+    column_rules = load_column_rules(
+        build_column_rules_from_cli(args),
+        preset=args.column_rules_preset,
+    )
+    column_rules_enabled = any(
+        column_rules.get(stage) for stage in ("clip", "transform", "scale")
+    )
     export_base_stem = "base"
     if enabled_features:
         _log("main", "Applying temporal feature engineering")
@@ -177,6 +223,20 @@ def main() -> None:
         export_base_stem = build_feature_variant_stem(args)
     else:
         _log("main", "No temporal feature flags enabled; using base variant")
+
+    column_rules_report: dict[str, Any] = {
+        "enabled": False,
+        "order": ["clip", "transform", "scale"],
+        "clip": {},
+        "transform": {},
+        "scale": {},
+        "skipped": [],
+    }
+    if column_rules_enabled:
+        _log("main", "Applying column clip/transform/scale rules")
+        column_rules_result = apply_column_rules(working_df, column_rules)
+        working_df = column_rules_result.dataframe
+        column_rules_report = column_rules_result.report
 
     exports_root = args.output.parent / args.exports_subdir
     export_year_column = "year"
@@ -206,13 +266,28 @@ def main() -> None:
         drop_export_columns=tuple(drop_export_columns),
     )
 
+    column_rules_report_filename = (
+        "column_rules_report.json" if column_rules_enabled else None
+    )
+
     params_payload = build_run_parameters_payload(
         args=args,
         enabled_features=enabled_features,
         export_config=export_config,
+        column_rules=column_rules,
+        column_rules_enabled=column_rules_enabled,
+        column_rules_report_filename=column_rules_report_filename,
     )
     params_path = save_run_parameters(params_payload, export_config)
     export_details["params_path"] = str(params_path)
+
+    if column_rules_enabled and column_rules_report_filename is not None:
+        column_rules_report_path = save_variant_metadata(
+            payload=column_rules_report,
+            config=export_config,
+            filename=column_rules_report_filename,
+        )
+        export_details["column_rules_report_path"] = str(column_rules_report_path)
 
     if enabled_features:
         _log("main", "Saving feature-variant snapshot")
@@ -225,6 +300,7 @@ def main() -> None:
     export_details.update(split_stats)
 
     result.report["derived_exports"] = export_details
+    result.report["column_rules"] = column_rules_report
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(result.report, indent=2), encoding="utf-8")
