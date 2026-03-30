@@ -256,14 +256,21 @@ python main.py eval --mode finetuned --training-input-mode univariate --test-yea
 python main.py eval --mode finetuned --training-input-mode covariate --test-year 2025 --models model_1,model_2 --train-epochs 50
 ```
 
-### Quick smoke runs (Performance check)
+or as a one-liner:
 
 ```bash
-# Foundation smoke (Chronos2)
-python main.py train --mode finetuned --training-input-mode univariate --test-year 2014 --models chronos2 --max-origins-per-year 2 --train-epochs 1 --train-steps-per-epoch 2
+python main.py train --mode finetuned --training-input-mode univariate --test-year 2025 --models model_1,model_2 --train-epochs 50 && python main.py train --mode finetuned --training-input-mode covariate --test-year 2025 --models model_1,model_2 --train-epochs 50 && python main.py eval --mode finetuned --training-input-mode univariate --test-year 2025 --models model_1,model_2 --train-epochs 50 && python main.py eval --mode finetuned --training-input-mode covariate --test-year 2025 --models model_1,model_2 --train-epochs 50
+```
+### Full-range custom training with preprocessing variants
 
-# Granite TTM smoke (Covariate)
-python main.py train --mode finetuned --training-input-mode covariate --test-year 2014 --models granite --max-origins-per-year 5 --train-epochs 1 --eval-after-train
+Use these examples for full fold scans with custom models only (`model_1,model_2`) and variant stems.
+
+```bash
+# Example 1: full-range univariate custom training on scale_transform_clip
+python main.py train --mode finetuned --training-input-mode univariate --test-year 2025 --models model_1,model_2 --train-epochs 50 --variant-stem scale_transform_clip
+
+# Example 2: full-range covariate custom training on scale_transform
+python main.py train --mode finetuned --training-input-mode covariate --test-year 2025 --models model_1,model_2 --train-epochs 50 --variant-stem scale_transform
 ```
 
 ## Notes
