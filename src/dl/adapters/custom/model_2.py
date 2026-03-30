@@ -15,69 +15,99 @@ from adapters.base import (
 )
 
 
-class _Model1LSTM(nn.Module):
+class _Model2Transformer(nn.Module):
     def __init__(
         self,
         input_size: int,
         future_covariate_size: int,
         hidden_size: int,
         num_layers: int,
-        dense_size: int,
+        num_heads: int,
+        ffn_size: int,
         dropout: float,
         prediction_length: int,
+        context_length: int,
     ) -> None:
         super().__init__()
+        if hidden_size % num_heads != 0:
+            raise ValueError(
+                f"hidden_size must be divisible by num_heads. Got {hidden_size} and {num_heads}."
+            )
+
         self.prediction_length = int(prediction_length)
+        self.context_length = int(context_length)
         self.future_covariate_size = int(max(0, future_covariate_size))
-        self.lstm = nn.LSTM(
-            input_size=int(max(1, input_size)),
-            hidden_size=hidden_size,
-            num_layers=num_layers,
-            batch_first=True,
-            dropout=dropout if num_layers > 1 else 0.0,
+
+        self.input_proj = nn.Linear(int(max(1, input_size)), hidden_size)
+        self.positional_embedding = nn.Parameter(
+            torch.zeros(1, self.context_length, hidden_size)
         )
-        self.norm = nn.BatchNorm1d(hidden_size)
+
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=hidden_size,
+            nhead=num_heads,
+            dim_feedforward=ffn_size,
+            dropout=dropout,
+            batch_first=True,
+            norm_first=False,
+            activation="gelu",
+        )
+        self.encoder = nn.TransformerEncoder(
+            encoder_layer=encoder_layer,
+            num_layers=num_layers,
+        )
+
+        self.context_head = nn.Sequential(
+            nn.Linear(hidden_size * 2, hidden_size),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+        )
 
         head_input_dim = hidden_size
         self.future_covariate_head: nn.Sequential | None = None
         if self.future_covariate_size > 0:
             self.future_covariate_head = nn.Sequential(
                 nn.Linear(
-                    self.future_covariate_size * self.prediction_length, dense_size
+                    self.future_covariate_size * self.prediction_length, hidden_size
                 ),
                 nn.ReLU(),
                 nn.Dropout(dropout),
             )
-            head_input_dim += dense_size
+            head_input_dim += hidden_size
 
         self.head = nn.Sequential(
-            nn.Linear(head_input_dim, dense_size),
+            nn.Linear(head_input_dim, hidden_size),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(dense_size, prediction_length),
+            nn.Linear(hidden_size, self.prediction_length),
         )
 
     def forward(
-        self, x: torch.Tensor, future_covariates: torch.Tensor | None = None
+        self,
+        x: torch.Tensor,
+        future_covariates: torch.Tensor | None = None,
     ) -> torch.Tensor:
         # x shape: [batch, time, features]
-        out, _ = self.lstm(x)
-        last = out[:, -1, :]
-        features = self.norm(last)
+        batch_size, seq_len, _ = x.shape
+        if seq_len > self.context_length:
+            raise ValueError(
+                f"Input context length exceeds configured model context_length. "
+                f"Got {seq_len}, max {self.context_length}."
+            )
+
+        pos = self.positional_embedding[:, :seq_len, :]
+        encoded = self.encoder(self.input_proj(x) + pos)
+        pooled = torch.cat((encoded[:, -1, :], encoded.mean(dim=1)), dim=-1)
+        features = self.context_head(pooled)
 
         if self.future_covariate_head is not None:
             if future_covariates is None:
-                batch = x.shape[0]
                 future_covariates = torch.zeros(
-                    (
-                        batch,
-                        self.prediction_length,
-                        self.future_covariate_size,
-                    ),
+                    (batch_size, self.prediction_length, self.future_covariate_size),
                     dtype=x.dtype,
                     device=x.device,
                 )
-            future_cov_flat = future_covariates.reshape(future_covariates.shape[0], -1)
+            future_cov_flat = future_covariates.reshape(batch_size, -1)
             future_feats = self.future_covariate_head(future_cov_flat)
             features = torch.cat((features, future_feats), dim=-1)
 
@@ -114,19 +144,20 @@ class _SMAPELoss(nn.Module):
         return torch.mean(2.0 * (preds - targets).abs() / denom)
 
 
-class Model1Adapter(BaseFoundationModelAdapter):
-    model_id = "custom/model_1"
-    slug = "model_1"
+class Model2Adapter(BaseFoundationModelAdapter):
+    model_id = "custom/model_2"
+    slug = "model_2"
     model_family = "custom"
     supports_finetune = True
 
     def __init__(self, model_ctx: ModelContext, device: torch.device) -> None:
         super().__init__(model_ctx, device)
-        self._arch_version: int = 3
+        self._arch_version: int = 2
         self._hidden_size: int = 64
         self._num_layers: int = 2
-        self._dense_size: int = 64
-        self._dropout: float = 0.15
+        self._num_heads: int = 4
+        self._ffn_size: int = 128
+        self._dropout: float = 0.2
         self._model: nn.Module | None = None
         self._num_covariates: int = 0
         self._target_mean: float = 0.0
@@ -250,15 +281,17 @@ class Model1Adapter(BaseFoundationModelAdapter):
         pad = np.repeat(pad_row, prediction_length - values.shape[0], axis=0)
         return np.concatenate((values, pad), axis=0)
 
-    def _build_model(self) -> _Model1LSTM:
-        model = _Model1LSTM(
+    def _build_model(self) -> _Model2Transformer:
+        model = _Model2Transformer(
             input_size=1 + self._num_covariates,
             future_covariate_size=self._num_covariates,
             hidden_size=self._hidden_size,
             num_layers=self._num_layers,
-            dense_size=self._dense_size,
+            num_heads=self._num_heads,
+            ffn_size=self._ffn_size,
             dropout=self._dropout,
             prediction_length=int(self.model_ctx.prediction_length),
+            context_length=int(self.model_ctx.context_length),
         )
         model.to(self.device)
         return model
@@ -296,7 +329,7 @@ class Model1Adapter(BaseFoundationModelAdapter):
 
         series = np.asarray(train_series, dtype=np.float32)
         if series.size == 0:
-            raise ValueError("Model1Adapter requires non-empty train_series.")
+            raise ValueError("Model2Adapter requires non-empty train_series.")
 
         covariates = self._as_float2d(
             train_covariates,
@@ -550,11 +583,11 @@ class Model1Adapter(BaseFoundationModelAdapter):
         del context_start
         if not self._loaded:
             raise RuntimeError(
-                "Model_1 is not loaded. Call load_pretrained/load_finetuned."
+                "Model_2 is not loaded. Call load_pretrained/load_finetuned."
             )
 
         if self._model is None:
-            raise RuntimeError("Model_1 internal model is not initialized.")
+            raise RuntimeError("Model_2 internal model is not initialized.")
 
         x = np.asarray(context, dtype=np.float32)
         context_length = int(max(1, self.model_ctx.context_length))
@@ -579,7 +612,7 @@ class Model1Adapter(BaseFoundationModelAdapter):
                     raise RuntimeError("Unexpected None covariates.")
                 if context_cov.shape[1] != self._num_covariates:
                     raise ValueError(
-                        "context_covariates feature mismatch for Model_1 forecast. "
+                        "context_covariates feature mismatch for Model_2 forecast. "
                         f"Expected {self._num_covariates}, got {context_cov.shape[1]}."
                     )
                 context_cov = self._pad_left_2d(context_cov, context_length)
@@ -634,7 +667,7 @@ class Model1Adapter(BaseFoundationModelAdapter):
                     raise RuntimeError("Unexpected None future covariates.")
                 if future_cov.shape[1] != self._num_covariates:
                     raise ValueError(
-                        "future_covariates feature mismatch for Model_1 forecast. "
+                        "future_covariates feature mismatch for Model_2 forecast. "
                         f"Expected {self._num_covariates}, got {future_cov.shape[1]}."
                     )
                 future_cov = self._align_future_covariates(
@@ -674,21 +707,24 @@ class Model1Adapter(BaseFoundationModelAdapter):
 
     def save_finetuned(self, artifact_dir: Path) -> None:
         if not self._loaded:
-            raise RuntimeError("Model_1 is not available to save.")
+            raise RuntimeError("Model_2 is not available to save.")
         if self._model is None:
-            raise RuntimeError("Model_1 internal model is not initialized.")
+            raise RuntimeError("Model_2 internal model is not initialized.")
 
         artifact_dir.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
                 "model_id": self.model_id,
                 "slug": self.slug,
+                "arch_version": self._arch_version,
                 "hidden_size": self._hidden_size,
                 "num_layers": self._num_layers,
-                "dense_size": self._dense_size,
+                "num_heads": self._num_heads,
+                "ffn_size": self._ffn_size,
                 "dropout": self._dropout,
                 "num_covariates": self._num_covariates,
                 "prediction_length": int(self.model_ctx.prediction_length),
+                "context_length": int(self.model_ctx.context_length),
                 "target_mean": self._target_mean,
                 "target_std": self._target_std,
                 "target_clip_low": self._target_clip_low,
@@ -707,12 +743,15 @@ class Model1Adapter(BaseFoundationModelAdapter):
                 {
                     "model_id": self.model_id,
                     "slug": self.slug,
+                    "arch_version": self._arch_version,
                     "hidden_size": self._hidden_size,
                     "num_layers": self._num_layers,
-                    "dense_size": self._dense_size,
+                    "num_heads": self._num_heads,
+                    "ffn_size": self._ffn_size,
                     "dropout": self._dropout,
                     "num_covariates": self._num_covariates,
                     "prediction_length": int(self.model_ctx.prediction_length),
+                    "context_length": int(self.model_ctx.context_length),
                     "target_mean": self._target_mean,
                     "target_std": self._target_std,
                     "target_clip_low": self._target_clip_low,
@@ -731,14 +770,16 @@ class Model1Adapter(BaseFoundationModelAdapter):
     def load_finetuned(self, artifact_dir: Path) -> None:
         model_path = artifact_dir / "model.pt"
         if not model_path.exists():
-            raise FileNotFoundError(f"Missing Model_1 artifact: {model_path}")
+            raise FileNotFoundError(f"Missing Model_2 artifact: {model_path}")
 
         payload = torch.load(model_path, map_location="cpu")
         self._hidden_size = int(payload.get("hidden_size", 64))
         self._num_layers = int(payload.get("num_layers", 2))
-        self._dense_size = int(payload.get("dense_size", 64))
-        self._dropout = float(payload.get("dropout", 0.15))
+        self._num_heads = int(payload.get("num_heads", 4))
+        self._ffn_size = int(payload.get("ffn_size", 128))
+        self._dropout = float(payload.get("dropout", 0.2))
         self._num_covariates = int(payload.get("num_covariates", 0))
+
         self._target_mean = float(payload.get("target_mean", 0.0))
         std = float(payload.get("target_std", 1.0))
         self._target_std = std if std > 1e-6 else 1.0
@@ -762,8 +803,9 @@ class Model1Adapter(BaseFoundationModelAdapter):
             self._num_covariates,
         ) or self._covariate_std.shape != (self._num_covariates,):
             raise ValueError(
-                "Model_1 checkpoint has inconsistent covariate normalization metadata."
+                "Model_2 checkpoint has inconsistent covariate normalization metadata."
             )
+
         if self._num_covariates > 0 and (
             self._covariate_clip_low.shape != (self._num_covariates,)
             or self._covariate_clip_high.shape != (self._num_covariates,)
@@ -778,6 +820,7 @@ class Model1Adapter(BaseFoundationModelAdapter):
                 np.inf,
                 dtype=np.float32,
             )
+
         self._covariate_std = np.where(
             (self._covariate_std > 1e-6) & np.isfinite(self._covariate_std),
             self._covariate_std,
@@ -791,9 +834,9 @@ class Model1Adapter(BaseFoundationModelAdapter):
 
         state_dict = payload.get("state_dict")
         if state_dict is None:
-            raise KeyError("Model_1 checkpoint missing state_dict")
+            raise KeyError("Model_2 checkpoint missing state_dict")
+
         self._model = self._build_model()
         self._model.load_state_dict(state_dict)
         self._model.eval()
-
         self._loaded = True

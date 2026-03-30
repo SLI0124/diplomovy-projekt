@@ -21,7 +21,8 @@ python main.py --help
 
 ### Custom models
 
-- `model_1` (target-only LSTM)
+- `model_1` (LSTM with target + covariate support)
+- `model_2` (Transformer encoder with target + covariate support)
 
 Default `--models` runs `chronos2,moirai1,granite` in this order.
 
@@ -39,8 +40,7 @@ Default `--models` runs `chronos2,moirai1,granite` in this order.
 ### Covariate input mode
 
 - `--training-input-mode univariate`: target only (supported for all models).
-- `--training-input-mode covariate`: enables covariates for `chronos2`, `moirai1`, and `granite`.
-- `model_1` currently does not support covariates (it is univariate only).
+- `--training-input-mode covariate`: enables covariates for `chronos2`, `moirai1`, `granite`, `model_1`, and `model_2`.
 - In covariate mode, selected covariates are split into past and known-future groups via:
   - `--covariate-columns`
   - `--future-covariate-columns`
@@ -68,13 +68,13 @@ Evaluation follows an **expanding window** (walk-forward) approach for each fold
 
 ### Training loss parameter
 
-- `--train-loss {mae,mse,rmse,mape,smape}` is supported only for custom models (currently `model_1`).
+- `--train-loss {mae,mse,rmse,mape,smape}` is supported only for custom models (currently `model_1` and `model_2`).
 - Foundation models (`chronos2`, `granite`, `moirai1`) reject `--train-loss`.
 - If omitted, custom models default to `mse`.
 
 ### Training optimizer parameter
 
-- `--train-optimizer {adamw,adam,sgd}` is supported only for custom models (currently `model_1`).
+- `--train-optimizer {adamw,adam,sgd}` is supported only for custom models (currently `model_1` and `model_2`).
 - Foundation models reject `--train-optimizer`.
 - If omitted, custom models default to `adamw` (same as previous behavior).
 
@@ -225,8 +225,27 @@ python main.py train --mode finetuned --training-input-mode covariate --test-yea
 #### 5) Custom model (LSTM) training
 
 ```bash
-# Note: model_1 is currently univariate only
-python main.py train --mode finetuned --training-input-mode univariate --test-year 2014 --models model_1 --train-loss smape --train-epochs 50
+# Model_1 now supports univariate and covariate training
+python main.py train --mode finetuned --training-input-mode covariate --test-year 2014 --models model_1 --train-loss smape --train-epochs 50
+
+# Model_2 progressive custom transformer model
+python main.py train --mode finetuned --training-input-mode covariate --test-year 2014 --models model_2 --train-loss smape --train-epochs 50
+```
+
+#### 6) Full run for custom models (50 epochs)
+
+```bash
+# Train all folds (2014..2025), univariate
+python main.py train --mode finetuned --training-input-mode univariate --test-year 2025 --models model_1,model_2 --train-epochs 50
+
+# Train all folds (2014..2025), covariate
+python main.py train --mode finetuned --training-input-mode covariate --test-year 2025 --models model_1,model_2 --train-epochs 50
+
+# Evaluate trained checkpoints, univariate
+python main.py eval --mode finetuned --training-input-mode univariate --test-year 2025 --models model_1,model_2 --train-epochs 50
+
+# Evaluate trained checkpoints, covariate
+python main.py eval --mode finetuned --training-input-mode covariate --test-year 2025 --models model_1,model_2 --train-epochs 50
 ```
 
 ### Quick smoke runs (Performance check)
@@ -242,7 +261,9 @@ python main.py train --mode finetuned --training-input-mode covariate --test-yea
 ## Notes
 
 - No plots are generated in this module.
-- No additional preprocessing/scaling/imputation or train/test split calculation is done here.
+- No additional train/test split calculation is done here.
+- Foundation adapters do not add custom preprocessing in this module.
+- Custom adapters `model_1` and `model_2` apply robust value clipping and local target normalization in their training/forecast pipelines.
 - GPU is used automatically when available (`torch.cuda.is_available()`).
 - Finetune support in script:
-  - implemented: `chronos2`, `granite`, `moirai1`, `model_1`
+  - implemented: `chronos2`, `granite`, `moirai1`, `model_1`, `model_2`

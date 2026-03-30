@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import torch
 from adapters.base import BaseFoundationModelAdapter, ForecastResult, ModelContext
-from adapters.custom import Model1Adapter
+from adapters.custom import Model1Adapter, Model2Adapter
 from adapters.foundation import (
     Chronos2Adapter,
     GraniteAdapter,
@@ -23,6 +23,7 @@ MODEL_REGISTRY: dict[str, AdapterSpec] = {
     "granite": AdapterSpec(adapter_cls=GraniteAdapter, family="foundation"),
     "moirai1": AdapterSpec(adapter_cls=Moirai1Adapter, family="foundation"),
     "model_1": AdapterSpec(adapter_cls=Model1Adapter, family="custom"),
+    "model_2": AdapterSpec(adapter_cls=Model2Adapter, family="custom"),
 }
 
 
@@ -65,4 +66,5 @@ __all__ = [
     "GraniteAdapter",
     "Moirai1Adapter",
     "Model1Adapter",
+    "Model2Adapter",
 ]
