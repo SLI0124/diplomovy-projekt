@@ -215,6 +215,9 @@ def main() -> None:
     column_rules_enabled = any(
         column_rules.get(stage) for stage in ("clip", "transform", "scale")
     )
+    has_explicit_column_rules = bool(
+        args.clip_rule or args.transform_rule or args.scale_rule
+    )
     export_base_stem = "base"
     if enabled_features:
         _log("main", "Applying temporal feature engineering")
@@ -223,6 +226,19 @@ def main() -> None:
         export_base_stem = build_feature_variant_stem(args)
     else:
         _log("main", "No temporal feature flags enabled; using base variant")
+
+    if column_rules_enabled:
+        if args.column_rules_preset != "none":
+            column_rules_stem = args.column_rules_preset
+        elif has_explicit_column_rules:
+            column_rules_stem = "rules_custom"
+        else:
+            column_rules_stem = "rules"
+
+        if export_base_stem == "base":
+            export_base_stem = column_rules_stem
+        else:
+            export_base_stem = f"{export_base_stem}__{column_rules_stem}"
 
     column_rules_report: dict[str, Any] = {
         "enabled": False,
