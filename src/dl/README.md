@@ -266,11 +266,14 @@ python main.py train --mode finetuned --training-input-mode univariate --test-ye
 Use these examples for full fold scans with custom models only (`model_1,model_2`) and variant stems.
 
 ```bash
-# Example 1: full-range univariate custom training on scale_transform_clip
-python main.py train --mode finetuned --training-input-mode univariate --test-year 2025 --models model_1,model_2 --train-epochs 50 --variant-stem scale_transform_clip
+# Example 1: full-range covariate custom training on scale_only
+python main.py train --mode finetuned --training-input-mode covariate --test-year 2025 --models model_1,model_2 --train-epochs 50 --variant-stem scale_only
 
 # Example 2: full-range covariate custom training on scale_transform
 python main.py train --mode finetuned --training-input-mode covariate --test-year 2025 --models model_1,model_2 --train-epochs 50 --variant-stem scale_transform
+
+# Example 3: full-range univariate custom training on scale_transform_clip
+python main.py train --mode finetuned --training-input-mode univariate --test-year 2025 --models model_1,model_2 --train-epochs 50 --variant-stem scale_transform_clip
 ```
 
 ## Notes
