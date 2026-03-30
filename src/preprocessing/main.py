@@ -63,6 +63,43 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--preset",
+        choices=["scale", "scale-transform", "scale-transform-clip"],
+        default=None,
+        help="Apply distribution-based preprocessing preset.",
+    )
+    parser.add_argument(
+        "--clip",
+        action="append",
+        nargs=2,
+        metavar=("COLUMNS", "METHOD"),
+        default=[],
+        help=(
+            "Repeatable clipping operation in form: --clip col1,col2 quantile|iqr|absolute"
+        ),
+    )
+    parser.add_argument(
+        "--transform",
+        action="append",
+        nargs=2,
+        metavar=("COLUMNS", "METHOD"),
+        default=[],
+        help=(
+            "Repeatable transform operation in form: --transform col1,col2 log1p|sqrt|yeo-johnson|boxcox"
+        ),
+    )
+    parser.add_argument(
+        "--scale",
+        action="append",
+        nargs=2,
+        metavar=("COLUMNS", "METHOD"),
+        default=[],
+        help=(
+            "Repeatable scale operation in form: --scale col1,col2 standard|minmax|robust"
+        ),
+    )
+
+    parser.add_argument(
         "--add-cyclical",
         action="store_true",
         help="Add cyclical sin/cos features for datetime columns.",
@@ -171,7 +208,7 @@ def main() -> None:
     enabled_features = feature_flags_enabled(args)
     export_base_stem = "base"
     if enabled_features:
-        _log("main", "Applying temporal feature engineering")
+        _log("main", "Applying feature engineering and preprocessing operations")
         temporal_config = build_temporal_config(args)
         working_df = apply_temporal_features(working_df, temporal_config)
         export_base_stem = build_feature_variant_stem(args)

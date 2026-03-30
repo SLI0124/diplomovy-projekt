@@ -6,7 +6,12 @@ from typing import Any
 
 import pandas as pd
 from dataset_exports import DatasetExportConfig
-from temporal_features import TemporalFeatureConfig
+from temporal_features import ColumnMethodSpec, TemporalFeatureConfig
+
+_ALLOWED_CLIP_METHODS = {"quantile", "iqr", "absolute"}
+_ALLOWED_TRANSFORM_METHODS = {"log1p", "sqrt", "yeo-johnson", "boxcox"}
+_ALLOWED_SCALE_METHODS = {"standard", "minmax", "robust"}
+_ALLOWED_PRESETS = {"scale", "scale-transform", "scale-transform-clip"}
 
 
 def parse_csv_columns(value: str) -> tuple[str, ...]:
@@ -34,6 +39,39 @@ def parse_csv_ints(value: str) -> tuple[int, ...]:
     return tuple(parsed)
 
 
+def parse_method_specs(
+    value: list[list[str]] | None,
+    *,
+    option_name: str,
+    allowed_methods: set[str],
+) -> tuple[ColumnMethodSpec, ...]:
+    """Parse repeatable CLI specs shaped as `<columns> <method>`."""
+    if not value:
+        return ()
+
+    specs: list[ColumnMethodSpec] = []
+    for pair in value:
+        if len(pair) != 2:
+            raise argparse.ArgumentTypeError(
+                f"{option_name} expects exactly two values: <columns> <method>."
+            )
+
+        columns = parse_csv_columns(pair[0])
+        if not columns:
+            raise argparse.ArgumentTypeError(f"{option_name} columns cannot be empty.")
+
+        method = pair[1].strip().lower()
+        if method not in allowed_methods:
+            rendered = ", ".join(sorted(allowed_methods))
+            raise argparse.ArgumentTypeError(
+                f"Unsupported {option_name} method '{method}'. Allowed: {rendered}."
+            )
+
+        specs.append(ColumnMethodSpec(columns=columns, method=method))
+
+    return tuple(specs)
+
+
 def sort_by_time(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Sort rows by reconstructed timestamp when time columns are available."""
     required = ["year", "month", "day", "hour"]
@@ -53,6 +91,34 @@ def sort_by_time(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 def build_temporal_config(args: argparse.Namespace) -> TemporalFeatureConfig:
     """Map CLI arguments to TemporalFeatureConfig."""
+    clip_specs = parse_method_specs(
+        args.clip,
+        option_name="--clip",
+        allowed_methods=_ALLOWED_CLIP_METHODS,
+    )
+    transform_specs = parse_method_specs(
+        args.transform,
+        option_name="--transform",
+        allowed_methods=_ALLOWED_TRANSFORM_METHODS,
+    )
+    scale_specs = parse_method_specs(
+        args.scale,
+        option_name="--scale",
+        allowed_methods=_ALLOWED_SCALE_METHODS,
+    )
+
+    preset = args.preset
+    if preset is not None and preset not in _ALLOWED_PRESETS:
+        rendered = ", ".join(sorted(_ALLOWED_PRESETS))
+        raise argparse.ArgumentTypeError(
+            f"Unsupported --preset value '{preset}'. Allowed: {rendered}."
+        )
+
+    if preset and (clip_specs or transform_specs or scale_specs):
+        raise argparse.ArgumentTypeError(
+            "--preset cannot be combined with --clip/--transform/--scale in one run."
+        )
+
     return TemporalFeatureConfig(
         add_cyclical=args.add_cyclical,
         cyclical_columns=parse_csv_columns(args.cyclical_columns),
@@ -68,6 +134,10 @@ def build_temporal_config(args: argparse.Namespace) -> TemporalFeatureConfig:
         expanding_columns=parse_csv_columns(args.expanding_columns),
         expanding_min_periods=args.expanding_min_periods,
         expanding_aggregation=args.expanding_aggregation,
+        preset=preset,
+        clip_specs=clip_specs,
+        transform_specs=transform_specs,
+        scale_specs=scale_specs,
         drop_columns=parse_csv_columns(args.drop_columns),
     )
 
@@ -81,6 +151,38 @@ def _sanitize_token(value: str) -> str:
 def build_feature_variant_stem(args: argparse.Namespace) -> str:
     """Build readable folder stem from enabled feature parameters."""
     tokens: list[str] = []
+
+    if args.preset:
+        tokens.append(f"preset-{_sanitize_token(args.preset)}")
+
+    if args.clip:
+        clip_specs = parse_method_specs(
+            args.clip,
+            option_name="--clip",
+            allowed_methods=_ALLOWED_CLIP_METHODS,
+        )
+        for spec in clip_specs:
+            tokens.append(f"clip-{_sanitize_token(spec.method)}-{len(spec.columns)}c")
+
+    if args.transform:
+        transform_specs = parse_method_specs(
+            args.transform,
+            option_name="--transform",
+            allowed_methods=_ALLOWED_TRANSFORM_METHODS,
+        )
+        for spec in transform_specs:
+            tokens.append(
+                f"transform-{_sanitize_token(spec.method)}-{len(spec.columns)}c"
+            )
+
+    if args.scale:
+        scale_specs = parse_method_specs(
+            args.scale,
+            option_name="--scale",
+            allowed_methods=_ALLOWED_SCALE_METHODS,
+        )
+        for spec in scale_specs:
+            tokens.append(f"scale-{_sanitize_token(spec.method)}-{len(spec.columns)}c")
 
     drop_columns = parse_csv_columns(args.drop_columns)
     if drop_columns:
@@ -132,6 +234,10 @@ def feature_flags_enabled(args: argparse.Namespace) -> bool:
     """Return True when any feature-engineering flag is enabled."""
     return any(
         [
+            bool(args.preset),
+            bool(args.clip),
+            bool(args.transform),
+            bool(args.scale),
             args.add_cyclical,
             args.add_lag_features,
             args.add_rolling_features,
@@ -152,6 +258,40 @@ def build_run_parameters_payload(
         "variant_stem": export_config.base_stem,
         "features": {
             "enabled": bool(enabled_features),
+            "preset": args.preset,
+            "clip": [
+                {
+                    "columns": list(spec.columns),
+                    "method": spec.method,
+                }
+                for spec in parse_method_specs(
+                    args.clip,
+                    option_name="--clip",
+                    allowed_methods=_ALLOWED_CLIP_METHODS,
+                )
+            ],
+            "transform": [
+                {
+                    "columns": list(spec.columns),
+                    "method": spec.method,
+                }
+                for spec in parse_method_specs(
+                    args.transform,
+                    option_name="--transform",
+                    allowed_methods=_ALLOWED_TRANSFORM_METHODS,
+                )
+            ],
+            "scale": [
+                {
+                    "columns": list(spec.columns),
+                    "method": spec.method,
+                }
+                for spec in parse_method_specs(
+                    args.scale,
+                    option_name="--scale",
+                    allowed_methods=_ALLOWED_SCALE_METHODS,
+                )
+            ],
             "drop_columns": list(parse_csv_columns(args.drop_columns)),
             "cyclical": {
                 "enabled": bool(args.add_cyclical),

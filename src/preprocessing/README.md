@@ -117,6 +117,42 @@ Additional dataset exports are saved to a dedicated subfolder under output direc
   - `--expanding-min-periods 24` (default)
   - `--expanding-aggregation mean|sum|both` (default `mean`)
 
+### Optional preprocessing operations
+
+All operations are in-place and applied in fixed order:
+
+1. clip
+2. transform
+3. scale
+
+Default run (`python main.py`) is unchanged and still produces the cleaned dataset.
+
+- Presets:
+  - `--preset scale`
+  - `--preset scale-transform`
+  - `--preset scale-transform-clip`
+
+- Manual clipping:
+  - `--clip <columns> <method>`
+  - methods: `quantile`, `iqr`, `absolute`
+  - repeatable, for example:
+    - `--clip consumption_total iqr --clip precipitation,snowfall,snow_depth absolute`
+
+- Manual transforms:
+  - `--transform <columns> <method>`
+  - methods: `log1p`, `sqrt`, `yeo-johnson`, `boxcox`
+  - repeatable
+
+- Manual scaling:
+  - `--scale <columns> <method>`
+  - methods: `standard`, `minmax`, `robust`
+  - repeatable
+
+Notes:
+
+- `--preset` cannot be combined with manual `--clip`, `--transform`, or `--scale` in the same run.
+- `boxcox` is strict and raises an error if any selected value is non-positive.
+
 ### Full-range generation example (all requested files)
 
 ```bash
@@ -128,6 +164,30 @@ This run keeps the original cleaned file in `--output` and generates all cumulat
 Note: cumulative ranges intentionally stop one year before the latest year in data, so the latest year remains available as a dedicated holdout/test year.
 
 ### Usage examples
+
+- Scaling only via preset:
+
+```bash
+python main.py --preset scale
+```
+
+- Scaling + transform via preset:
+
+```bash
+python main.py --preset scale-transform
+```
+
+- Scaling + transform + clip via preset:
+
+```bash
+python main.py --preset scale-transform-clip
+```
+
+- Manual operation chain (clip -> transform -> scale):
+
+```bash
+python main.py --clip consumption_total iqr --transform consumption_total yeo-johnson --scale consumption_total robust
+```
 
 - Cyclical features + drop cyclical source columns + all splits:
 
