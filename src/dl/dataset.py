@@ -104,6 +104,13 @@ def _validate_run_params(
     if run_params is None:
         return
 
+    schema = run_params.get("schema")
+    if schema != "preprocessing.run_params.v1":
+        _warn(
+            "Unexpected preprocessing params schema"
+            f" ({schema!r}) at {run_params_path}. Continuing with best effort."
+        )
+
     if "variant_stem" not in run_params:
         _warn(
             f"Missing 'variant_stem' in {run_params_path}. "
@@ -117,37 +124,6 @@ def _validate_run_params(
         _warn(f"Missing or invalid 'features' section in {run_params_path}.")
     if not isinstance(splits, dict):
         _warn(f"Missing or invalid 'splits' section in {run_params_path}.")
-
-    column_rules = run_params.get("column_rules")
-    if column_rules is None:
-        return
-    if not isinstance(column_rules, dict):
-        raise ValueError(
-            f"Invalid 'column_rules' section in {run_params_path}. Expected object."
-        )
-
-    enabled = bool(column_rules.get("enabled", False))
-    if not enabled:
-        return
-
-    report_file = column_rules.get("report_file")
-    if not isinstance(report_file, str) or not report_file.strip():
-        raise ValueError(
-            "Preprocessing metadata indicates enabled column_rules but missing report_file. "
-            f"run_params={run_params_path}"
-        )
-
-    if run_params_path is None:
-        raise ValueError(
-            "Cannot validate column_rules metadata because run_params_path is missing."
-        )
-
-    report_path = run_params_path.parent / report_file
-    if not report_path.exists():
-        raise FileNotFoundError(
-            "Preprocessing metadata indicates enabled column_rules but report file is missing: "
-            f"{report_path}"
-        )
 
 
 def _build_missing_split_artifact_message(split_root: Path, missing_path: Path) -> str:

@@ -132,14 +132,6 @@ cd ../preprocessing
 python main.py
 ```
 
-If preprocessing used column clip/transform/scale rules, DL validates required
-metadata from variant root before loading splits.
-
-- required metadata source: `run_params.json` (`column_rules` section)
-- required report file when enabled: `column_rules_report.json`
-
-DL dataset switching remains variant-based via `--variant-stem`.
-
 ## Logging and artifacts
 
 - Save/artifact locations are fixed in this module and are not configurable via CLI flags.
@@ -256,24 +248,14 @@ python main.py eval --mode finetuned --training-input-mode univariate --test-yea
 python main.py eval --mode finetuned --training-input-mode covariate --test-year 2025 --models model_1,model_2 --train-epochs 50
 ```
 
-or as a one-liner:
+### Quick smoke runs (Performance check)
 
 ```bash
-python main.py train --mode finetuned --training-input-mode univariate --test-year 2025 --models model_1,model_2 --train-epochs 50 && python main.py train --mode finetuned --training-input-mode covariate --test-year 2025 --models model_1,model_2 --train-epochs 50 && python main.py eval --mode finetuned --training-input-mode univariate --test-year 2025 --models model_1,model_2 --train-epochs 50 && python main.py eval --mode finetuned --training-input-mode covariate --test-year 2025 --models model_1,model_2 --train-epochs 50
-```
-### Full-range custom training with preprocessing variants
+# Foundation smoke (Chronos2)
+python main.py train --mode finetuned --training-input-mode univariate --test-year 2014 --models chronos2 --max-origins-per-year 2 --train-epochs 1 --train-steps-per-epoch 2
 
-Use these examples for full fold scans with custom models only (`model_1,model_2`) and variant stems.
-
-```bash
-# Example 1: full-range covariate custom training on scale_only
-python main.py train --mode finetuned --training-input-mode covariate --test-year 2025 --models model_1,model_2 --train-epochs 50 --variant-stem scale_only
-
-# Example 2: full-range covariate custom training on scale_transform
-python main.py train --mode finetuned --training-input-mode covariate --test-year 2025 --models model_1,model_2 --train-epochs 50 --variant-stem scale_transform
-
-# Example 3: full-range univariate custom training on scale_transform_clip
-python main.py train --mode finetuned --training-input-mode univariate --test-year 2025 --models model_1,model_2 --train-epochs 50 --variant-stem scale_transform_clip
+# Granite TTM smoke (Covariate)
+python main.py train --mode finetuned --training-input-mode covariate --test-year 2014 --models granite --max-origins-per-year 5 --train-epochs 1 --eval-after-train
 ```
 
 ## Notes
@@ -281,7 +263,7 @@ python main.py train --mode finetuned --training-input-mode univariate --test-ye
 - No plots are generated in this module.
 - No additional train/test split calculation is done here.
 - Foundation adapters do not add custom preprocessing in this module.
-- Custom adapters `model_1` and `model_2` now assume global clipping/scaling/transforms are handled in preprocessing module and only keep local target normalization during model runtime.
+- Custom adapters `model_1` and `model_2` apply robust value clipping and local target normalization in their training/forecast pipelines.
 - GPU is used automatically when available (`torch.cuda.is_available()`).
 - Finetune support in script:
   - implemented: `chronos2`, `granite`, `moirai1`, `model_1`, `model_2`

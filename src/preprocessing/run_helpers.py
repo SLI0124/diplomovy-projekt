@@ -34,99 +34,6 @@ def parse_csv_ints(value: str) -> tuple[int, ...]:
     return tuple(parsed)
 
 
-def _parse_scalar(value: str) -> Any:
-    token = value.strip()
-    lower = token.lower()
-    if lower == "true":
-        return True
-    if lower == "false":
-        return False
-    try:
-        return int(token)
-    except ValueError:
-        pass
-    try:
-        return float(token)
-    except ValueError:
-        return token
-
-
-def parse_column_rule_entry(
-    value: str,
-    *,
-    stage_name: str,
-) -> tuple[tuple[str, ...], str, dict[str, Any]]:
-    """Parse one rule entry: <col1,col2>:<method>[:k=v,k2=v2]."""
-
-    parts = value.split(":", 2)
-    if len(parts) < 2:
-        raise argparse.ArgumentTypeError(
-            f"Invalid {stage_name} rule '{value}'. Use <columns>:<method>[:k=v,...]."
-        )
-
-    columns = parse_csv_columns(parts[0])
-    if not columns:
-        raise argparse.ArgumentTypeError(
-            f"Invalid {stage_name} rule '{value}'. At least one column is required."
-        )
-
-    method = parts[1].strip().lower()
-    if not method:
-        raise argparse.ArgumentTypeError(
-            f"Invalid {stage_name} rule '{value}'. Method cannot be empty."
-        )
-
-    params: dict[str, Any] = {}
-    if len(parts) == 3 and parts[2].strip():
-        for token in parts[2].split(","):
-            item = token.strip()
-            if not item:
-                continue
-            if "=" not in item:
-                raise argparse.ArgumentTypeError(
-                    f"Invalid parameter '{item}' in {stage_name} rule '{value}'. Use key=value."
-                )
-            key, raw_val = item.split("=", 1)
-            key = key.strip()
-            if not key:
-                raise argparse.ArgumentTypeError(
-                    f"Invalid parameter '{item}' in {stage_name} rule '{value}'."
-                )
-            params[key] = _parse_scalar(raw_val)
-
-    return columns, method, params
-
-
-def build_column_rules_from_cli(args: argparse.Namespace) -> dict[str, Any]:
-    """Build normalized column-rules payload from CLI repeated rule options."""
-
-    rules: dict[str, dict[str, dict[str, Any]]] = {
-        "clip": {},
-        "transform": {},
-        "scale": {},
-    }
-
-    for entry in args.clip_rule:
-        columns, method, params = parse_column_rule_entry(entry, stage_name="clip")
-        for column in columns:
-            rules["clip"][column] = {"method": method, **params}
-
-    for entry in args.transform_rule:
-        columns, method, params = parse_column_rule_entry(
-            entry,
-            stage_name="transform",
-        )
-        for column in columns:
-            rules["transform"][column] = {"method": method, **params}
-
-    for entry in args.scale_rule:
-        columns, method, params = parse_column_rule_entry(entry, stage_name="scale")
-        for column in columns:
-            rules["scale"][column] = {"method": method, **params}
-
-    return rules
-
-
 def sort_by_time(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Sort rows by reconstructed timestamp when time columns are available."""
     required = ["year", "month", "day", "hour"]
@@ -238,13 +145,10 @@ def build_run_parameters_payload(
     args: argparse.Namespace,
     enabled_features: bool,
     export_config: DatasetExportConfig,
-    column_rules: dict[str, Any],
-    column_rules_enabled: bool,
-    column_rules_report_filename: str | None,
 ) -> dict[str, Any]:
     """Build parse-friendly manifest of run parameters for downstream modules."""
     return {
-        "schema": "preprocessing.run_params.v2",
+        "schema": "preprocessing.run_params.v1",
         "variant_stem": export_config.base_stem,
         "features": {
             "enabled": bool(enabled_features),
@@ -276,11 +180,5 @@ def build_run_parameters_payload(
             "range_anchor_year": int(export_config.range_anchor_year),
             "holdout_last_year": True,
             "drop_export_columns": list(export_config.drop_export_columns),
-        },
-        "column_rules": {
-            "enabled": bool(column_rules_enabled),
-            "preset": str(args.column_rules_preset),
-            "rules": column_rules,
-            "report_file": column_rules_report_filename,
         },
     }
