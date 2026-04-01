@@ -80,6 +80,66 @@ def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) ->
         writer.writerows(rows)
 
 
+def _export_foundation_mape_mode_tables(
+    foundation_data: dict[tuple[str, str], dict[str, dict[int, tuple[float, float]]]],
+    output_root: Path,
+) -> None:
+    # Build two wide tables by mode: finetuned and one-shot.
+    for mode in ("finetuned", "one-shot"):
+        rows: list[dict[str, Any]] = []
+        for year in YEARS:
+            row: dict[str, Any] = {"testing_year": year}
+            for model in FOUNDATION_MODELS:
+                for training_input_mode in ("univariate", "covariate"):
+                    combo_key = (mode, training_input_mode)
+                    metrics = (
+                        foundation_data.get(combo_key, {}).get(model, {}).get(year)
+                    )
+                    column = f"{model}_{training_input_mode}_mape"
+                    row[column] = metrics[1] if metrics else ""
+            rows.append(row)
+
+        fieldnames = ["testing_year"]
+        for model in FOUNDATION_MODELS:
+            for training_input_mode in ("univariate", "covariate"):
+                fieldnames.append(f"{model}_{training_input_mode}_mape")
+
+        output_name = f"foundation_mape_{_normalize_mode_name(mode)}.csv"
+        output_path = output_root / "foundation_mape_only" / output_name
+        _write_csv(output_path, fieldnames, rows)
+        print(f"[foundation-mape-only] wrote {output_path}")
+
+
+def _export_custom_mape_merged_table(
+    custom_data: dict[tuple[str, str], dict[int, tuple[float, float]]],
+    output_root: Path,
+) -> None:
+    rows: list[dict[str, Any]] = []
+    for year in YEARS:
+        univariate_metrics = custom_data.get(("finetuned", "univariate"), {}).get(year)
+        covariate_metrics = custom_data.get(("finetuned", "covariate"), {}).get(year)
+        rows.append(
+            {
+                "testing_year": year,
+                "custom_univariate_mape": (
+                    univariate_metrics[1] if univariate_metrics else ""
+                ),
+                "custom_covariate_mape": (
+                    covariate_metrics[1] if covariate_metrics else ""
+                ),
+            }
+        )
+
+    fieldnames = [
+        "testing_year",
+        "custom_univariate_mape",
+        "custom_covariate_mape",
+    ]
+    output_path = output_root / "custom_mape_only" / "custom_mape_finetuned.csv"
+    _write_csv(output_path, fieldnames, rows)
+    print(f"[custom-mape-only] wrote {output_path}")
+
+
 def export_tables(input_root: Path, output_root: Path) -> None:
     runs_files = sorted(input_root.glob("**/runs.json"))
     if not runs_files:
@@ -148,6 +208,15 @@ def export_tables(input_root: Path, output_root: Path) -> None:
         output_path = output_root / "custom" / output_name
         _write_csv(output_path, fieldnames, rows)
         print(f"[custom] wrote {output_path}")
+
+    _export_foundation_mape_mode_tables(
+        foundation_data=foundation_data,
+        output_root=output_root,
+    )
+    _export_custom_mape_merged_table(
+        custom_data=custom_data,
+        output_root=output_root,
+    )
 
 
 def parse_args() -> argparse.Namespace:
