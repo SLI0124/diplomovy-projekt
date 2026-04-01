@@ -271,7 +271,6 @@ def parse_args() -> RuntimeConfig:
             "moirai1",
             "granite",
             "model_1",
-            "model_2",
         }
         unsupported_models = [
             model_name
@@ -282,7 +281,7 @@ def parse_args() -> RuntimeConfig:
             parser.error(
                 "Invalid combination: '--training-input-mode covariate' is currently "
                 "supported only for models 'chronos2', 'moirai1', 'granite', "
-                "'model_1', and 'model_2'. "
+                "and 'model_1'. "
                 f"Received unsupported model(s): {', '.join(unsupported_models)}"
             )
     elif any(
