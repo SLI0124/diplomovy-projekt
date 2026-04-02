@@ -83,6 +83,30 @@ def _parse_args() -> argparse.Namespace:
         default=200,
         help="Saved figure DPI (default: 200)",
     )
+    parser.add_argument(
+        "--conflict-window",
+        action="store_true",
+        help=(
+            "Prediction only: plot around the RU-UA conflict date instead of the full year."
+        ),
+    )
+    parser.add_argument(
+        "--conflict-date",
+        default="2022-02-24",
+        help="Reference date for --conflict-window (default: 2022-02-24).",
+    )
+    parser.add_argument(
+        "--days-before",
+        type=int,
+        default=45,
+        help="Days before conflict date for --conflict-window (default: 45).",
+    )
+    parser.add_argument(
+        "--days-after",
+        type=int,
+        default=45,
+        help="Days after conflict date for --conflict-window (default: 45).",
+    )
     return parser.parse_args()
 
 
@@ -237,6 +261,34 @@ def _prepare_timeseries(predictions_path: Path) -> pd.DataFrame:
     return ts
 
 
+def _slice_conflict_window(
+    ts: pd.DataFrame,
+    conflict_date_text: str,
+    days_before: int,
+    days_after: int,
+) -> pd.DataFrame:
+    try:
+        conflict_date = pd.Timestamp(conflict_date_text)
+    except Exception as exc:  # pragma: no cover - defensive parsing guard
+        raise ValueError(f"Invalid --conflict-date value: {conflict_date_text}") from exc
+
+    if days_before < 0 or days_after < 0:
+        raise ValueError("--days-before and --days-after must be non-negative.")
+
+    start = conflict_date - pd.Timedelta(days=days_before)
+    end = conflict_date + pd.Timedelta(days=days_after)
+
+    sliced = ts[
+        (ts["target_timestamp"] >= start) & (ts["target_timestamp"] <= end)
+    ].copy()
+    if sliced.empty:
+        raise ValueError(
+            "Conflict window slice is empty. Adjust --conflict-date/--days-before/--days-after."
+        )
+
+    return sliced
+
+
 def _prepare_training_losses(training_loss_path: Path) -> pd.DataFrame:
     df = pd.read_csv(training_loss_path)
 
@@ -260,10 +312,18 @@ def _prepare_training_losses(training_loss_path: Path) -> pd.DataFrame:
     return ts
 
 
-def _default_output_path(meta: RunMetadata, year: int) -> Path:
+def _default_output_path(meta: RunMetadata, year: int, args: argparse.Namespace) -> Path:
     out_dir = _project_root() / "data" / "plots" / "deep_learning" / meta.run_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     if meta.plot_kind == "prediction":
+        if args.conflict_window:
+            return (
+                out_dir
+                / (
+                    f"{meta.model}__{meta.mode_short}__test-{year}"
+                    "__okoli_konfliktu_ru_ua_3m__skutecnost_vs_predikce.png"
+                )
+            )
         return (
             out_dir
             / f"{meta.model}__{meta.mode_short}__test-{year}__skutecnost_vs_predikce.png"
@@ -279,7 +339,7 @@ def _resolve_output_path(
     year: int,
     plotting_multiple_years: bool,
 ) -> Path:
-    default_path = _default_output_path(meta, year)
+    default_path = _default_output_path(meta, year, args)
     if not args.output:
         return default_path
 
@@ -326,7 +386,7 @@ def _plot_and_save(
             linewidth=1.2,
             alpha=0.9,
         )
-        plt.xlabel("Čas")
+        plt.xlabel("Datum")
         plt.ylabel("Spotřeba [tis.]")
     else:
         plt.plot(
@@ -353,9 +413,15 @@ def main() -> None:
     args = _parse_args()
     meta = _resolve_metadata(args)
 
-    years_to_plot = (
-        [args.year] if args.year is not None else sorted(meta.csv_by_year.keys())
-    )
+    if args.conflict_window and meta.plot_kind != "prediction":
+        raise ValueError("--conflict-window can be used only with prediction plots.")
+
+    if args.conflict_window:
+        years_to_plot = [args.year] if args.year is not None else [2022]
+    else:
+        years_to_plot = (
+            [args.year] if args.year is not None else sorted(meta.csv_by_year.keys())
+        )
     missing_years = [year for year in years_to_plot if year not in meta.csv_by_year]
     if missing_years:
         available_years = ", ".join(str(y) for y in sorted(meta.csv_by_year.keys()))
@@ -369,6 +435,13 @@ def main() -> None:
         source_csv = meta.csv_by_year[year]
         if meta.plot_kind == "prediction":
             data = _prepare_timeseries(source_csv)
+            if args.conflict_window:
+                data = _slice_conflict_window(
+                    ts=data,
+                    conflict_date_text=args.conflict_date,
+                    days_before=args.days_before,
+                    days_after=args.days_after,
+                )
         else:
             data = _prepare_training_losses(source_csv)
         output_path = _resolve_output_path(
