@@ -17,11 +17,11 @@ PlotKind = Literal["prediction", "training_losses"]
 @dataclass(frozen=True)
 class RunMetadata:
     run_dir: str
-    model: str
+    models: list[str]
     training_input_mode: str
     mode_short: str
     plot_kind: PlotKind
-    csv_by_year: dict[int, Path]
+    csv_by_model: dict[str, dict[int, Path]]
 
 
 def _parse_args() -> argparse.Namespace:
@@ -57,8 +57,8 @@ def _parse_args() -> argparse.Namespace:
         "--model",
         default=None,
         help=(
-            "Model name used in prediction file names (for example model_1). "
-            "If omitted, runtime_config.json:models[0] is used when available."
+            "Model name used in artifact file names (for example model_1). "
+            "If omitted, all discovered models are plotted."
         ),
     )
     parser.add_argument(
@@ -141,6 +141,17 @@ def _discover_prediction_files(predictions_dir: Path) -> list[tuple[str, int, Pa
     return discovered
 
 
+def _build_csv_by_model(
+    discovered: list[tuple[str, int, Path]],
+    selected_models: list[str],
+) -> dict[str, dict[int, Path]]:
+    csv_by_model: dict[str, dict[int, Path]] = {model: {} for model in selected_models}
+    for model, year, path in discovered:
+        if model in csv_by_model:
+            csv_by_model[model][year] = path
+    return csv_by_model
+
+
 def _detect_plot_kind(run_path: Path, requested_kind: str) -> PlotKind:
     predictions_dir = run_path / "predictions"
     training_losses_dir = run_path / "training_losses"
@@ -200,21 +211,19 @@ def _resolve_metadata(args: argparse.Namespace) -> RunMetadata:
     if not discovered:
         raise FileNotFoundError(f"No CSV files found in: {artifact_dir}")
 
-    runtime_models = runtime_config.get("models") or []
-    config_model = str(runtime_models[0]) if runtime_models else None
+    discovered_models = sorted({model for model, _, _ in discovered})
+    selected_models = [args.model] if args.model else discovered_models
 
-    selected_model = args.model or config_model or discovered[0][0]
+    csv_by_model = _build_csv_by_model(discovered, selected_models)
+    empty_models = [model for model, years in csv_by_model.items() if not years]
 
-    csv_by_year = {
-        year: path for model, year, path in discovered if model == selected_model
-    }
-
-    if not csv_by_year:
+    if empty_models:
         available = sorted({(model, year) for model, year, _ in discovered})
         available_str = ", ".join(f"{model}:{year}" for model, year in available)
+        missing_str = ", ".join(empty_models)
         raise FileNotFoundError(
-            "Could not find prediction CSV files for the selected run/model. "
-            f"Requested model={selected_model}. Available: {available_str}"
+            "Could not find artifact CSV files for requested model(s). "
+            f"Requested: {missing_str}. Available: {available_str}"
         )
 
     training_input_mode = str(runtime_config.get("training_input_mode", "unknown"))
@@ -222,11 +231,11 @@ def _resolve_metadata(args: argparse.Namespace) -> RunMetadata:
 
     return RunMetadata(
         run_dir=args.run_dir,
-        model=selected_model,
+        models=selected_models,
         training_input_mode=training_input_mode,
         mode_short=mode_short,
         plot_kind=plot_kind,
-        csv_by_year=csv_by_year,
+        csv_by_model=csv_by_model,
     )
 
 
@@ -270,7 +279,9 @@ def _slice_conflict_window(
     try:
         conflict_date = pd.Timestamp(conflict_date_text)
     except Exception as exc:  # pragma: no cover - defensive parsing guard
-        raise ValueError(f"Invalid --conflict-date value: {conflict_date_text}") from exc
+        raise ValueError(
+            f"Invalid --conflict-date value: {conflict_date_text}"
+        ) from exc
 
     if days_before < 0 or days_after < 0:
         raise ValueError("--days-before and --days-after must be non-negative.")
@@ -312,45 +323,46 @@ def _prepare_training_losses(training_loss_path: Path) -> pd.DataFrame:
     return ts
 
 
-def _default_output_path(meta: RunMetadata, year: int, args: argparse.Namespace) -> Path:
+def _default_output_path(
+    meta: RunMetadata,
+    model: str,
+    year: int,
+    args: argparse.Namespace,
+) -> Path:
     out_dir = _project_root() / "data" / "plots" / "deep_learning" / meta.run_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     if meta.plot_kind == "prediction":
         if args.conflict_window:
-            return (
-                out_dir
-                / (
-                    f"{meta.model}__{meta.mode_short}__test-{year}"
-                    "__okoli_konfliktu_ru_ua_3m__skutecnost_vs_predikce.png"
-                )
+            return out_dir / (
+                f"{model}__{meta.mode_short}__test-{year}"
+                "__okoli_konfliktu_ru_ua_3m__skutecnost_vs_predikce.png"
             )
         return (
             out_dir
-            / f"{meta.model}__{meta.mode_short}__test-{year}__skutecnost_vs_predikce.png"
+            / f"{model}__{meta.mode_short}__test-{year}__skutecnost_vs_predikce.png"
         )
-    return (
-        out_dir / f"{meta.model}__{meta.mode_short}__test-{year}__treninkova_ztrata.png"
-    )
+    return out_dir / f"{model}__{meta.mode_short}__test-{year}__treninkova_ztrata.png"
 
 
 def _resolve_output_path(
     args: argparse.Namespace,
     meta: RunMetadata,
+    model: str,
     year: int,
-    plotting_multiple_years: bool,
+    plotting_multiple_outputs: bool,
 ) -> Path:
-    default_path = _default_output_path(meta, year, args)
+    default_path = _default_output_path(meta, model, year, args)
     if not args.output:
         return default_path
 
     cli_output = Path(args.output).resolve()
     default_name = default_path.name
 
-    if plotting_multiple_years:
+    if plotting_multiple_outputs:
         if cli_output.suffix.lower() == ".png":
             raise ValueError(
-                "--output points to a single PNG file but all years are being plotted. "
-                "Provide a directory path for --output or use --year for one plot."
+                "--output points to a single PNG file but multiple plots are being generated. "
+                "Provide a directory path for --output or reduce model/year selection."
             )
         cli_output.mkdir(parents=True, exist_ok=True)
         return cli_output / default_name
@@ -365,6 +377,7 @@ def _resolve_output_path(
 
 def _plot_and_save(
     data: pd.DataFrame,
+    model: str,
     meta: RunMetadata,
     year: int,
     output_path: Path,
@@ -399,7 +412,7 @@ def _plot_and_save(
         plt.xlabel("Epocha")
         plt.ylabel("Ztráta")
 
-    # plt.title(f"{meta.model} | {meta.mode_short} | rok {year}")
+    plt.title(f"{model} | {meta.mode_short} | rok {year}")
     plt.grid(True, alpha=0.25)
     plt.legend()
     plt.tight_layout()
@@ -416,52 +429,68 @@ def main() -> None:
     if args.conflict_window and meta.plot_kind != "prediction":
         raise ValueError("--conflict-window can be used only with prediction plots.")
 
-    if args.conflict_window:
-        years_to_plot = [args.year] if args.year is not None else [2022]
-    else:
-        years_to_plot = (
-            [args.year] if args.year is not None else sorted(meta.csv_by_year.keys())
-        )
-    missing_years = [year for year in years_to_plot if year not in meta.csv_by_year]
-    if missing_years:
-        available_years = ", ".join(str(y) for y in sorted(meta.csv_by_year.keys()))
-        missing_text = ", ".join(str(y) for y in sorted(missing_years))
-        raise FileNotFoundError(
-            f"No prediction CSV found for year(s): {missing_text}. Available years: {available_years}"
-        )
-
-    plotting_multiple_years = len(years_to_plot) > 1
-    for year in years_to_plot:
-        source_csv = meta.csv_by_year[year]
-        if meta.plot_kind == "prediction":
-            data = _prepare_timeseries(source_csv)
-            if args.conflict_window:
-                data = _slice_conflict_window(
-                    ts=data,
-                    conflict_date_text=args.conflict_date,
-                    days_before=args.days_before,
-                    days_after=args.days_after,
-                )
+    years_by_model: dict[str, list[int]] = {}
+    for model in meta.models:
+        available_years = sorted(meta.csv_by_model[model].keys())
+        if args.conflict_window:
+            years_to_plot = [args.year] if args.year is not None else [2022]
         else:
-            data = _prepare_training_losses(source_csv)
-        output_path = _resolve_output_path(
-            args=args,
-            meta=meta,
-            year=year,
-            plotting_multiple_years=plotting_multiple_years,
-        )
-        _plot_and_save(
-            data=data, meta=meta, year=year, output_path=output_path, dpi=args.dpi
-        )
+            years_to_plot = [args.year] if args.year is not None else available_years
 
-        print(f"Saved plot: {output_path}")
-        print(f"run_dir={meta.run_dir}")
-        print(f"model={meta.model}")
-        print(f"training_input_mode={meta.training_input_mode}")
-        print(f"mode_short={meta.mode_short}")
-        print(f"plot_kind={meta.plot_kind}")
-        print(f"year={year}")
-        print(f"source_csv={source_csv}")
+        missing_years = [
+            year for year in years_to_plot if year not in meta.csv_by_model[model]
+        ]
+        if missing_years:
+            available_years_text = ", ".join(str(y) for y in available_years)
+            missing_text = ", ".join(str(y) for y in sorted(missing_years))
+            raise FileNotFoundError(
+                "No artifact CSV found for requested year(s). "
+                f"model={model}, missing={missing_text}, available={available_years_text}"
+            )
+
+        years_by_model[model] = years_to_plot
+
+    total_plots = sum(len(years) for years in years_by_model.values())
+    plotting_multiple_outputs = total_plots > 1
+
+    for model in meta.models:
+        for year in years_by_model[model]:
+            source_csv = meta.csv_by_model[model][year]
+            if meta.plot_kind == "prediction":
+                data = _prepare_timeseries(source_csv)
+                if args.conflict_window:
+                    data = _slice_conflict_window(
+                        ts=data,
+                        conflict_date_text=args.conflict_date,
+                        days_before=args.days_before,
+                        days_after=args.days_after,
+                    )
+            else:
+                data = _prepare_training_losses(source_csv)
+            output_path = _resolve_output_path(
+                args=args,
+                meta=meta,
+                model=model,
+                year=year,
+                plotting_multiple_outputs=plotting_multiple_outputs,
+            )
+            _plot_and_save(
+                data=data,
+                model=model,
+                meta=meta,
+                year=year,
+                output_path=output_path,
+                dpi=args.dpi,
+            )
+
+            print(f"Saved plot: {output_path}")
+            print(f"run_dir={meta.run_dir}")
+            print(f"model={model}")
+            print(f"training_input_mode={meta.training_input_mode}")
+            print(f"mode_short={meta.mode_short}")
+            print(f"plot_kind={meta.plot_kind}")
+            print(f"year={year}")
+            print(f"source_csv={source_csv}")
 
 
 if __name__ == "__main__":
