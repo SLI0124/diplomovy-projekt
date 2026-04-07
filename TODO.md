@@ -6,8 +6,7 @@ This will be a list of things that need to be done in order to finish the projec
 
 - [ ] plot image *apparent_temperature_all_years_trend.png* is not used, delete and script
 - [X] do script that will take all those training data from MLFlow db via library, maybe save it as json or keep it in memory and use it for plotting and comparing results of different models, all that is needed and necessary for the paper, do like one file that is responsible for getting those data, then each file corresponding to role it should fulfill, one for plotting, one for comparing results, making plots, etc.
-- [ ] do simpler custom model with straightforward data preprocessing, no branching, we are aiming below 10 MAPE/SMAPE and 10 epochs
-  - [ ] (since preprocessing module kinda failed, maybe implement for the model those steps internally, those can be models 1-3, it just uses different data preprocessing and I can write about it in paper)
+- [x] do simpler custom model with straightforward data preprocessing, no branching, we are aiming below 10 MAPE/SMAPE and 10 epochs
 - [ ] delete all **machine learning** related code, remove `ml` module since I am not using it anymore
 - [ ] for **EDA** do *SARIMAX*, probably to the notebook or create a new one, decide **ASAP**
 - [ ] plots, results, checkpoints, models, plot and visualize all you can think of

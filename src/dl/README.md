@@ -21,7 +21,7 @@ python main.py --help
 
 ### Custom models
 
-- `model_1` (LSTM with target + covariate support)
+- `model_1` (Conv1D + BiGRU + attention with target + covariate support)
 
 Default `--models` runs `chronos2,moirai1,granite` in this order.
 
@@ -258,7 +258,7 @@ python main.py train --mode finetuned --training-input-mode covariate --test-yea
 - No plots are generated in this module.
 - No additional train/test split calculation is done here.
 - Foundation adapters do not add custom preprocessing in this module.
-- Custom adapter `model_1` applies local target normalization in its training/forecast pipeline.
+- Custom adapter `model_1` consumes the split data as-is and does not add extra preprocessing.
 - GPU is used automatically when available (`torch.cuda.is_available()`).
 - Finetune support in script:
   - implemented: `chronos2`, `granite`, `moirai1`, `model_1`
