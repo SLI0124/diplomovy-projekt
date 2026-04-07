@@ -4,6 +4,7 @@ This will be a list of things that need to be done in order to finish the projec
 
 ## Immediate
 
+- [ ] add default date to the pipeline as 2025-12-31 to replicate state of thesis data
 - [ ] plot image *apparent_temperature_all_years_trend.png* is not used, delete and script
 - [X] do script that will take all those training data from MLFlow db via library, maybe save it as json or keep it in memory and use it for plotting and comparing results of different models, all that is needed and necessary for the paper, do like one file that is responsible for getting those data, then each file corresponding to role it should fulfill, one for plotting, one for comparing results, making plots, etc.
 - [x] do simpler custom model with straightforward data preprocessing, no branching, we are aiming below 10 MAPE/SMAPE and 10 epochs
