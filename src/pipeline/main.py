@@ -144,6 +144,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     parser.add_argument(
         "--end-date",
+        default="2025-12-31",
         help=(
             "End date in YYYY-MM-DD format (e.g., 2025-10-28). "
             "If not specified, defaults to last day of previous month."
