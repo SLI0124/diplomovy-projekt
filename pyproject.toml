@@ -25,6 +25,8 @@ dependencies = [
     "ipykernel",
     "black",
     "black[jupyter]",
+    "torchview",
+    "graphviz",
 ]
 
 [project.optional-dependencies]
