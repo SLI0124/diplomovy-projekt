@@ -10,13 +10,19 @@ This will be a list of things that need to be done in order to finish the projec
 - [x] do simpler custom model with straightforward data preprocessing, no branching, we are aiming below 10 MAPE/SMAPE and 10 epochs
 - [ ] delete all **machine learning** related code, remove `ml` module since I am not using it anymore
 - [ ] for **EDA** do *SARIMAX*, probably to the notebook or create a new one, decide **ASAP**
+- [ ] delete code and logic for getting data from MLFlow and into tables and so on, we will redo it later, now it is mess
 - [ ] plots, results, checkpoints, models, plot and visualize all you can think of
-  - [ ] for starters do some basic EDA plots for the paper
-  - [ ] plot fine-tuning and one-shot results, compare them, plot the delta between them (MLFlow has nice tools to get those data training and test results from db file), show some tables
+  - [ ] for starters do some basic EDA plots for the paper *(get into it ASAP to have more ideas for the paper, right now I don't have much of them)*
+  - [ ] plot fine-tuning and one-shot results, compare them, plot the delta between them (MLFlow has nice tools to get those data training and test results from db file), show some tables *(I had them but current code is a mess, I will redo it later)*
   - [x] I really like the prediction vs ground truth plots, they are very informative and can add insight into those breaking years we are interested in
 - [ ] **README.md** for *visualization*, what each script does, what are the requirement artifacts, etc.
 - [ ] delete all other branches
 - [ ] do branch for final hand in
+  - [ ] remove unused preprocessing logic, it will be just a data cleaning, small preprocesing is used in model itself
+  - [ ] remove `TODO.md`
+  - [ ] translate all README.md files to Czech
+  - [ ] remove `.vscode` dir
+  - [ ] I am experimenting with some visualization so remove unused plots and scripts
 
 ## Next steps
 
