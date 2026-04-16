@@ -27,6 +27,7 @@ dependencies = [
     "black[jupyter]",
     "torchview",
     "graphviz",
+    "statsmodels",
 ]
 
 [project.optional-dependencies]
