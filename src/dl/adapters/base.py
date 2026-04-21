@@ -39,6 +39,9 @@ class BaseFoundationModelAdapter:
     def load_pretrained(self) -> None:
         raise NotImplementedError
 
+    def checkpoint_signature(self) -> dict[str, object]:
+        return {"model_id": self.model_id, "adapter_class": self.__class__.__name__}
+
     def finetune(
         self,
         train_series: np.ndarray,

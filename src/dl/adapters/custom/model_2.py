@@ -7,22 +7,22 @@ from adapters.base import ModelContext
 from adapters.custom.common import BaseCustomSequenceAdapter
 
 
-class Model1Adapter(BaseCustomSequenceAdapter):
-    model_id = "custom/model_1"
-    slug = "model_1"
+class Model2Adapter(BaseCustomSequenceAdapter):
+    model_id = "custom/model_2"
+    slug = "model_2"
 
     def __init__(self, model_ctx: ModelContext, device: torch.device) -> None:
         super().__init__(model_ctx, device)
-        self._hidden_dim: int = 96
-        self._dropout: float = 0.1
+        self._hidden_dim: int = 128
+        self._dropout: float = 0.15
 
     def _model_kwargs(self) -> dict[str, Any]:
         return {
             "hidden_dim": int(self._hidden_dim),
             "dropout": float(self._dropout),
-            "use_temporal_conv": False,
+            "use_temporal_conv": True,
             "use_attention": False,
-            "baseline_mode": "persistence",
+            "baseline_mode": "seasonal_fixed",
         }
 
     def _load_checkpoint_hparams(self, payload: dict[str, Any]) -> None:

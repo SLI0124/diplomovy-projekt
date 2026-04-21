@@ -346,6 +346,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                 model_ctx=model_ctx,
                 device=device,
             )
+            model_signature = adapter.checkpoint_signature()
             model_family = resolve_model_family(model_name)
             experiment_name = mlflow_experiment_for_family(model_family)
             ensure_mlflow(experiment_name)
@@ -362,6 +363,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                     model_slug=adapter.slug,
                     fold=fold,
                     current_dataset_tag=current_dataset_tag,
+                    model_signature=model_signature,
                 )
 
             should_evaluate = config.action != "train" or config.eval_after_train
@@ -374,6 +376,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                     fold=fold,
                     model_slug=adapter.slug,
                     current_dataset_tag=current_dataset_tag,
+                    model_signature=model_signature,
                     covariate_columns=fold_data.covariate_columns,
                     future_covariate_columns=fold_data.future_covariate_columns,
                     past_covariate_columns=fold_data.past_covariate_columns,
@@ -528,6 +531,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                                     fold=fold,
                                     model_slug=adapter.slug,
                                     current_dataset_tag=current_dataset_tag,
+                                    model_signature=model_signature,
                                     covariate_columns=fold_data.covariate_columns,
                                     future_covariate_columns=fold_data.future_covariate_columns,
                                     past_covariate_columns=fold_data.past_covariate_columns,

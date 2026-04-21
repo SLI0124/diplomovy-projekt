@@ -9,7 +9,7 @@ from config import RuntimeConfig, models_root
 from dataset import DatasetBundle
 from folds import FoldSpec
 
-CHECKPOINT_MANIFEST_VERSION = "dl_checkpoint_manifest.v1"
+CHECKPOINT_MANIFEST_VERSION = "dl_checkpoint_manifest.v2"
 CheckpointStatus = Literal["compatible_exists", "missing", "incompatible_manifest"]
 
 
@@ -24,8 +24,10 @@ def build_checkpoint_dir(
     model_slug: str,
     fold: FoldSpec,
     current_dataset_tag: str,
+    model_signature: dict[str, object],
 ) -> Path:
     params_for_hash = {
+        "model_signature": model_signature,
         "training_input_mode": config.training_input_mode,
         "pred_len": config.prediction_length,
         "context_len": config.context_length,
@@ -61,6 +63,7 @@ def write_checkpoint_manifest(
     fold: FoldSpec,
     model_slug: str,
     current_dataset_tag: str,
+    model_signature: dict[str, object],
     covariate_columns: tuple[str, ...],
     future_covariate_columns: tuple[str, ...],
     past_covariate_columns: tuple[str, ...],
@@ -76,6 +79,7 @@ def write_checkpoint_manifest(
             "test_year": fold.test_year,
         },
         "dataset_tag": current_dataset_tag,
+        "model_signature": model_signature,
         "compatibility": {
             "prediction_length": config.prediction_length,
             "context_length": config.context_length,
@@ -106,6 +110,7 @@ def validate_checkpoint_manifest(
     fold: FoldSpec,
     model_slug: str,
     current_dataset_tag: str,
+    model_signature: dict[str, object],
     covariate_columns: tuple[str, ...],
     future_covariate_columns: tuple[str, ...],
     past_covariate_columns: tuple[str, ...],
@@ -129,6 +134,7 @@ def validate_checkpoint_manifest(
     checks = {
         "model_slug": (payload.get("model_slug"), model_slug),
         "dataset_tag": (payload.get("dataset_tag"), current_dataset_tag),
+        "model_signature": (payload.get("model_signature"), model_signature),
         "training_input_mode": (
             payload.get("training_input_mode"),
             config.training_input_mode,
@@ -212,6 +218,7 @@ def resolve_checkpoint_status(
     fold: FoldSpec,
     model_slug: str,
     current_dataset_tag: str,
+    model_signature: dict[str, object],
     covariate_columns: tuple[str, ...],
     future_covariate_columns: tuple[str, ...],
     past_covariate_columns: tuple[str, ...],
@@ -226,6 +233,7 @@ def resolve_checkpoint_status(
             fold=fold,
             model_slug=model_slug,
             current_dataset_tag=current_dataset_tag,
+            model_signature=model_signature,
             covariate_columns=covariate_columns,
             future_covariate_columns=future_covariate_columns,
             past_covariate_columns=past_covariate_columns,

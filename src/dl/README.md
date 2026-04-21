@@ -21,7 +21,9 @@ python main.py --help
 
 ### Custom models
 
-- `model_1` (Conv1D + BiGRU + attention with target + covariate support)
+- `model_1` (BiGRU baseline with target + covariate support)
+- `model_2` (Conv1D + BiGRU with target + covariate support)
+- `model_3` (Conv1D + BiGRU + attention refinement with target + covariate support)
 
 Default `--models` runs `chronos2,moirai1,granite` in this order.
 
@@ -39,7 +41,7 @@ Default `--models` runs `chronos2,moirai1,granite` in this order.
 ### Covariate input mode
 
 - `--training-input-mode univariate`: target only (supported for all models).
-- `--training-input-mode covariate`: enables covariates for `chronos2`, `moirai1`, `granite`, and `model_1`.
+- `--training-input-mode covariate`: enables covariates for `chronos2`, `moirai1`, `granite`, `model_1`, `model_2`, and `model_3`.
 - In covariate mode, selected covariates are split into past and known-future groups via:
   - `--covariate-columns`
   - `--future-covariate-columns`
@@ -67,13 +69,13 @@ Evaluation follows an **expanding window** (walk-forward) approach for each fold
 
 ### Training loss parameter
 
-- `--train-loss {mae,mse,rmse,mape,smape}` is supported only for custom models (currently `model_1`).
+- `--train-loss {mae,mse,rmse,mape,smape}` is supported only for custom models (`model_1`, `model_2`, `model_3`).
 - Foundation models (`chronos2`, `granite`, `moirai1`) reject `--train-loss`.
 - If omitted, custom models default to `mse`.
 
 ### Training optimizer parameter
 
-- `--train-optimizer {adamw,adam,sgd}` is supported only for custom models (currently `model_1`).
+- `--train-optimizer {adamw,adam,sgd}` is supported only for custom models (`model_1`, `model_2`, `model_3`).
 - Foundation models reject `--train-optimizer`.
 - If omitted, custom models default to `adamw` (same as previous behavior).
 
@@ -82,7 +84,7 @@ Evaluation follows an **expanding window** (walk-forward) approach for each fold
 - `--checkpoint-selection {best-train-loss,last}` controls which finetuned weights are saved.
 - Default is `best-train-loss`: the model restores the epoch with the lowest training loss before checkpoint save.
 - Use `last` to save final-epoch weights.
-- Checkpoint directory paths include a short MD5 hash of training parameters (LR, epochs, context length, covariates, etc.) to ensure that existing checkpoints are only reused if the configuration matches exactly.
+- Checkpoint directory paths include a short MD5 hash of training parameters and model architecture signature to ensure that existing checkpoints are only reused if the configuration matches exactly.
 - Important: in `--mode finetuned`, `test` and `eval` must use the same training hyperparameters that produced the checkpoint hash (for example `--train-epochs`, `--train-batch-size`, `--train-steps-per-epoch`, `--train-lr`, `--train-weight-decay`). If they differ, strict loading will report checkpoint-not-found for the computed hash path.
 
 ## Actions
@@ -224,7 +226,7 @@ python main.py train --mode finetuned --training-input-mode covariate --test-yea
 #### 5) Custom model (LSTM) training
 
 ```bash
-# Model_1 now supports univariate and covariate training
+# Custom models support univariate and covariate training
 python main.py train --mode finetuned --training-input-mode covariate --test-year 2014 --models model_1 --train-loss smape --train-epochs 50
 
 #### 6) Full run for custom model (50 epochs)
@@ -258,7 +260,7 @@ python main.py train --mode finetuned --training-input-mode covariate --test-yea
 - No plots are generated in this module.
 - No additional train/test split calculation is done here.
 - Foundation adapters do not add custom preprocessing in this module.
-- Custom adapter `model_1` consumes the split data as-is and does not add extra preprocessing.
+- Custom adapters `model_1`, `model_2`, and `model_3` consume the split data as-is and differ only by cumulatively added architecture blocks.
 - GPU is used automatically when available (`torch.cuda.is_available()`).
 - Finetune support in script:
-  - implemented: `chronos2`, `granite`, `moirai1`, `model_1`
+  - implemented: `chronos2`, `granite`, `moirai1`, `model_1`, `model_2`, `model_3`
