@@ -9,6 +9,9 @@ FONT_SCALE = 1.6
 LABEL_FONT_SIZE = int(15 * FONT_SCALE)
 TICK_FONT_SIZE = int(13 * FONT_SCALE)
 LEGEND_FONT_SIZE = int(13 * FONT_SCALE)
+DEFAULT_BLUE = "#1f77b4"
+ACCENT_RED = "#d62728"
+TEXT_COLOR = "#000000"
 
 
 def nacti_a_priprav_data(csv_path: Path) -> pd.DataFrame:
@@ -170,6 +173,221 @@ def plot_mesicni_spotreba_a_teplota(df: pd.DataFrame, save_path: Path) -> None:
     plt.show()
 
 
+def _nastav_cerny_text_osy(ax) -> None:
+    ax.tick_params(axis="both", labelsize=TICK_FONT_SIZE, colors=TEXT_COLOR)
+    ax.xaxis.label.set_color(TEXT_COLOR)
+    ax.yaxis.label.set_color(TEXT_COLOR)
+    ax.title.set_color(TEXT_COLOR)
+
+
+def _priprav_denni_ceny(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    daily_price = (
+        df.set_index("datetime")[columns].resample("D").first().dropna().reset_index()
+    )
+    daily_price["year"] = daily_price["datetime"].dt.year
+    return daily_price
+
+
+def plot_mezirocni_trend_spotreba_a_cena(df: pd.DataFrame, save_path: Path) -> None:
+    annual_summary = (
+        df.groupby("year", observed=True)
+        .agg(
+            avg_consumption=("consumption_total", "mean"),
+            avg_price=("weighted_avg_price_eur_mwh", "mean"),
+        )
+        .reset_index()
+    )
+
+    _, ax1 = plt.subplots(figsize=(15, 6))
+    ax1.plot(
+        annual_summary["year"],
+        annual_summary["avg_consumption"],
+        color=DEFAULT_BLUE,
+        marker="o",
+        linewidth=3,
+        label="Průměrná spotřeba",
+    )
+    ax1.set_xlabel("Rok", fontsize=LABEL_FONT_SIZE)
+    ax1.set_ylabel("Průměrná spotřeba (kWh)", fontsize=LABEL_FONT_SIZE)
+    ax1.grid(alpha=0.25)
+    _nastav_cerny_text_osy(ax1)
+
+    ax2 = ax1.twinx()
+    ax2.plot(
+        annual_summary["year"],
+        annual_summary["avg_price"],
+        color=ACCENT_RED,
+        marker="s",
+        linewidth=3,
+        label="Průměrná cena",
+    )
+    ax2.set_ylabel(
+        "Průměrná cena (EUR/MWh)", fontsize=LABEL_FONT_SIZE, color=TEXT_COLOR
+    )
+    ax2.tick_params(axis="y", labelsize=TICK_FONT_SIZE, colors=TEXT_COLOR)
+
+    handles_left, labels_left = ax1.get_legend_handles_labels()
+    handles_right, labels_right = ax2.get_legend_handles_labels()
+    ax1.legend(
+        handles_left + handles_right,
+        labels_left + labels_right,
+        loc="upper left",
+        fontsize=LEGEND_FONT_SIZE,
+    )
+
+    plt.title(
+        "Meziroční trend: spotřeba a cena",
+        fontsize=18,
+        weight="bold",
+        color=TEXT_COLOR,
+    )
+    plt.tight_layout()
+    plt.savefig(save_path / "eda_mezirocni_trend_spotreba_a_cena.png", dpi=300)
+    plt.show()
+
+
+def plot_vazena_cena_plynu_2020_2025(df: pd.DataFrame, save_path: Path) -> None:
+    daily_price = _priprav_denni_ceny(df, ["weighted_avg_price_eur_mwh"])
+    daily_price_window = daily_price[
+        (daily_price["year"] >= 2020) & (daily_price["year"] <= 2025)
+    ].copy()
+
+    if daily_price_window.empty:
+        print("No daily gas price data available for years 2020-2025.")
+        return
+
+    daily_price_window["price_30d"] = (
+        daily_price_window["weighted_avg_price_eur_mwh"]
+        .rolling(30, min_periods=1)
+        .mean()
+    )
+
+    _, ax = plt.subplots(figsize=(17, 7))
+    ax.plot(
+        daily_price_window["datetime"],
+        daily_price_window["weighted_avg_price_eur_mwh"],
+        color=DEFAULT_BLUE,
+        alpha=0.4,
+        linewidth=1.5,
+        label="Denní hodnota",
+    )
+    ax.plot(
+        daily_price_window["datetime"],
+        daily_price_window["price_30d"],
+        color=ACCENT_RED,
+        linewidth=3,
+        label="30denní klouzavý průměr",
+    )
+
+    ax.set_title(
+        "Vážená cena plynu (2020-2025)", fontsize=18, weight="bold", color=TEXT_COLOR
+    )
+    ax.set_xlabel("Datum", fontsize=LABEL_FONT_SIZE)
+    ax.set_ylabel("Cena (EUR/MWh)", fontsize=LABEL_FONT_SIZE)
+    ax.grid(alpha=0.25)
+    _nastav_cerny_text_osy(ax)
+    ax.legend(loc="upper left", fontsize=LEGEND_FONT_SIZE)
+
+    plt.tight_layout()
+    plt.savefig(save_path / "eda_vazena_cena_plynu_2020_2025.png", dpi=300)
+    plt.show()
+
+
+def plot_prumerny_denni_cenovy_rozptyl_podle_roku(
+    df: pd.DataFrame, save_path: Path
+) -> None:
+    daily_price = _priprav_denni_ceny(df, ["min_price_eur_mwh", "max_price_eur_mwh"])
+    price_spread_year = (
+        (daily_price["max_price_eur_mwh"] - daily_price["min_price_eur_mwh"])
+        .groupby(daily_price["year"])
+        .mean()
+    )
+
+    colors = [
+        ACCENT_RED if y == 2022 else DEFAULT_BLUE for y in price_spread_year.index
+    ]
+
+    _, ax = plt.subplots(figsize=(14, 5))
+    ax.bar(
+        price_spread_year.index.astype(str),
+        price_spread_year.to_numpy(dtype=float),
+        color=colors,
+        alpha=0.9,
+    )
+    ax.set_title(
+        "Průměrný denní cenový rozptyl podle roku (max - min)",
+        fontsize=17,
+        weight="bold",
+        color=TEXT_COLOR,
+    )
+    ax.set_xlabel("Rok", fontsize=LABEL_FONT_SIZE)
+    ax.set_ylabel("Průměrný rozptyl (EUR/MWh)", fontsize=LABEL_FONT_SIZE)
+    ax.grid(axis="y", alpha=0.25)
+    _nastav_cerny_text_osy(ax)
+
+    plt.tight_layout()
+    plt.savefig(save_path / "eda_prumerny_denni_cenovy_rozptyl_podle_roku.png", dpi=300)
+    plt.show()
+
+
+def plot_prumerna_cena_plynu_podle_roku(df: pd.DataFrame, save_path: Path) -> None:
+    daily_price = _priprav_denni_ceny(df, ["weighted_avg_price_eur_mwh"])
+    yearly_avg_price = daily_price.groupby("year", observed=True)[
+        "weighted_avg_price_eur_mwh"
+    ].mean()
+
+    bar_colors = [
+        ACCENT_RED if y == 2022 else DEFAULT_BLUE for y in yearly_avg_price.index
+    ]
+
+    _, ax = plt.subplots(figsize=(14, 6))
+    ax.bar(
+        yearly_avg_price.index.astype(str),
+        yearly_avg_price.to_numpy(dtype=float),
+        color=bar_colors,
+        alpha=0.95,
+    )
+    ax.set_title(
+        "Průměrná cena plynu podle roku", fontsize=17, weight="bold", color=TEXT_COLOR
+    )
+    ax.set_xlabel("Rok", fontsize=LABEL_FONT_SIZE)
+    ax.set_ylabel("Průměrná cena (EUR/MWh)", fontsize=LABEL_FONT_SIZE)
+    ax.grid(axis="y", alpha=0.25)
+    _nastav_cerny_text_osy(ax)
+
+    plt.tight_layout()
+    plt.savefig(save_path / "eda_prumerna_cena_plynu_podle_roku.png", dpi=300)
+    plt.show()
+
+
+def plot_distribuce_ceny_plynu_podle_roku(df: pd.DataFrame, save_path: Path) -> None:
+    daily_price = _priprav_denni_ceny(df, ["weighted_avg_price_eur_mwh"])
+    years = sorted(daily_price["year"].unique())
+    box_palette = [ACCENT_RED if y == 2022 else DEFAULT_BLUE for y in years]
+
+    _, ax = plt.subplots(figsize=(15, 7))
+    sns.boxplot(
+        data=daily_price,
+        x="year",
+        y="weighted_avg_price_eur_mwh",
+        hue="year",
+        palette=box_palette,
+        legend=False,
+        ax=ax,
+    )
+    ax.set_title(
+        "Distribuce ceny plynu podle roku", fontsize=17, weight="bold", color=TEXT_COLOR
+    )
+    ax.set_xlabel("Rok", fontsize=LABEL_FONT_SIZE)
+    ax.set_ylabel("Vážená průměrná cena (EUR/MWh)", fontsize=LABEL_FONT_SIZE)
+    ax.grid(axis="y", alpha=0.25)
+    _nastav_cerny_text_osy(ax)
+
+    plt.tight_layout()
+    plt.savefig(save_path / "eda_distribuce_ceny_plynu_podle_roku.png", dpi=300)
+    plt.show()
+
+
 def plot_all(csv_path: Path, save_path: Path) -> None:
     save_path.mkdir(parents=True, exist_ok=True)
     df = nacti_a_priprav_data(csv_path)
@@ -178,6 +396,11 @@ def plot_all(csv_path: Path, save_path: Path) -> None:
     plot_boxplot_spotreba_total(df, save_path)
     plot_distribuce_spotreba_total(df, save_path)
     plot_mesicni_spotreba_a_teplota(df, save_path)
+    plot_mezirocni_trend_spotreba_a_cena(df, save_path)
+    plot_vazena_cena_plynu_2020_2025(df, save_path)
+    # plot_prumerny_denni_cenovy_rozptyl_podle_roku(df, save_path)
+    # plot_prumerna_cena_plynu_podle_roku(df, save_path)
+    plot_distribuce_ceny_plynu_podle_roku(df, save_path)
 
 
 if __name__ == "__main__":
