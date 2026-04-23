@@ -48,7 +48,7 @@ def plot_eda_consumption_over_time(df: pd.DataFrame, save_path: Path) -> None:
     )
 
     ax.set_xlabel("Datum", fontsize=LABEL_FONT_SIZE)
-    ax.set_ylabel("Celková spotřeba (kWh)", fontsize=LABEL_FONT_SIZE)
+    ax.set_ylabel("Celková spotřeba (MWh)", fontsize=LABEL_FONT_SIZE)
     ax.tick_params(axis="both", labelsize=TICK_FONT_SIZE)
     ax.grid(alpha=0.25)
     ax.ticklabel_format(axis="y", style="plain")
@@ -67,7 +67,7 @@ def plot_boxplot_spotreba_total(df: pd.DataFrame, save_path: Path) -> None:
     _, ax = plt.subplots(figsize=(14, 7))
     sns.boxplot(x=spotreba_abs, ax=ax)
 
-    ax.set_xlabel("Celková spotřeba (kWh)", fontsize=LABEL_FONT_SIZE)
+    ax.set_xlabel("Celková spotřeba (MWh)", fontsize=LABEL_FONT_SIZE)
     ax.set_ylabel("", fontsize=LABEL_FONT_SIZE)
     ax.tick_params(axis="both", labelsize=TICK_FONT_SIZE)
     ax.grid(alpha=0.25)
@@ -88,7 +88,7 @@ def plot_distribuce_spotreba_total(df: pd.DataFrame, save_path: Path) -> None:
     _, ax = plt.subplots(figsize=(14, 7))
     sns.histplot(x=absolute_consumption_array, bins=60, kde=True, ax=ax)
 
-    ax.set_xlabel("Celková spotřeba (kWh)", fontsize=LABEL_FONT_SIZE)
+    ax.set_xlabel("Celková spotřeba (MWh)", fontsize=LABEL_FONT_SIZE)
     ax.set_ylabel("Četnost", fontsize=LABEL_FONT_SIZE)
     ax.tick_params(axis="both", labelsize=TICK_FONT_SIZE)
     ax.grid(alpha=0.25)
@@ -121,7 +121,7 @@ def plot_mesicni_spotreba_a_teplota(df: pd.DataFrame, save_path: Path) -> None:
         label="Průměrná celková spotřeba",
     )
     ax1.set_xlabel("Měsíc", fontsize=LABEL_FONT_SIZE)
-    ax1.set_ylabel("Průměrná celková spotřeba (kWh)", fontsize=LABEL_FONT_SIZE)
+    ax1.set_ylabel("Průměrná celková spotřeba (MWh)", fontsize=LABEL_FONT_SIZE)
     ax1.tick_params(axis="both", labelsize=TICK_FONT_SIZE)
     ax1.grid(alpha=0.25)
     ax1.ticklabel_format(axis="y", style="plain")
@@ -206,7 +206,7 @@ def plot_mezirocni_trend_spotreba_a_cena(df: pd.DataFrame, save_path: Path) -> N
         label="Průměrná spotřeba",
     )
     ax1.set_xlabel("Rok", fontsize=LABEL_FONT_SIZE)
-    ax1.set_ylabel("Průměrná spotřeba (kWh)", fontsize=LABEL_FONT_SIZE)
+    ax1.set_ylabel("Průměrná spotřeba (MWh)", fontsize=LABEL_FONT_SIZE)
     ax1.grid(alpha=0.25)
     _set_black_text_axes(ax1)
 
