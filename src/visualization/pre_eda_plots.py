@@ -2,16 +2,17 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.ticker import FuncFormatter
 
 plt.rcParams.update(
     {
-        "font.size": 18,
-        "axes.titlesize": 20,
-        "axes.labelsize": 18,
-        "xtick.labelsize": 16,
-        "ytick.labelsize": 16,
-        "legend.fontsize": 16,
-        "figure.titlesize": 20,
+        "font.size": 20,
+        "axes.titlesize": 22,
+        "axes.labelsize": 20,
+        "xtick.labelsize": 18,
+        "ytick.labelsize": 18,
+        "legend.fontsize": 18,
+        "figure.titlesize": 22,
     }
 )
 
@@ -62,7 +63,7 @@ ax.plot(
     consumption_df[timestamp_col],
     consumption_df[target_col],
     linewidth=0.8,
-    label=target_col,
+    label="Spotřeba v síti VCPNet",
 )
 consumption_outliers = consumption_df[target_col] > 800_000
 if consumption_outliers.any():
@@ -70,12 +71,14 @@ if consumption_outliers.any():
         consumption_df.loc[consumption_outliers, timestamp_col],
         consumption_df.loc[consumption_outliers, target_col],
         color="red",
-        s=75,
-        label="Odlehlá pozorování",
+        s=110,
+        label="Odlehlé pozorování",
         zorder=3,
     )
     ax.legend()
-ax.ticklabel_format(style="plain", axis="y", useOffset=False)
+ax.yaxis.set_major_formatter(
+    FuncFormatter(lambda x, _: f"{int(round(x)):,}".replace(",", " "))
+)
 ax.set_xlabel("Datum")
 ax.set_ylabel("Spotřeba (MWh)")
 plt.tight_layout()

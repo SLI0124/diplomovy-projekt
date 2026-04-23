@@ -67,9 +67,10 @@ def plot_boxplot_spotreba_total(df: pd.DataFrame, save_path: Path) -> None:
     _, ax = plt.subplots(figsize=(14, 7))
     sns.boxplot(x=spotreba_abs, ax=ax)
 
-    ax.set_xlabel("Celková spotřeba (MWh)", fontsize=LABEL_FONT_SIZE)
-    ax.set_ylabel("", fontsize=LABEL_FONT_SIZE)
-    ax.tick_params(axis="both", labelsize=TICK_FONT_SIZE)
+    bigger_font_size = 1.2
+    ax.set_xlabel("Celková spotřeba (MWh)", fontsize=LABEL_FONT_SIZE * bigger_font_size)
+    ax.set_ylabel("", fontsize=LABEL_FONT_SIZE * bigger_font_size)
+    ax.tick_params(axis="both", labelsize=TICK_FONT_SIZE * bigger_font_size)
     ax.grid(alpha=0.25)
     ax.ticklabel_format(axis="x", style="plain")
     ax.xaxis.set_major_formatter(
@@ -88,13 +89,17 @@ def plot_distribuce_spotreba_total(df: pd.DataFrame, save_path: Path) -> None:
     _, ax = plt.subplots(figsize=(14, 7))
     sns.histplot(x=absolute_consumption_array, bins=60, kde=True, ax=ax)
 
-    ax.set_xlabel("Celková spotřeba (MWh)", fontsize=LABEL_FONT_SIZE)
-    ax.set_ylabel("Četnost", fontsize=LABEL_FONT_SIZE)
-    ax.tick_params(axis="both", labelsize=TICK_FONT_SIZE)
+    font_size_multiplier = 1.2
+    ax.set_xlabel("Celková spotřeba (MWh)", fontsize=LABEL_FONT_SIZE * font_size_multiplier)
+    ax.set_ylabel("Četnost", fontsize=LABEL_FONT_SIZE * font_size_multiplier)
+    ax.tick_params(axis="both", labelsize=TICK_FONT_SIZE * font_size_multiplier)
     ax.grid(alpha=0.25)
     ax.ticklabel_format(axis="x", style="plain")
     ax.xaxis.set_major_formatter(
         FuncFormatter(lambda x, _: f"{x:,.0f}".replace(",", " "))
+    )
+    ax.yaxis.set_major_formatter(
+        FuncFormatter(lambda y, _: f"{y:,.0f}".replace(",", " "))
     )
 
     plt.tight_layout()
@@ -208,6 +213,9 @@ def plot_mezirocni_trend_spotreba_a_cena(df: pd.DataFrame, save_path: Path) -> N
     ax1.set_xlabel("Rok", fontsize=LABEL_FONT_SIZE)
     ax1.set_ylabel("Průměrná spotřeba (MWh)", fontsize=LABEL_FONT_SIZE)
     ax1.grid(alpha=0.25)
+    ax1.yaxis.set_major_formatter(
+        FuncFormatter(lambda y, _: f"{y:,.0f}".replace(",", " "))
+    )
     _set_black_text_axes(ax1)
 
     ax2 = ax1.twinx()
@@ -270,7 +278,6 @@ def plot_vazena_cena_plynu_2020_2025(df: pd.DataFrame, save_path: Path) -> None:
         linewidth=3,
         label="30denní průměr",
     )
-
 
     ax.set_xlabel("Datum", fontsize=LABEL_FONT_SIZE)
     ax.set_ylabel("Cena (EUR/MWh)", fontsize=LABEL_FONT_SIZE)
