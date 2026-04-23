@@ -177,8 +177,6 @@ def _nastav_cerny_text_osy(ax) -> None:
     ax.tick_params(axis="both", labelsize=TICK_FONT_SIZE, colors=TEXT_COLOR)
     ax.xaxis.label.set_color(TEXT_COLOR)
     ax.yaxis.label.set_color(TEXT_COLOR)
-    ax.title.set_color(TEXT_COLOR)
-
 
 def _priprav_denni_ceny(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     daily_price = (
@@ -235,12 +233,6 @@ def plot_mezirocni_trend_spotreba_a_cena(df: pd.DataFrame, save_path: Path) -> N
         fontsize=LEGEND_FONT_SIZE,
     )
 
-    plt.title(
-        "Meziroční trend: spotřeba a cena",
-        fontsize=18,
-        weight="bold",
-        color=TEXT_COLOR,
-    )
     plt.tight_layout()
     plt.savefig(save_path / "eda_mezirocni_trend_spotreba_a_cena.png", dpi=300)
     plt.show()
@@ -279,9 +271,7 @@ def plot_vazena_cena_plynu_2020_2025(df: pd.DataFrame, save_path: Path) -> None:
         label="30denní klouzavý průměr",
     )
 
-    ax.set_title(
-        "Vážená cena plynu (2020-2025)", fontsize=18, weight="bold", color=TEXT_COLOR
-    )
+
     ax.set_xlabel("Datum", fontsize=LABEL_FONT_SIZE)
     ax.set_ylabel("Cena (EUR/MWh)", fontsize=LABEL_FONT_SIZE)
     ax.grid(alpha=0.25)
@@ -314,12 +304,6 @@ def plot_prumerny_denni_cenovy_rozptyl_podle_roku(
         color=colors,
         alpha=0.9,
     )
-    ax.set_title(
-        "Průměrný denní cenový rozptyl podle roku (max - min)",
-        fontsize=17,
-        weight="bold",
-        color=TEXT_COLOR,
-    )
     ax.set_xlabel("Rok", fontsize=LABEL_FONT_SIZE)
     ax.set_ylabel("Průměrný rozptyl (EUR/MWh)", fontsize=LABEL_FONT_SIZE)
     ax.grid(axis="y", alpha=0.25)
@@ -347,9 +331,6 @@ def plot_prumerna_cena_plynu_podle_roku(df: pd.DataFrame, save_path: Path) -> No
         color=bar_colors,
         alpha=0.95,
     )
-    ax.set_title(
-        "Průměrná cena plynu podle roku", fontsize=17, weight="bold", color=TEXT_COLOR
-    )
     ax.set_xlabel("Rok", fontsize=LABEL_FONT_SIZE)
     ax.set_ylabel("Průměrná cena (EUR/MWh)", fontsize=LABEL_FONT_SIZE)
     ax.grid(axis="y", alpha=0.25)
@@ -374,9 +355,6 @@ def plot_distribuce_ceny_plynu_podle_roku(df: pd.DataFrame, save_path: Path) -> 
         palette=box_palette,
         legend=False,
         ax=ax,
-    )
-    ax.set_title(
-        "Distribuce ceny plynu podle roku", fontsize=17, weight="bold", color=TEXT_COLOR
     )
     ax.set_xlabel("Rok", fontsize=LABEL_FONT_SIZE)
     ax.set_ylabel("Vážená průměrná cena (EUR/MWh)", fontsize=LABEL_FONT_SIZE)
