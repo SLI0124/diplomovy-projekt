@@ -173,12 +173,12 @@ def plot_mesicni_spotreba_a_teplota(df: pd.DataFrame, save_path: Path) -> None:
     plt.show()
 
 
-def _nastav_cerny_text_osy(ax) -> None:
+def _set_black_text_axes(ax) -> None:
     ax.tick_params(axis="both", labelsize=TICK_FONT_SIZE, colors=TEXT_COLOR)
     ax.xaxis.label.set_color(TEXT_COLOR)
     ax.yaxis.label.set_color(TEXT_COLOR)
 
-def _priprav_denni_ceny(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+def _prepare_daily_prices(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     daily_price = (
         df.set_index("datetime")[columns].resample("D").first().dropna().reset_index()
     )
@@ -208,7 +208,7 @@ def plot_mezirocni_trend_spotreba_a_cena(df: pd.DataFrame, save_path: Path) -> N
     ax1.set_xlabel("Rok", fontsize=LABEL_FONT_SIZE)
     ax1.set_ylabel("Průměrná spotřeba (kWh)", fontsize=LABEL_FONT_SIZE)
     ax1.grid(alpha=0.25)
-    _nastav_cerny_text_osy(ax1)
+    _set_black_text_axes(ax1)
 
     ax2 = ax1.twinx()
     ax2.plot(
@@ -239,7 +239,7 @@ def plot_mezirocni_trend_spotreba_a_cena(df: pd.DataFrame, save_path: Path) -> N
 
 
 def plot_vazena_cena_plynu_2020_2025(df: pd.DataFrame, save_path: Path) -> None:
-    daily_price = _priprav_denni_ceny(df, ["weighted_avg_price_eur_mwh"])
+    daily_price = _prepare_daily_prices(df, ["weighted_avg_price_eur_mwh"])
     daily_price_window = daily_price[
         (daily_price["year"] >= 2020) & (daily_price["year"] <= 2025)
     ].copy()
@@ -268,14 +268,14 @@ def plot_vazena_cena_plynu_2020_2025(df: pd.DataFrame, save_path: Path) -> None:
         daily_price_window["price_30d"],
         color=ACCENT_RED,
         linewidth=3,
-        label="30denní klouzavý průměr",
+        label="30denní průměr",
     )
 
 
     ax.set_xlabel("Datum", fontsize=LABEL_FONT_SIZE)
     ax.set_ylabel("Cena (EUR/MWh)", fontsize=LABEL_FONT_SIZE)
     ax.grid(alpha=0.25)
-    _nastav_cerny_text_osy(ax)
+    _set_black_text_axes(ax)
     ax.legend(loc="upper left", fontsize=LEGEND_FONT_SIZE)
 
     plt.tight_layout()
@@ -286,7 +286,7 @@ def plot_vazena_cena_plynu_2020_2025(df: pd.DataFrame, save_path: Path) -> None:
 def plot_prumerny_denni_cenovy_rozptyl_podle_roku(
     df: pd.DataFrame, save_path: Path
 ) -> None:
-    daily_price = _priprav_denni_ceny(df, ["min_price_eur_mwh", "max_price_eur_mwh"])
+    daily_price = _prepare_daily_prices(df, ["min_price_eur_mwh", "max_price_eur_mwh"])
     price_spread_year = (
         (daily_price["max_price_eur_mwh"] - daily_price["min_price_eur_mwh"])
         .groupby(daily_price["year"])
@@ -307,7 +307,7 @@ def plot_prumerny_denni_cenovy_rozptyl_podle_roku(
     ax.set_xlabel("Rok", fontsize=LABEL_FONT_SIZE)
     ax.set_ylabel("Průměrný rozptyl (EUR/MWh)", fontsize=LABEL_FONT_SIZE)
     ax.grid(axis="y", alpha=0.25)
-    _nastav_cerny_text_osy(ax)
+    _set_black_text_axes(ax)
 
     plt.tight_layout()
     plt.savefig(save_path / "eda_prumerny_denni_cenovy_rozptyl_podle_roku.png", dpi=300)
@@ -315,7 +315,7 @@ def plot_prumerny_denni_cenovy_rozptyl_podle_roku(
 
 
 def plot_prumerna_cena_plynu_podle_roku(df: pd.DataFrame, save_path: Path) -> None:
-    daily_price = _priprav_denni_ceny(df, ["weighted_avg_price_eur_mwh"])
+    daily_price = _prepare_daily_prices(df, ["weighted_avg_price_eur_mwh"])
     yearly_avg_price = daily_price.groupby("year", observed=True)[
         "weighted_avg_price_eur_mwh"
     ].mean()
@@ -334,7 +334,7 @@ def plot_prumerna_cena_plynu_podle_roku(df: pd.DataFrame, save_path: Path) -> No
     ax.set_xlabel("Rok", fontsize=LABEL_FONT_SIZE)
     ax.set_ylabel("Průměrná cena (EUR/MWh)", fontsize=LABEL_FONT_SIZE)
     ax.grid(axis="y", alpha=0.25)
-    _nastav_cerny_text_osy(ax)
+    _set_black_text_axes(ax)
 
     plt.tight_layout()
     plt.savefig(save_path / "eda_prumerna_cena_plynu_podle_roku.png", dpi=300)
@@ -342,7 +342,7 @@ def plot_prumerna_cena_plynu_podle_roku(df: pd.DataFrame, save_path: Path) -> No
 
 
 def plot_distribuce_ceny_plynu_podle_roku(df: pd.DataFrame, save_path: Path) -> None:
-    daily_price = _priprav_denni_ceny(df, ["weighted_avg_price_eur_mwh"])
+    daily_price = _prepare_daily_prices(df, ["weighted_avg_price_eur_mwh"])
     years = sorted(daily_price["year"].unique())
     box_palette = [ACCENT_RED if y == 2022 else DEFAULT_BLUE for y in years]
 
@@ -359,7 +359,7 @@ def plot_distribuce_ceny_plynu_podle_roku(df: pd.DataFrame, save_path: Path) -> 
     ax.set_xlabel("Rok", fontsize=LABEL_FONT_SIZE)
     ax.set_ylabel("Vážená průměrná cena (EUR/MWh)", fontsize=LABEL_FONT_SIZE)
     ax.grid(axis="y", alpha=0.25)
-    _nastav_cerny_text_osy(ax)
+    _set_black_text_axes(ax)
 
     plt.tight_layout()
     plt.savefig(save_path / "eda_distribuce_ceny_plynu_podle_roku.png", dpi=300)
