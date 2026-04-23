@@ -343,16 +343,12 @@ def plot_prumerna_cena_plynu_podle_roku(df: pd.DataFrame, save_path: Path) -> No
 
 def plot_distribuce_ceny_plynu_podle_roku(df: pd.DataFrame, save_path: Path) -> None:
     daily_price = _prepare_daily_prices(df, ["weighted_avg_price_eur_mwh"])
-    years = sorted(daily_price["year"].unique())
-    box_palette = [ACCENT_RED if y == 2022 else DEFAULT_BLUE for y in years]
 
     _, ax = plt.subplots(figsize=(15, 7))
     sns.boxplot(
         data=daily_price,
         x="year",
         y="weighted_avg_price_eur_mwh",
-        hue="year",
-        palette=box_palette,
         legend=False,
         ax=ax,
     )
