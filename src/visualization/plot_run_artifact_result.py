@@ -499,7 +499,7 @@ def _plot_and_save(
                 linewidth=2.0,
                 alpha=0.9,
             )
-            ax.set_ylabel("Spotřeba", fontsize=24)
+            ax.set_ylabel("Spotřeba (MWh)", fontsize=24)
         locator = mdates.AutoDateLocator(minticks=6, maxticks=10)
         ax.xaxis.set_major_locator(locator)
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
