@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
-"""Export pre/post-conflict summaries for deep learning runs and SARIMAX.
+"""Export conflict-related summaries for chapter 6.
 
-The script collects all available 2022 `pre_conflict` and `post_conflict`
-results from `data/results/deep_learning` and computes an equivalent split for
-SARIMAX from point forecasts in `data/results/sarimax_stepup`.
+The script produces two kinds of comparisons:
 
-Outputs are written to `data/data-exports/conflict_analysis/`:
+1. A focused split of the year 2022 into:
+   - `pre_conflict`: before 24 February 2022
+   - `post_conflict`: from 24 February 2022 onwards
+2. A long-range regime split across the whole evaluated period:
+   - `pre_conflict`: all target timestamps before 24 February 2022
+   - `post_conflict`: all target timestamps from 24 February 2022 onwards
 
-- `conflict_2022_segments_all.csv`
-  One row per run / model / segment (`all`, `pre_conflict`, `post_conflict`).
-- `conflict_2022_summary_all.csv`
-  One row per run / model with pre/post/all metrics and deltas.
-- `conflict_2022_summary_latest.csv`
-  Latest available row for each unique configuration and model.
+Deep learning metrics are recomputed directly from point predictions stored in
+`src/results/deep_learning/<run>/predictions/*.csv`.
+SARIMAX metrics are computed from
+`src/results/sarimax_stepup/sarimax_predictions_all_folds.csv`.
+
+By default, only configurations used in the thesis are exported:
+- foundation models with 10 epochs,
+- custom models with 10 epochs,
+- SARIMAX,
+- `granite` in `one-shot covariate` mode is excluded by default.
 """
 
 from __future__ import annotations
@@ -23,23 +30,11 @@ import json
 import math
 from collections import defaultdict
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 FOUNDATION_MODELS = {"chronos2", "granite", "moirai1"}
 CUSTOM_MODELS = {"model_1", "model_2", "model_3"}
-
-
-@dataclass(frozen=True)
-class SegmentMetrics:
-    n_points: int
-    n_origins: int
-    mae: float
-    rmse: float
-    mape: float
-    smape: float
-    r2: float
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -75,10 +70,26 @@ def parse_args() -> argparse.Namespace:
         help="Conflict split date in ISO format.",
     )
     parser.add_argument(
-        "--test-year",
+        "--min-test-years",
+        default=12,
+        type=int,
+        help="Minimum number of distinct test years required for a deep learning run to be included.",
+    )
+    parser.add_argument(
+        "--year-of-interest",
         default=2022,
         type=int,
-        help="Test year for pre/post-conflict analysis.",
+        help="Year used for the focused pre/post-conflict split.",
+    )
+    parser.add_argument(
+        "--include-extra-epochs",
+        action="store_true",
+        help="Include foundation 20 epochs and custom 50 epochs.",
+    )
+    parser.add_argument(
+        "--include-granite-oneshot-covariate",
+        action="store_true",
+        help="Include raw Granite one-shot covariate runs as well.",
     )
     return parser.parse_args()
 
@@ -104,93 +115,21 @@ def classify_family(models: Sequence[str]) -> str:
     return "unknown"
 
 
-def to_float(value: str) -> float:
-    return float(value) if value not in ("", None) else math.nan
-
-
-def metrics_from_rows(rows: Sequence[dict]) -> dict[str, dict]:
-    grouped: dict[str, dict[str, dict]] = defaultdict(dict)
-    for row in rows:
-        if int(row["test_year"]) != 2022:
-            continue
-        model = row["model"]
-        segment = row["segment"]
-        grouped[model][segment] = row
-    return grouped
-
-
-def collect_deep_learning_segments(root: Path) -> list[dict]:
-    records: list[dict] = []
-    for run_dir in sorted(root.iterdir()):
-        if not run_dir.is_dir():
-            continue
-        runtime_path = run_dir / "runtime_config.json"
-        results_path = run_dir / "results.csv"
-        if not runtime_path.exists() or not results_path.exists():
-            continue
-
-        config = load_json(runtime_path)
-        family = classify_family(config.get("models", []))
-        run_timestamp = parse_run_timestamp(run_dir)
-
-        with results_path.open("r", encoding="utf-8") as handle:
-            rows = list(csv.DictReader(handle))
-
-        grouped = metrics_from_rows(rows)
-        for model, segments in grouped.items():
-            for segment_name in ("all", "pre_conflict", "post_conflict"):
-                if segment_name not in segments:
-                    continue
-                row = segments[segment_name]
-                records.append(
-                    {
-                        "source": "deep_learning",
-                        "family": family,
-                        "model": model,
-                        "mode": config.get("mode", ""),
-                        "input_mode": config.get("training_input_mode", ""),
-                        "train_epochs": config.get("train_epochs", ""),
-                        "action": config.get("action", ""),
-                        "run_dir": str(run_dir),
-                        "run_name": run_dir.name,
-                        "run_timestamp": (
-                            run_timestamp.isoformat() if run_timestamp else ""
-                        ),
-                        "test_year": int(row["test_year"]),
-                        "segment": segment_name,
-                        "train_years": row.get("train_years", ""),
-                        "n_windows": int(row["n_windows"]),
-                        "n_points": int(row["n_points"]),
-                        "mae": to_float(row["mae"]),
-                        "mse": to_float(row["mse"]),
-                        "rmse": math.sqrt(to_float(row["mse"])),
-                        "mape": to_float(row["mape"]),
-                        "smape": to_float(row["smape"]),
-                        "r2": to_float(row["r2"]),
-                        "note": (
-                            "granite_one_shot_covariate_present_in_raw_results"
-                            if model == "granite"
-                            and config.get("mode") == "one-shot"
-                            and config.get("training_input_mode") == "covariate"
-                            else ""
-                        ),
-                    }
-                )
-    return records
-
-
 def safe_div(num: float, den: float) -> float:
     if den == 0:
         return math.nan
     return num / den
 
 
-def compute_segment_metrics(rows: Sequence[dict]) -> SegmentMetrics:
+def compute_metrics(rows: Sequence[dict]) -> dict:
+    if not rows:
+        raise ValueError("Cannot compute metrics from an empty row set.")
+
     y_true = [float(row["y_true"]) for row in rows]
     y_pred = [float(row["y_pred"]) for row in rows]
-
     n_points = len(rows)
-    origins = {row["origin_timestamp"] for row in rows}
+    n_windows = len({row["origin_timestamp"] for row in rows})
+
     mae = sum(abs(a - b) for a, b in zip(y_true, y_pred, strict=False)) / n_points
     mse = sum((a - b) ** 2 for a, b in zip(y_true, y_pred, strict=False)) / n_points
     rmse = math.sqrt(mse)
@@ -207,75 +146,305 @@ def compute_segment_metrics(rows: Sequence[dict]) -> SegmentMetrics:
         )
         / n_points
     )
+
     y_mean = sum(y_true) / n_points
     ss_res = sum((a - b) ** 2 for a, b in zip(y_true, y_pred, strict=False))
     ss_tot = sum((a - y_mean) ** 2 for a in y_true)
     r2 = 1.0 - safe_div(ss_res, ss_tot)
 
-    return SegmentMetrics(
-        n_points=n_points,
-        n_origins=len(origins),
-        mae=mae,
-        rmse=rmse,
-        mape=mape,
-        smape=smape,
-        r2=r2,
-    )
-
-
-def collect_sarimax_segments(
-    root: Path, conflict_dt: datetime, test_year: int
-) -> list[dict]:
-    predictions_path = (
-        root / "predictions_by_year" / f"sarimax_predictions_{test_year}.csv"
-    )
-    if not predictions_path.exists():
-        raise FileNotFoundError(f"Missing SARIMAX predictions file: {predictions_path}")
-
-    with predictions_path.open("r", encoding="utf-8") as handle:
-        rows = list(csv.DictReader(handle))
-
-    for row in rows:
-        row["timestamp_dt"] = datetime.fromisoformat(row["timestamp"])
-        row["origin_dt"] = datetime.fromisoformat(row["origin_timestamp"])
-
-    segments = {
-        "all": rows,
-        "pre_conflict": [row for row in rows if row["timestamp_dt"] < conflict_dt],  # type: ignore
-        "post_conflict": [row for row in rows if row["timestamp_dt"] >= conflict_dt],  # type: ignore
+    return {
+        "n_windows": n_windows,
+        "n_points": n_points,
+        "mae": mae,
+        "mse": mse,
+        "rmse": rmse,
+        "mape": mape,
+        "smape": smape,
+        "r2": r2,
     }
 
-    train_years = rows[0]["train_years"] if rows else ""
+
+def should_include_config(
+    family: str,
+    model: str,
+    mode: str,
+    input_mode: str,
+    train_epochs: str,
+    include_extra_epochs: bool,
+    include_granite_oneshot_covariate: bool,
+) -> bool:
+    if family == "sarimax":
+        return True
+    if family not in {"foundation", "custom"}:
+        return False
+
+    if not include_extra_epochs and str(train_epochs) != "10":
+        return False
+
+    return not (
+        family == "foundation"
+        and model == "granite"
+        and mode == "one-shot"
+        and input_mode == "covariate"
+        and not include_granite_oneshot_covariate
+    )
+
+
+def load_prediction_rows(path: Path) -> list[dict]:
+    with path.open("r", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    for row in rows:
+        timestamp = row.get("target_timestamp") or row.get("timestamp")
+        row["target_timestamp"] = timestamp
+        row["target_dt"] = datetime.fromisoformat(timestamp.replace("Z", ""))  # type: ignore
+        origin_timestamp = row.get("origin_timestamp")
+        row["origin_timestamp"] = origin_timestamp
+    return rows
+
+
+def collect_run_prediction_rows(run_dir: Path, model: str) -> list[dict]:
+    prediction_dir = run_dir / "predictions"
+    if not prediction_dir.exists():
+        return []
+
+    rows: list[dict] = []
+    for path in sorted(prediction_dir.glob(f"{model}__test-*.csv")):
+        rows.extend(load_prediction_rows(path))
+    return rows
+
+
+def distinct_test_years(rows: Sequence[dict]) -> list[int]:
+    return sorted({int(row["test_year"]) for row in rows})
+
+
+def make_segment_records(
+    *,
+    source: str,
+    family: str,
+    model: str,
+    mode: str,
+    input_mode: str,
+    train_epochs: str,
+    action: str,
+    run_dir: str,
+    run_name: str,
+    run_timestamp: str,
+    scope: str,
+    year_of_interest: int,
+    train_years: str,
+    note: str,
+    segment_rows: dict[str, Sequence[dict]],
+) -> list[dict]:
     records: list[dict] = []
-    for segment_name, segment_rows in segments.items():
-        metrics = compute_segment_metrics(segment_rows)
+    for segment_name, rows in segment_rows.items():
+        metrics = compute_metrics(rows)
+        test_year_value = year_of_interest if scope == "year_2022" else "2014-2025"
         records.append(
             {
-                "source": "sarimax",
-                "family": "sarimax",
-                "model": "sarimax",
-                "mode": "baseline",
-                "input_mode": "covariate",
-                "train_epochs": "",
-                "action": "eval",
-                "run_dir": str(root),
-                "run_name": root.name,
-                "run_timestamp": "",
-                "test_year": test_year,
-                "segment": segment_name,
+                "source": source,
+                "family": family,
+                "model": model,
+                "mode": mode,
+                "input_mode": input_mode,
+                "train_epochs": train_epochs,
+                "action": action,
+                "run_dir": run_dir,
+                "run_name": run_name,
+                "run_timestamp": run_timestamp,
+                "scope": scope,
+                "test_year": test_year_value,
                 "train_years": train_years,
-                "n_windows": metrics.n_origins,
-                "n_points": metrics.n_points,
-                "mae": metrics.mae,
-                "mse": metrics.rmse**2,
-                "rmse": metrics.rmse,
-                "mape": metrics.mape,
-                "smape": metrics.smape,
-                "r2": metrics.r2,
-                "note": "computed_from_point_predictions",
+                "segment": segment_name,
+                "n_windows": metrics["n_windows"],
+                "n_points": metrics["n_points"],
+                "mae": metrics["mae"],
+                "mse": metrics["mse"],
+                "rmse": metrics["rmse"],
+                "mape": metrics["mape"],
+                "smape": metrics["smape"],
+                "r2": metrics["r2"],
+                "note": note,
             }
         )
     return records
+
+
+def collect_deep_learning_records(
+    root: Path,
+    conflict_dt: datetime,
+    year_of_interest: int,
+    min_test_years: int,
+    include_extra_epochs: bool,
+    include_granite_oneshot_covariate: bool,
+) -> tuple[list[dict], list[dict]]:
+    split_2022_records: list[dict] = []
+    regime_records: list[dict] = []
+
+    for run_dir in sorted(root.iterdir()):
+        if not run_dir.is_dir():
+            continue
+
+        runtime_path = run_dir / "runtime_config.json"
+        if not runtime_path.exists():
+            continue
+
+        config = load_json(runtime_path)
+        family = classify_family(config.get("models", []))
+        run_timestamp = parse_run_timestamp(run_dir)
+        run_timestamp_str = run_timestamp.isoformat() if run_timestamp else ""
+
+        for model in config.get("models", []):
+            if not should_include_config(
+                family=family,
+                model=model,
+                mode=config.get("mode", ""),
+                input_mode=config.get("training_input_mode", ""),
+                train_epochs=str(config.get("train_epochs", "")),
+                include_extra_epochs=include_extra_epochs,
+                include_granite_oneshot_covariate=include_granite_oneshot_covariate,
+            ):
+                continue
+
+            rows = collect_run_prediction_rows(run_dir, model)
+            if not rows:
+                continue
+
+            years_available = distinct_test_years(rows)
+            if len(years_available) < min_test_years:
+                continue
+
+            rows_2022 = [
+                row for row in rows if int(row["test_year"]) == year_of_interest
+            ]
+            if rows_2022:
+                split_2022_records.extend(
+                    make_segment_records(
+                        source="deep_learning",
+                        family=family,
+                        model=model,
+                        mode=config.get("mode", ""),
+                        input_mode=config.get("training_input_mode", ""),
+                        train_epochs=str(config.get("train_epochs", "")),
+                        action=config.get("action", ""),
+                        run_dir=str(run_dir),
+                        run_name=run_dir.name,
+                        run_timestamp=run_timestamp_str,
+                        scope="year_2022",
+                        year_of_interest=year_of_interest,
+                        train_years="2013-2021",
+                        note="",
+                        segment_rows={
+                            "all": rows_2022,
+                            "pre_conflict": [
+                                row
+                                for row in rows_2022
+                                if row["target_dt"] < conflict_dt
+                            ],
+                            "post_conflict": [
+                                row
+                                for row in rows_2022
+                                if row["target_dt"] >= conflict_dt
+                            ],
+                        },
+                    )
+                )
+
+            regime_records.extend(
+                make_segment_records(
+                    source="deep_learning",
+                    family=family,
+                    model=model,
+                    mode=config.get("mode", ""),
+                    input_mode=config.get("training_input_mode", ""),
+                    train_epochs=str(config.get("train_epochs", "")),
+                    action=config.get("action", ""),
+                    run_dir=str(run_dir),
+                    run_name=run_dir.name,
+                    run_timestamp=run_timestamp_str,
+                    scope="full_regime",
+                    year_of_interest=year_of_interest,
+                    train_years="2014-2025",
+                    note="",
+                    segment_rows={
+                        "all": rows,
+                        "pre_conflict": [
+                            row for row in rows if row["target_dt"] < conflict_dt
+                        ],
+                        "post_conflict": [
+                            row for row in rows if row["target_dt"] >= conflict_dt
+                        ],
+                    },
+                )
+            )
+
+    return split_2022_records, regime_records
+
+
+def collect_sarimax_records(
+    root: Path,
+    conflict_dt: datetime,
+    year_of_interest: int,
+) -> tuple[list[dict], list[dict]]:
+    all_predictions_path = root / "sarimax_predictions_all_folds.csv"
+    if not all_predictions_path.exists():
+        raise FileNotFoundError(
+            f"Missing SARIMAX predictions file: {all_predictions_path}"
+        )
+
+    all_rows = load_prediction_rows(all_predictions_path)
+    rows_2022 = [row for row in all_rows if int(row["test_year"]) == year_of_interest]
+
+    split_2022_records = make_segment_records(
+        source="sarimax",
+        family="sarimax",
+        model="sarimax",
+        mode="baseline",
+        input_mode="covariate",
+        train_epochs="",
+        action="eval",
+        run_dir=str(root),
+        run_name=root.name,
+        run_timestamp="",
+        scope="year_2022",
+        year_of_interest=year_of_interest,
+        train_years="2013-2021",
+        note="computed_from_point_predictions",
+        segment_rows={
+            "all": rows_2022,
+            "pre_conflict": [
+                row for row in rows_2022 if row["target_dt"] < conflict_dt
+            ],
+            "post_conflict": [
+                row for row in rows_2022 if row["target_dt"] >= conflict_dt
+            ],
+        },
+    )
+
+    regime_records = make_segment_records(
+        source="sarimax",
+        family="sarimax",
+        model="sarimax",
+        mode="baseline",
+        input_mode="covariate",
+        train_epochs="",
+        action="eval",
+        run_dir=str(root),
+        run_name=root.name,
+        run_timestamp="",
+        scope="full_regime",
+        year_of_interest=year_of_interest,
+        train_years="2014-2025",
+        note="computed_from_point_predictions",
+        segment_rows={
+            "all": all_rows,
+            "pre_conflict": [row for row in all_rows if row["target_dt"] < conflict_dt],
+            "post_conflict": [
+                row for row in all_rows if row["target_dt"] >= conflict_dt
+            ],
+        },
+    )
+
+    return split_2022_records, regime_records
 
 
 def summarise_pre_post(records: Sequence[dict]) -> list[dict]:
@@ -290,6 +459,7 @@ def summarise_pre_post(records: Sequence[dict]) -> list[dict]:
             str(row["train_epochs"]),
             row["action"],
             row["run_dir"],
+            row["scope"],
         )
         grouped[key][row["segment"]] = row
 
@@ -297,10 +467,23 @@ def summarise_pre_post(records: Sequence[dict]) -> list[dict]:
     for key, segments in grouped.items():
         if "pre_conflict" not in segments or "post_conflict" not in segments:
             continue
-        source, family, model, mode, input_mode, train_epochs, action, run_dir = key
+
+        (
+            source,
+            family,
+            model,
+            mode,
+            input_mode,
+            train_epochs,
+            action,
+            run_dir,
+            scope,
+        ) = key
+
         pre = segments["pre_conflict"]
         post = segments["post_conflict"]
         all_row = segments.get("all", {})
+
         summaries.append(
             {
                 "source": source,
@@ -313,6 +496,7 @@ def summarise_pre_post(records: Sequence[dict]) -> list[dict]:
                 "run_dir": run_dir,
                 "run_name": Path(run_dir).name,
                 "run_timestamp": pre.get("run_timestamp", ""),
+                "scope": scope,
                 "test_year": pre["test_year"],
                 "train_years": pre["train_years"],
                 "all_mape": all_row.get("mape", math.nan),
@@ -347,11 +531,12 @@ def latest_per_configuration(rows: Sequence[dict]) -> list[dict]:
             row["mode"],
             row["input_mode"],
             str(row["train_epochs"]),
+            row["scope"],
         )
         grouped[key].append(row)
 
     latest_rows: list[dict] = []
-    for _, items in grouped.items():
+    for items in grouped.values():
         if items[0]["source"] == "sarimax":
             latest_rows.append(items[0])
             continue
@@ -364,8 +549,10 @@ def latest_per_configuration(rows: Sequence[dict]) -> list[dict]:
                 ),
             )
         )
+
     latest_rows.sort(
         key=lambda row: (
+            row["scope"],
             row["family"],
             row["mode"],
             row["input_mode"],
@@ -393,10 +580,9 @@ def print_preview(
     print(f"\n{title}")
     print("-" * len(title))
     for row in rows[:limit]:
-        values = [str(row[col]) for col in columns]
-        print(" | ".join(values))
+        print(" | ".join(str(row[col]) for col in columns))
     if len(rows) > limit:
-        print(f"... ({len(rows) - limit} more rows)")
+        print(f"... ({len(rows) - limit} dalších řádků)")
 
 
 def main() -> None:
@@ -407,14 +593,35 @@ def main() -> None:
     sarimax_root = Path(args.sarimax_root)
     output_dir = Path(args.output_dir)
 
-    dl_records = collect_deep_learning_segments(deep_learning_root)
-    sarimax_records = collect_sarimax_segments(
-        sarimax_root, conflict_dt, args.test_year
+    dl_2022, dl_regime = collect_deep_learning_records(
+        deep_learning_root,
+        conflict_dt,
+        args.year_of_interest,
+        args.min_test_years,
+        include_extra_epochs=args.include_extra_epochs,
+        include_granite_oneshot_covariate=args.include_granite_oneshot_covariate,
     )
-    segment_rows = sorted(
-        dl_records + sarimax_records,
+    sarimax_2022, sarimax_regime = collect_sarimax_records(
+        sarimax_root,
+        conflict_dt,
+        args.year_of_interest,
+    )
+
+    split_2022_segments = sorted(
+        dl_2022 + sarimax_2022,
         key=lambda row: (
-            row["source"],
+            row["family"],
+            row["mode"],
+            row["input_mode"],
+            str(row["train_epochs"]),
+            row["model"],
+            row["run_name"],
+            row["segment"],
+        ),
+    )
+    regime_segments = sorted(
+        dl_regime + sarimax_regime,
+        key=lambda row: (
             row["family"],
             row["mode"],
             row["input_mode"],
@@ -425,21 +632,43 @@ def main() -> None:
         ),
     )
 
-    summary_rows = summarise_pre_post(segment_rows)
-    latest_rows = latest_per_configuration(summary_rows)
+    split_2022_summary = summarise_pre_post(split_2022_segments)
+    regime_summary = summarise_pre_post(regime_segments)
+    split_2022_latest = latest_per_configuration(split_2022_summary)
+    regime_latest = latest_per_configuration(regime_summary)
 
-    write_csv(output_dir / "conflict_2022_segments_all.csv", segment_rows)
-    write_csv(output_dir / "conflict_2022_summary_all.csv", summary_rows)
-    write_csv(output_dir / "conflict_2022_summary_latest.csv", latest_rows)
+    write_csv(output_dir / "conflict_2022_segments_all.csv", split_2022_segments)
+    write_csv(output_dir / "conflict_2022_summary_all.csv", split_2022_summary)
+    write_csv(output_dir / "conflict_2022_summary_latest.csv", split_2022_latest)
+    write_csv(output_dir / "conflict_regime_segments_all.csv", regime_segments)
+    write_csv(output_dir / "conflict_regime_summary_all.csv", regime_summary)
+    write_csv(output_dir / "conflict_regime_summary_latest.csv", regime_latest)
 
-    print(f"Written to: {output_dir}")
-    print(f"Segment rows: {len(segment_rows)}")
-    print(f"Summary rows: {len(summary_rows)}")
-    print(f"Latest configurations: {len(latest_rows)}")
+    print(f"Zapsáno do: {output_dir}")
+    print(f"Rok 2022, segmentové řádky: {len(split_2022_segments)}")
+    print(f"Rok 2022, souhrnné řádky: {len(split_2022_summary)}")
+    print(f"Rok 2022, nejnovější konfigurace: {len(split_2022_latest)}")
+    print(f"Dlouhý režim, segmentové řádky: {len(regime_segments)}")
+    print(f"Dlouhý režim, souhrnné řádky: {len(regime_summary)}")
+    print(f"Dlouhý režim, nejnovější konfigurace: {len(regime_latest)}")
 
     print_preview(
-        "Latest configuration preview",
-        latest_rows,
+        "Přehled nejnovějších konfigurací pro rok 2022",
+        split_2022_latest,
+        [
+            "family",
+            "model",
+            "mode",
+            "input_mode",
+            "train_epochs",
+            "pre_mape",
+            "post_mape",
+            "delta_mape_post_minus_pre",
+        ],
+    )
+    print_preview(
+        "Přehled nejnovějších konfigurací pro dlouhý režim",
+        regime_latest,
         [
             "family",
             "model",
