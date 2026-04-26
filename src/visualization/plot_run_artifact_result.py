@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.ticker import FuncFormatter
 
 RUN_DIR_PATTERN = re.compile(r"^(?P<model>.+)__test-(?P<year>\d{4})\.csv$")
 PlotKind = Literal["prediction", "training_losses"]
@@ -37,11 +39,13 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--year",
+        "--test-year",
+        dest="year",
         type=int,
         default=None,
         help=(
-            "Optional test year to plot. If omitted, plots are generated for all "
-            "available test years for the selected model."
+            "Optional test year to plot. Use this to generate a single plot "
+            "instead of all available test years for the selected model."
         ),
     )
     parser.add_argument(
@@ -106,6 +110,39 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=45,
         help="Days after conflict date for --conflict-window (default: 45).",
+    )
+    parser.add_argument(
+        "--start-date",
+        default=None,
+        help=(
+            "Prediction only: inclusive start date for slicing the plot range "
+            "(for example 2022-01-01)."
+        ),
+    )
+    parser.add_argument(
+        "--end-date",
+        default=None,
+        help=(
+            "Prediction only: inclusive end date for slicing the plot range "
+            "(for example 2022-03-31)."
+        ),
+    )
+    parser.add_argument(
+        "--plot-difference",
+        action="store_true",
+        help=(
+            "Prediction only: plot the difference Skutecnost - Predikce "
+            "instead of both curves."
+        ),
+    )
+    parser.add_argument(
+        "--difference-y-offset",
+        default="auto",
+        help=(
+            "Prediction only: vertical offset for --plot-difference. "
+            "Use auto to align the difference to the average consumption level, "
+            "or provide a numeric value."
+        ),
     )
     return parser.parse_args()
 
@@ -263,10 +300,6 @@ def _prepare_timeseries(predictions_path: Path) -> pd.DataFrame:
     if ts.empty:
         raise ValueError(f"No valid rows to plot after cleaning: {predictions_path}")
 
-    # Scale to thousands for readability and to match axis units.
-    ts["y_true"] = ts["y_true"] / 1000.0
-    ts["y_pred"] = ts["y_pred"] / 1000.0
-
     return ts
 
 
@@ -300,6 +333,44 @@ def _slice_conflict_window(
     return sliced
 
 
+def _slice_date_range(
+    ts: pd.DataFrame,
+    start_date_text: str | None,
+    end_date_text: str | None,
+) -> pd.DataFrame:
+    if not start_date_text and not end_date_text:
+        return ts
+
+    try:
+        start = (
+            pd.Timestamp(start_date_text)
+            if start_date_text
+            else ts["target_timestamp"].min()
+        )
+        end = (
+            pd.Timestamp(end_date_text)
+            if end_date_text
+            else ts["target_timestamp"].max()
+        )
+    except Exception as exc:  # pragma: no cover - defensive parsing guard
+        raise ValueError(
+            f"Invalid --start-date/--end-date value: start={start_date_text}, end={end_date_text}"
+        ) from exc
+
+    if start > end:
+        raise ValueError("--start-date must be earlier than or equal to --end-date.")
+
+    sliced = ts[
+        (ts["target_timestamp"] >= start) & (ts["target_timestamp"] <= end)
+    ].copy()
+    if sliced.empty:
+        raise ValueError(
+            "Selected date range is empty. Adjust --start-date/--end-date."
+        )
+
+    return sliced
+
+
 def _prepare_training_losses(training_loss_path: Path) -> pd.DataFrame:
     df = pd.read_csv(training_loss_path)
 
@@ -323,6 +394,19 @@ def _prepare_training_losses(training_loss_path: Path) -> pd.DataFrame:
     return ts
 
 
+def _resolve_difference_y_offset(
+    ts: pd.DataFrame,
+    offset_text: str,
+) -> float:
+    if offset_text == "auto":
+        return float(ts[["y_true", "y_pred"]].to_numpy().mean())
+
+    try:
+        return float(offset_text)
+    except ValueError as exc:
+        raise ValueError(f"Invalid --difference-y-offset value: {offset_text}") from exc
+
+
 def _default_output_path(
     meta: RunMetadata,
     model: str,
@@ -332,14 +416,20 @@ def _default_output_path(
     out_dir = _project_root() / "data" / "plots" / "deep_learning" / meta.run_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     if meta.plot_kind == "prediction":
+        date_range_suffix = ""
+        if args.start_date or args.end_date:
+            start_label = args.start_date or "auto-start"
+            end_label = args.end_date or "auto-end"
+            date_range_suffix = f"__{start_label}_az_{end_label}"
+        value_mode_suffix = "__rozdil" if args.plot_difference else ""
         if args.conflict_window:
             return out_dir / (
                 f"{model}__{meta.mode_short}__test-{year}"
-                "__okoli_konfliktu_ru_ua_3m__skutecnost_vs_predikce.png"
+                f"__okoli_konfliktu_ru_ua_3m{date_range_suffix}{value_mode_suffix}__skutecnost_vs_predikce.png"
             )
         return (
             out_dir
-            / f"{model}__{meta.mode_short}__test-{year}__skutecnost_vs_predikce.png"
+            / f"{model}__{meta.mode_short}__test-{year}{date_range_suffix}{value_mode_suffix}__skutecnost_vs_predikce.png"
         )
     return out_dir / f"{model}__{meta.mode_short}__test-{year}__treninkova_ztrata.png"
 
@@ -383,43 +473,60 @@ def _plot_and_save(
     output_path: Path,
     dpi: int,
 ) -> None:
-    plt.figure(figsize=(16, 7))
+    fig, ax = plt.subplots(figsize=(16, 9))
     if meta.plot_kind == "prediction":
-        plt.plot(
-            data["target_timestamp"],
-            data["y_true"],
-            label="Skutečnost",
-            linewidth=1.4,
-            alpha=0.95,
+        if "y_diff" in data.columns:
+            ax.plot(
+                data["target_timestamp"],
+                data["y_diff"],
+                label="Rozdíl",
+                linewidth=2.2,
+                alpha=0.95,
+            )
+            ax.set_ylabel("Rozdíl spotřeby", fontsize=24)
+        else:
+            ax.plot(
+                data["target_timestamp"],
+                data["y_true"],
+                label="Skutečnost",
+                linewidth=2.2,
+                alpha=0.95,
+            )
+            ax.plot(
+                data["target_timestamp"],
+                data["y_pred"],
+                label="Predikce",
+                linewidth=2.0,
+                alpha=0.9,
+            )
+            ax.set_ylabel("Spotřeba", fontsize=24)
+        locator = mdates.AutoDateLocator(minticks=6, maxticks=10)
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
+        ax.set_xlabel("Datum", fontsize=24)
+        plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
+        ax.yaxis.set_major_formatter(
+            FuncFormatter(lambda x, _: f"{int(round(x)):,}".replace(",", " "))
         )
-        plt.plot(
-            data["target_timestamp"],
-            data["y_pred"],
-            label="Predikce",
-            linewidth=1.2,
-            alpha=0.9,
-        )
-        plt.xlabel("Datum")
-        plt.ylabel("Spotřeba [tis.]")
     else:
-        plt.plot(
+        ax.plot(
             data["epoch"],
             data["loss"],
             label="Tréninková ztráta",
-            linewidth=1.6,
+            linewidth=2.2,
             alpha=0.95,
         )
-        plt.xlabel("Epocha")
-        plt.ylabel("Ztráta")
+        ax.set_xlabel("Epocha", fontsize=24)
+        ax.set_ylabel("Ztráta", fontsize=24)
 
-    plt.title(f"{model} | {meta.mode_short} | rok {year}")
-    plt.grid(True, alpha=0.25)
-    plt.legend()
-    plt.tight_layout()
+    ax.tick_params(axis="both", labelsize=18)
+    ax.grid(True, alpha=0.3, linewidth=0.8)
+    ax.legend(fontsize=18)
+    fig.tight_layout()
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(output_path, dpi=dpi)
-    plt.close()
+    fig.savefig(output_path, dpi=dpi)
+    plt.close(fig)
 
 
 def main() -> None:
@@ -428,6 +535,12 @@ def main() -> None:
 
     if args.conflict_window and meta.plot_kind != "prediction":
         raise ValueError("--conflict-window can be used only with prediction plots.")
+    if (args.start_date or args.end_date) and meta.plot_kind != "prediction":
+        raise ValueError(
+            "--start-date/--end-date can be used only with prediction plots."
+        )
+    if args.plot_difference and meta.plot_kind != "prediction":
+        raise ValueError("--plot-difference can be used only with prediction plots.")
 
     years_by_model: dict[str, list[int]] = {}
     for model in meta.models:
@@ -465,6 +578,18 @@ def main() -> None:
                         days_before=args.days_before,
                         days_after=args.days_after,
                     )
+                data = _slice_date_range(
+                    ts=data,
+                    start_date_text=args.start_date,
+                    end_date_text=args.end_date,
+                )
+                if args.plot_difference:
+                    data = data.copy()
+                    diff_offset = _resolve_difference_y_offset(
+                        ts=data,
+                        offset_text=args.difference_y_offset,
+                    )
+                    data["y_diff"] = (data["y_true"] - data["y_pred"]) + diff_offset
             else:
                 data = _prepare_training_losses(source_csv)
             output_path = _resolve_output_path(
