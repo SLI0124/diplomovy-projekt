@@ -57,6 +57,10 @@ def results_root() -> Path:
     return _project_root_from_here() / "data" / "results" / "deep_learning"
 
 
+def mlflow_artifacts_root() -> Path:
+    return _project_root_from_here() / "data" / "results" / "mlflow-artifacts"
+
+
 def mlflow_uri() -> str:
     mlflow_db = (_project_root_from_here() / "data" / "results" / "mlflow.db").resolve()
     return f"sqlite:///{mlflow_db.as_posix()}"

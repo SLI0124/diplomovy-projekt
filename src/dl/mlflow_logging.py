@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import hashlib
+import sqlite3
 from pathlib import Path
+from urllib.parse import unquote
 
 import mlflow
 import torch
 from config import (
     RuntimeConfig,
+    mlflow_artifacts_root,
     mlflow_uri,
     models_root,
     results_root,
@@ -14,14 +17,71 @@ from config import (
 )
 from dataset import DatasetBundle, FoldData
 from folds import FoldSpec
+from mlflow.tracking import MlflowClient
 
 
 def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _experiment_artifact_location(experiment_name: str) -> str:
+    artifact_root = mlflow_artifacts_root().resolve() / experiment_name
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    return artifact_root.as_uri()
+
+
+def _sqlite_db_path(tracking_uri: str) -> Path | None:
+    if not tracking_uri.startswith("sqlite:///"):
+        return None
+    return Path(unquote(tracking_uri.removeprefix("sqlite:///")))
+
+
+def _repair_experiment_artifact_location(
+    *,
+    tracking_uri: str,
+    experiment_id: str,
+    artifact_location: str,
+) -> bool:
+    db_path = _sqlite_db_path(tracking_uri)
+    if db_path is None:
+        return False
+
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            "UPDATE experiments SET artifact_location = ? WHERE experiment_id = ?",
+            (artifact_location, experiment_id),
+        )
+        connection.commit()
+
+    return True
+
+
 def ensure_mlflow(experiment_name: str) -> None:
-    mlflow.set_tracking_uri(mlflow_uri())
+    tracking_uri = mlflow_uri()
+    desired_artifact_location = _experiment_artifact_location(experiment_name)
+
+    mlflow.set_tracking_uri(tracking_uri)
+    client = MlflowClient(tracking_uri=tracking_uri)
+    experiment = client.get_experiment_by_name(experiment_name)
+
+    if experiment is None:
+        client.create_experiment(
+            name=experiment_name,
+            artifact_location=desired_artifact_location,
+        )
+    elif experiment.artifact_location != desired_artifact_location:
+        repaired = _repair_experiment_artifact_location(
+            tracking_uri=tracking_uri,
+            experiment_id=experiment.experiment_id,
+            artifact_location=desired_artifact_location,
+        )
+        if not repaired:
+            current = experiment.artifact_location
+            raise RuntimeError(
+                "MLflow experiment artifact location is not portable and could not be repaired automatically. "
+                f"experiment='{experiment_name}' current='{current}' desired='{desired_artifact_location}'"
+            )
+
     mlflow.set_experiment(experiment_name)
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -10,7 +11,15 @@ from dataset import DatasetBundle
 from folds import FoldSpec
 
 CHECKPOINT_MANIFEST_VERSION = "dl_checkpoint_manifest.v2"
+LEGACY_CHECKPOINT_MANIFEST_VERSION = "dl_checkpoint_manifest.v1"
 CheckpointStatus = Literal["compatible_exists", "missing", "incompatible_manifest"]
+
+
+@dataclass(frozen=True)
+class CheckpointResolution:
+    checkpoint_dir: Path
+    status: CheckpointStatus
+    reason: str | None
 
 
 def dataset_tag(bundle: DatasetBundle) -> str:
@@ -125,16 +134,16 @@ def validate_checkpoint_manifest(
 
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    if payload.get("schema") != CHECKPOINT_MANIFEST_VERSION:
+    schema = payload.get("schema")
+    if schema not in {CHECKPOINT_MANIFEST_VERSION, LEGACY_CHECKPOINT_MANIFEST_VERSION}:
         raise ValueError(
             f"Unsupported checkpoint manifest schema in {manifest_path}: "
-            f"{payload.get('schema')}"
+            f"{schema}"
         )
 
     checks = {
         "model_slug": (payload.get("model_slug"), model_slug),
         "dataset_tag": (payload.get("dataset_tag"), current_dataset_tag),
-        "model_signature": (payload.get("model_signature"), model_signature),
         "training_input_mode": (
             payload.get("training_input_mode"),
             config.training_input_mode,
@@ -197,6 +206,9 @@ def validate_checkpoint_manifest(
         ),
     }
 
+    if schema == CHECKPOINT_MANIFEST_VERSION:
+        checks["model_signature"] = (payload.get("model_signature"), model_signature)
+
     mismatches: list[str] = []
     for key, (observed, expected) in checks.items():
         if observed != expected:
@@ -211,6 +223,78 @@ def validate_checkpoint_manifest(
         )
 
 
+def _candidate_checkpoint_dirs(
+    *,
+    checkpoint_dir: Path,
+    fold: FoldSpec,
+) -> list[Path]:
+    parent = checkpoint_dir.parent
+    prefix = f"train_2013-{fold.train_end_year}__test-{fold.test_year}__"
+    if not parent.exists():
+        return []
+    return sorted(path for path in parent.glob(f"{prefix}*") if path.is_dir())
+
+
+def resolve_checkpoint(
+    *,
+    checkpoint_dir: Path,
+    config: RuntimeConfig,
+    fold: FoldSpec,
+    model_slug: str,
+    current_dataset_tag: str,
+    model_signature: dict[str, object],
+    covariate_columns: tuple[str, ...],
+    future_covariate_columns: tuple[str, ...],
+    past_covariate_columns: tuple[str, ...],
+) -> CheckpointResolution:
+    candidates: list[Path] = []
+    if checkpoint_dir.exists():
+        candidates.append(checkpoint_dir)
+    for candidate in _candidate_checkpoint_dirs(
+        checkpoint_dir=checkpoint_dir,
+        fold=fold,
+    ):
+        if candidate != checkpoint_dir:
+            candidates.append(candidate)
+
+    if not candidates:
+        return CheckpointResolution(
+            checkpoint_dir=checkpoint_dir,
+            status="missing",
+            reason=None,
+        )
+
+    incompatibilities: list[str] = []
+    for candidate in candidates:
+        try:
+            validate_checkpoint_manifest(
+                checkpoint_dir=candidate,
+                config=config,
+                fold=fold,
+                model_slug=model_slug,
+                current_dataset_tag=current_dataset_tag,
+                model_signature=model_signature,
+                covariate_columns=covariate_columns,
+                future_covariate_columns=future_covariate_columns,
+                past_covariate_columns=past_covariate_columns,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            incompatibilities.append(f"{candidate}: {exc}")
+            continue
+
+        return CheckpointResolution(
+            checkpoint_dir=candidate,
+            status="compatible_exists",
+            reason=None,
+        )
+
+    return CheckpointResolution(
+        checkpoint_dir=checkpoint_dir,
+        status="incompatible_manifest",
+        reason="\n\n".join(incompatibilities),
+    )
+
+
 def resolve_checkpoint_status(
     *,
     checkpoint_dir: Path,
@@ -223,25 +307,18 @@ def resolve_checkpoint_status(
     future_covariate_columns: tuple[str, ...],
     past_covariate_columns: tuple[str, ...],
 ) -> tuple[CheckpointStatus, str | None]:
-    if not checkpoint_dir.exists():
-        return "missing", None
-
-    try:
-        validate_checkpoint_manifest(
-            checkpoint_dir=checkpoint_dir,
-            config=config,
-            fold=fold,
-            model_slug=model_slug,
-            current_dataset_tag=current_dataset_tag,
-            model_signature=model_signature,
-            covariate_columns=covariate_columns,
-            future_covariate_columns=future_covariate_columns,
-            past_covariate_columns=past_covariate_columns,
-        )
-    except (FileNotFoundError, ValueError) as exc:
-        return "incompatible_manifest", str(exc)
-
-    return "compatible_exists", None
+    resolution = resolve_checkpoint(
+        checkpoint_dir=checkpoint_dir,
+        config=config,
+        fold=fold,
+        model_slug=model_slug,
+        current_dataset_tag=current_dataset_tag,
+        model_signature=model_signature,
+        covariate_columns=covariate_columns,
+        future_covariate_columns=future_covariate_columns,
+        past_covariate_columns=past_covariate_columns,
+    )
+    return resolution.status, resolution.reason
 
 
 def build_missing_checkpoint_error(

@@ -138,6 +138,8 @@ python main.py
 - Save/artifact locations are fixed in this module and are not configurable via CLI flags.
 - MLflow backend default:
   - `sqlite:///../../data/results/mlflow.db`
+- MLflow artifacts:
+  - auto-repaired to `../../data/results/mlflow-artifacts/<experiment_name>/` when the tracking DB contains a machine-specific stale path
 - MLflow experiments (auto-selected per model family):
   - `deep-learning-foundation-expanding-window`
   - `deep-learning-custom-expanding-window`
@@ -153,6 +155,7 @@ python main.py
 - Fine-tuned checkpoints:
   - `../../data/models/deep_learning/<model>/finetuned/<dataset_tag>/train_2013-<end>__test-<year>__<hash>/`
   - includes `checkpoint_manifest.json` for strict compatibility checks
+  - eval/test can auto-discover compatible legacy checkpoint folders for the same fold when transferred artifacts use an older hash/manifest scheme
 
 ## Model organization
 

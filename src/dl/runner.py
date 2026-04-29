@@ -17,7 +17,7 @@ from checkpoints import (
     build_checkpoint_dir,
     build_missing_checkpoint_error,
     dataset_tag,
-    resolve_checkpoint_status,
+    resolve_checkpoint,
     write_checkpoint_manifest,
 )
 from config import (
@@ -370,7 +370,7 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
             checkpoint_status: str | None = None
             checkpoint_reason: str | None = None
             if config.mode == "finetuned" and checkpoint_dir is not None:
-                checkpoint_status, checkpoint_reason = resolve_checkpoint_status(
+                checkpoint_resolution = resolve_checkpoint(
                     checkpoint_dir=checkpoint_dir,
                     config=config,
                     fold=fold,
@@ -381,6 +381,9 @@ def run(config: RuntimeConfig, bundle: DatasetBundle) -> pd.DataFrame:
                     future_covariate_columns=fold_data.future_covariate_columns,
                     past_covariate_columns=fold_data.past_covariate_columns,
                 )
+                checkpoint_dir = checkpoint_resolution.checkpoint_dir
+                checkpoint_status = checkpoint_resolution.status
+                checkpoint_reason = checkpoint_resolution.reason
 
                 if (
                     config.action == "train"
