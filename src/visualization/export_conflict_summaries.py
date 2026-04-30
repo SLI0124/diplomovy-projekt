@@ -585,6 +585,21 @@ def print_preview(
         print(f"... ({len(rows) - limit} dalších řádků)")
 
 
+def print_group_counts(
+    title: str, rows: Sequence[dict], group_fields: Sequence[str]
+) -> None:
+    grouped: dict[tuple[str, ...], set[str]] = defaultdict(set)
+    for row in rows:
+        key = tuple(str(row[field]) for field in group_fields)
+        grouped[key].add(str(row.get("run_dir", "")))
+
+    print(f"\n{title}")
+    print("-" * len(title))
+    for key in sorted(grouped):
+        label = " | ".join(key)
+        print(f"{label}: {len(grouped[key])} runs")
+
+
 def main() -> None:
     args = parse_args()
 
@@ -651,6 +666,17 @@ def main() -> None:
     print(f"Dlouhý režim, segmentové řádky: {len(regime_segments)}")
     print(f"Dlouhý režim, souhrnné řádky: {len(regime_summary)}")
     print(f"Dlouhý režim, nejnovější konfigurace: {len(regime_latest)}")
+
+    print_group_counts(
+        "Run counts by model/input (2022)",
+        split_2022_summary,
+        ["family", "model", "input_mode"],
+    )
+    print_group_counts(
+        "Run counts by model/input (full regime)",
+        regime_summary,
+        ["family", "model", "input_mode"],
+    )
 
     print_preview(
         "Přehled nejnovějších konfigurací pro rok 2022",
