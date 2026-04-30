@@ -169,8 +169,9 @@ def plot_mesicni_spotreba_a_teplota(df: pd.DataFrame, save_path: Path) -> None:
     ax1.legend(
         handles_left + handles_right,
         labels_left + labels_right,
-        loc="upper left",
+        loc="upper right",
         fontsize=LEGEND_FONT_SIZE,
+        framealpha=0,
     )
 
     plt.tight_layout()
