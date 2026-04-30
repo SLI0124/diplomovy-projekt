@@ -218,7 +218,7 @@ def _plot_yearly_mape(
         )
 
     ax.set_xlabel("Testovací rok")
-    ax.set_ylabel("MAPE")
+    ax.set_ylabel("MAPE (%)")
     years = sorted(plot_df["test_year"].unique())
     ax.set_xticks(years[::2])
     ax.grid(True, alpha=0.22)
@@ -352,7 +352,7 @@ def _plot_covariate_delta(
     )
     ax.axhline(0, color="#666666", linewidth=1.1)
     ax.set_xlabel("Model")
-    ax.set_ylabel("Rozdíl MAPE mezi režimy")
+    ax.set_ylabel("Rozdíl MAPE mezi režimy (%)")
     ax.grid(True, axis="y", alpha=0.22)
 
     output_path = (
@@ -389,7 +389,7 @@ def _plot_custom_yearly_mape(
     years = sorted(plot_df["test_year"].unique())
     ax.set_xticks(years[::2])
     ax.set_xlabel("Testovací rok")
-    ax.set_ylabel("MAPE")
+    ax.set_ylabel("MAPE (%)")
     ax.grid(True, alpha=0.22)
     ax.legend(frameon=False, ncol=1)
 
@@ -476,7 +476,7 @@ def _plot_custom_model_improvement_by_year(
     ax.bar(years, values, color=colors, width=0.72)
     ax.axhline(0, color="#666666", linewidth=1.1)
     ax.set_xlabel("Testovací rok")
-    ax.set_ylabel("Rozdíl MAPE")
+    ax.set_ylabel("Rozdíl MAPE mezi modely (%)")
     ax.set_xticks(years)
     ax.grid(True, axis="y", alpha=0.22)
 
